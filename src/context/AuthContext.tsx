@@ -15,6 +15,7 @@ export interface AuthState {
 interface AuthContextType extends AuthState {
   signIn: (email: string, password: string) => Promise<string | null>;
   signOut: () => Promise<void>;
+  verifySession: () => Promise<boolean>;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -25,6 +26,7 @@ const AuthContext = createContext<AuthContextType>({
   error: null,
   signIn: async () => null,
   signOut: async () => {},
+  verifySession: async () => false,
 });
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -51,24 +53,45 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return;
     }
     const profile = await fetchProfile(user.id);
+    const userRole = profile?.role as UserRole;
     setState({
       user,
-      role: (profile?.role as UserRole) || 'institution_admin',
+      role: userRole || 'institution_admin',
       institutionId: profile?.institution_id || null,
       loading: false,
       error: null,
     });
   }, [fetchProfile]);
 
-  useEffect(() => {
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
-      syncAuth(session?.user ?? null);
-    });
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      syncAuth(session?.user ?? null);
-    });
-    return () => listener?.subscription.unsubscribe();
+  const verifySession = useCallback(async () => {
+    try {
+      const { data: { session }, error } = await supabase.auth.getSession();
+      if (error || !session) {
+        setState({ user: null, role: null, institutionId: null, loading: false, error: 'No active session' });
+        return false;
+      }
+      await syncAuth(session.user);
+      return true;
+    } catch (error) {
+      console.error('[Auth] Session verification error:', error);
+      setState({ user: null, role: null, institutionId: null, loading: false, error: 'Session verification failed' });
+      return false;
+    }
   }, [syncAuth]);
+
+  useEffect(() => {
+    void verifySession();
+
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (_event === 'SIGNED_OUT') {
+        setState({ user: null, role: null, institutionId: null, loading: false, error: null });
+      } else if (session) {
+        syncAuth(session.user);
+      }
+    });
+
+    return () => listener?.subscription.unsubscribe();
+  }, [syncAuth, verifySession]);
 
   const signIn = async (email: string, password: string): Promise<string | null> => {
     setState((prev) => ({ ...prev, loading: true, error: null }));
@@ -87,10 +110,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ ...state, signIn, signOut }}>
+    <AuthContext.Provider value={{ ...state, signIn, signOut, verifySession }}>
       {children}
     </AuthContext.Provider>
   );
 }
 
 export const useAuth = () => useContext(AuthContext);
+
+export function useRequireAuth(requiredRole: UserRole | UserRole[]) {
+  const { user, role, loading } = useAuth();
+
+  if (loading) {
+    return false;
+  }
+
+  if (!user) {
+    return false;
+  }
+
+  if (Array.isArray(requiredRole)) {
+    return requiredRole.includes(role as UserRole);
+  }
+
+  return role === requiredRole;
+}

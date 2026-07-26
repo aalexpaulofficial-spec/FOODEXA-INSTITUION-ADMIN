@@ -43,12 +43,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   const superAdminNav: { id: string; label: string; icon: any; badge?: string | null; badgeColor?: string; isAi?: boolean }[] = [
     { id: 'superadmin', label: 'Platform Overview', icon: ShieldCheck },
-    { id: 'institution_approval', label: 'Institution Approval', icon: Building2 },
+    { id: 'institution_approval', label: 'Institution Requests', icon: Building2 },
     { id: 'vendor_approval', label: 'Global Vendors', icon: CheckSquare },
     { id: 'global_analytics', label: 'Global Analytics', icon: BarChart3 },
     { id: 'subscriptions', label: 'Subscriptions', icon: CreditCard },
     { id: 'ai_insights', label: 'AI Risk & Insights', icon: BrainCircuit, isAi: true },
-    { id: 'system_settings', label: 'System Audit Logs', icon: Sliders }
+    { id: 'system_settings', label: 'Audit Logs', icon: Sliders }
   ];
 
   const navItems = currentPortal === 'super_admin' ? superAdminNav : institutionNav;

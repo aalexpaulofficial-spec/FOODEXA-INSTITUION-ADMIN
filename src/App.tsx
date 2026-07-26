@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useAuth } from './context/AuthContext';
 import { PortalRole } from './types';
 
@@ -34,6 +34,26 @@ export function App() {
   const [isAISearchOpen, setIsAISearchOpen] = useState(false);
   const [isStudentSyncOpen, setIsStudentSyncOpen] = useState(false);
 
+  const currentPortal: PortalRole = role === 'super_admin' ? 'super_admin' : 'campus_admin';
+
+  const institutionTabs = useMemo(() => [
+    'dashboard', 'students', 'canteens', 'kitchen', 'orders', 'menus',
+    'analytics', 'reports', 'campus', 'staff', 'notifications', 'ai_center', 'settings'
+  ], []);
+
+  const superAdminTabs = useMemo(() => [
+    'superadmin', 'institution_approval', 'vendor_approval', 'global_analytics',
+    'subscriptions', 'ai_insights', 'system_settings'
+  ], []);
+
+  useEffect(() => {
+    if (role === 'super_admin' && institutionTabs.includes(currentTab)) {
+      setCurrentTab('superadmin');
+    } else if (role === 'institution_admin' && superAdminTabs.includes(currentTab)) {
+      setCurrentTab('dashboard');
+    }
+  }, [role, currentTab, institutionTabs, superAdminTabs]);
+
   const institutionId = role === 'institution_admin' ? authInstId : null;
   const {
     institution, students, vendors, counters, orders, menuItems, kitchenQueue,
@@ -44,8 +64,6 @@ export function App() {
     addCounter, toggleCounterAvailability, updateKitchenStatus, updateOrderStatus,
     addMenuItem, toggleMenuAvailability, toggleStaffPermission, addAnnouncement,
   } = useInstitutionData(institutionId);
-
-  const currentPortal: PortalRole = role === 'super_admin' ? 'super_admin' : 'campus_admin';
 
   if (authLoading) {
     return (
@@ -60,6 +78,17 @@ export function App() {
 
   if (!user) {
     return <LoginView />;
+  }
+
+  if (role === 'institution_admin' && !authInstId) {
+    return (
+      <div className="min-h-screen bg-[#09090B] text-[#FAFAFA] flex items-center justify-center">
+        <div className="max-w-md w-full p-8 bg-[#0C0C0E] rounded-2xl border border-zinc-800">
+          <h2 className="text-xl font-bold mb-4">Access Error</h2>
+          <p className="text-zinc-400">You are logged in but not associated with an institution. Please contact support.</p>
+        </div>
+      </div>
+    );
   }
 
   const handleUpdateOrderStatus = (orderId: string, status: any) => {
@@ -103,7 +132,11 @@ export function App() {
               </div>
             ) : (
               <>
-                {currentPortal !== 'super_admin' && (
+                {currentPortal === 'super_admin' && role === 'super_admin' && (
+                  <SuperAdminView />
+                )}
+
+                {currentPortal === 'campus_admin' && role === 'institution_admin' && (
                   <>
                     {currentTab === 'dashboard' && (
                       <HomeDashboard
@@ -188,10 +221,6 @@ export function App() {
                       <SettingsView currentInstitution={institution || { id: '', name: 'Your Institution', code: '', location: '', studentsCount: 0, vendorsCount: 0, dailyOrdersCount: 0, monthlyRevenue: 0, status: 'active', contactPerson: '', email: '', phone: '', joinedDate: '', plan: 'Basic' }} auditLogs={auditLogs} />
                     )}
                   </>
-                )}
-
-                {currentPortal === 'super_admin' && (
-                  <SuperAdminView />
                 )}
               </>
             )}
