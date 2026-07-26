@@ -17,10 +17,12 @@ export interface SuperAdminContextType {
   approveRequest: (id: string) => Promise<void>;
   rejectRequest: (id: string, reason?: string) => Promise<void>;
   requestChanges: (id: string, notes: string) => Promise<void>;
+  disableInstitution: (id: string) => Promise<void>;
   suspendInstitution: (id: string) => Promise<void>;
   activateInstitution: (id: string) => Promise<void>;
   deleteInstitution: (id: string) => Promise<void>;
   updateInstitution: (id: string, updates: Partial<SupabaseInstitution>) => Promise<void>;
+  editRequest: (id: string, updates: Partial<InstitutionRequest>) => Promise<void>;
   createAuditLog: (action: string, target: string, targetId?: string, details?: string) => Promise<void>;
   markNotificationRead: (id: string) => Promise<void>;
   markAllNotificationsRead: () => Promise<void>;

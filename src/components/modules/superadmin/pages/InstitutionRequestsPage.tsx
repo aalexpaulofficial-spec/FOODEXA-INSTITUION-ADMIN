@@ -3,7 +3,7 @@ import {
   Search, Building2, Building, Users, Phone, Globe, Layers, Tag, CheckCircle2, XCircle, MessageSquare,
   Eye, Download, Loader2, Clock, MapPin, Calendar, CreditCard, Edit3, Trash2, Store, TrendingUp,
   DollarSign, Activity, BarChart2, Globe2, CheckCircle, X, Send, Copy, FileText, History,
-  Check, AlarmClock, RefreshCw, Plus, Sparkles
+  Check, AlarmClock, RefreshCw, Plus, Sparkles, Ban
 } from 'lucide-react';
 import { useSuperAdminData, SuperAdminContextType } from './components/SuperAdminDataProvider';
 import { InstitutionLogo, StatusBadge, SkeletonCard, Modal, downloadRequestPDF } from './components/SuperAdminShared';
@@ -12,18 +12,21 @@ export const InstitutionRequestsPage: React.FC = () => {
   const {
     institutionRequests, approvedInstitutions, loading, totalStudents, totalOrders, totalVendors,
     totalRevenue, unreadCount, auditLogs, notifications, isRealtime,
-    approveRequest, rejectRequest, requestChanges, suspendInstitution, activateInstitution,
-    deleteInstitution, updateInstitution, createAuditLog, markNotificationRead,
+    approveRequest, rejectRequest, requestChanges, disableInstitution, suspendInstitution, activateInstitution,
+    deleteInstitution, updateInstitution, editRequest, createAuditLog, markNotificationRead,
     markAllNotificationsRead, globalSearch, refresh,
   } = useSuperAdminData();
 
   const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'active' | 'rejected' | 'suspended' | 'changes_requested'>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'active' | 'rejected' | 'suspended' | 'changes_requested' | 'disabled'>('all');
   const [selectedRequest, setSelectedRequest] = useState<any>(null);
   const [rejectModal, setRejectModal] = useState<any>(null);
   const [rejectReason, setRejectReason] = useState('');
   const [changesModal, setChangesModal] = useState<any>(null);
   const [changesNotes, setChangesNotes] = useState('');
+  const [editModal, setEditModal] = useState<any>(null);
+  const [editForm, setEditForm] = useState<any>({});
+  const [disableConfirm, setDisableConfirm] = useState<any>(null);
 
   const [toasts, setToasts] = useState<{ id: string; msg: string; type?: 'success' | 'info' | 'error' }[]>([]);
   const addToast = (msg: string, type: 'success' | 'info' | 'error' = 'success') => {
@@ -64,6 +67,20 @@ export const InstitutionRequestsPage: React.FC = () => {
     setChangesNotes('');
   };
 
+  const handleEdit = async () => {
+    if (!editModal) return;
+    await editRequest(editModal.id, editForm);
+    addToast(`Updated: ${editModal.institution_name}`);
+    setEditModal(null);
+  };
+
+  const handleDisable = async () => {
+    if (!disableConfirm) return;
+    await disableInstitution(disableConfirm.id);
+    addToast(`Disabled: ${disableConfirm.institution_name}`, 'info');
+    setDisableConfirm(null);
+  };
+
   return (
     <div className="space-y-6 animate-fade-in font-sans pb-16">
       <div className="fixed bottom-6 right-6 z-50 flex flex-col space-y-2 pointer-events-none">
@@ -95,7 +112,7 @@ export const InstitutionRequestsPage: React.FC = () => {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         <div className="p-4 rounded-2xl bg-[#0C0C0E] border border-slate-800 shadow-xl space-y-1.5">
           <div className="flex items-center justify-between text-slate-400 text-[11px] font-bold uppercase tracking-wider">
             <span>Total Requests</span>
@@ -125,6 +142,14 @@ export const InstitutionRequestsPage: React.FC = () => {
         </div>
         <div className="p-4 rounded-2xl bg-[#0C0C0E] border border-slate-800 shadow-xl space-y-1.5">
           <div className="flex items-center justify-between text-slate-400 text-[11px] font-bold uppercase tracking-wider">
+            <span>Disabled</span>
+            <Ban className="w-4 h-4 text-orange-400" />
+          </div>
+          <div className="text-2xl font-black text-orange-400 font-mono">{institutionRequests.filter((r) => r.status === 'disabled').length}</div>
+          <div className="text-[11px] text-orange-400 font-medium">Blocked accounts</div>
+        </div>
+        <div className="p-4 rounded-2xl bg-[#0C0C0E] border border-slate-800 shadow-xl space-y-1.5">
+          <div className="flex items-center justify-between text-slate-400 text-[11px] font-bold uppercase tracking-wider">
             <span>Changes Requested</span>
             <MessageSquare className="w-4 h-4 text-blue-400" />
           </div>
@@ -147,6 +172,7 @@ export const InstitutionRequestsPage: React.FC = () => {
             <option value="active">Approved</option>
             <option value="rejected">Rejected</option>
             <option value="suspended">Suspended</option>
+            <option value="disabled">Disabled</option>
             <option value="changes_requested">Changes Requested</option>
           </select>
         </div>
@@ -224,11 +250,21 @@ export const InstitutionRequestsPage: React.FC = () => {
                   </div>
                 )}
                 {req.status !== 'pending' && (
-                  <div className="flex items-center gap-2 pt-1">
+                  <div className="flex items-center gap-2 pt-1 flex-wrap">
                     <button onClick={() => setSelectedRequest(req)}
                       className="px-3 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 text-xs font-semibold transition-all flex items-center gap-1.5">
                       <Eye className="w-3.5 h-3.5" /> View Details
                     </button>
+                    <button onClick={() => { setEditModal(req); setEditForm(req); }}
+                      className="px-3 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 text-xs font-semibold transition-all flex items-center gap-1.5">
+                      <Edit3 className="w-3.5 h-3.5" /> Edit
+                    </button>
+                    {req.status === 'active' && (
+                      <button onClick={() => setDisableConfirm(req)}
+                        className="px-3 py-2 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-400 text-xs font-semibold transition-all flex items-center gap-1.5">
+                        <Ban className="w-3.5 h-3.5" /> Disable
+                      </button>
+                    )}
                     <button onClick={() => downloadRequestPDF(req)}
                       className="px-3 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 text-xs font-semibold transition-all flex items-center gap-1.5">
                       <Download className="w-3.5 h-3.5" /> Download
@@ -337,6 +373,60 @@ export const InstitutionRequestsPage: React.FC = () => {
               className="w-full py-3 rounded-xl bg-blue-500/20 hover:bg-blue-500/30 border border-blue-500/40 text-blue-400 font-bold text-xs flex items-center justify-center gap-2 disabled:opacity-50">
               <Send className="w-4 h-4" /> Send Request
             </button>
+          </div>
+        )}
+      </Modal>
+
+      <Modal open={!!editModal} onClose={() => setEditModal(null)} title="Edit Institution Request">
+        {editModal && (
+          <div className="space-y-3">
+            <input type="text" value={editForm.institution_name || ''} onChange={(e) => setEditForm({ ...editForm, institution_name: e.target.value })}
+              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-amber-500/50" placeholder="Institution Name" />
+            <input type="email" value={editForm.institution_email || ''} onChange={(e) => setEditForm({ ...editForm, institution_email: e.target.value })}
+              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-amber-500/50" placeholder="Email" />
+            <input type="text" value={editForm.contact_person || ''} onChange={(e) => setEditForm({ ...editForm, contact_person: e.target.value })}
+              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-amber-500/50" placeholder="Contact Person" />
+            <input type="tel" value={editForm.phone_number || ''} onChange={(e) => setEditForm({ ...editForm, phone_number: e.target.value })}
+              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-amber-500/50" placeholder="Phone" />
+            <input type="text" value={editForm.campus || ''} onChange={(e) => setEditForm({ ...editForm, campus: e.target.value })}
+              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-amber-500/50" placeholder="Campus" />
+            <input type="text" value={editForm.city || ''} onChange={(e) => setEditForm({ ...editForm, city: e.target.value })}
+              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-amber-500/50" placeholder="City" />
+            <input type="text" value={editForm.state || ''} onChange={(e) => setEditForm({ ...editForm, state: e.target.value })}
+              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-amber-500/50" placeholder="State" />
+            <input type="text" value={editForm.country || ''} onChange={(e) => setEditForm({ ...editForm, country: e.target.value })}
+              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-amber-500/50" placeholder="Country" />
+            <select value={editForm.plan || 'Basic'} onChange={(e) => setEditForm({ ...editForm, plan: e.target.value as 'Basic' | 'Pro' | 'Enterprise' })}
+              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none">
+              <option value="Basic">Basic</option>
+              <option value="Pro">Pro</option>
+              <option value="Enterprise">Enterprise</option>
+            </select>
+            <button onClick={handleEdit}
+              className="w-full py-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs flex items-center justify-center gap-2">
+              <Check className="w-4 h-4" /> Save Changes
+            </button>
+          </div>
+        )}
+      </Modal>
+
+      <Modal open={!!disableConfirm} onClose={() => setDisableConfirm(null)} title="Disable Institution">
+        {disableConfirm && (
+          <div className="space-y-4">
+            <p className="text-xs text-slate-400">
+              Are you sure you want to disable <strong className="text-white">{disableConfirm.institution_name}</strong>?
+              The institution admin will no longer be able to log in until re-enabled.
+            </p>
+            <div className="flex gap-3">
+              <button onClick={() => setDisableConfirm(null)}
+                className="flex-1 py-2.5 rounded-xl bg-slate-900 border border-slate-800 text-slate-300 text-xs font-bold">
+                Cancel
+              </button>
+              <button onClick={handleDisable}
+                className="flex-1 py-2.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-400 text-xs font-bold flex items-center justify-center gap-2">
+                <Ban className="w-4 h-4" /> Disable
+              </button>
+            </div>
           </div>
         )}
       </Modal>

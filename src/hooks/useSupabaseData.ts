@@ -20,7 +20,7 @@ export interface InstitutionRequest {
   food_courts_count?: string;
   vendors_count?: string;
   message?: string;
-  status: 'pending' | 'active' | 'rejected' | 'suspended' | 'changes_requested';
+  status: 'pending' | 'active' | 'rejected' | 'suspended' | 'changes_requested' | 'disabled';
   created_at: string;
   plan?: 'Basic' | 'Pro' | 'Enterprise';
   rejection_reason?: string;
@@ -37,7 +37,7 @@ export interface SupabaseInstitution {
   vendors_count?: number;
   daily_orders_count?: number;
   monthly_revenue?: number;
-  status: 'active' | 'pending_approval' | 'suspended';
+  status: 'active' | 'pending_approval' | 'suspended' | 'disabled';
   contact_person?: string;
   email?: string;
   phone?: string;
@@ -47,6 +47,13 @@ export interface SupabaseInstitution {
   type?: string;
   created_at?: string;
   last_login?: string;
+  campus?: string;
+  city?: string;
+  state?: string;
+  country?: string;
+  institution_website?: string;
+  student_population?: number;
+  food_courts_count?: number;
 }
 
 export interface AuditLog {
@@ -94,10 +101,12 @@ interface UseSupabaseDataReturn {
   approveRequest: (id: string) => Promise<void>;
   rejectRequest: (id: string, reason?: string) => Promise<void>;
   requestChanges: (id: string, notes: string) => Promise<void>;
+  disableInstitution: (id: string) => Promise<void>;
   suspendInstitution: (id: string) => Promise<void>;
   activateInstitution: (id: string) => Promise<void>;
   deleteInstitution: (id: string) => Promise<void>;
   updateInstitution: (id: string, updates: Partial<SupabaseInstitution>) => Promise<void>;
+  editRequest: (id: string, updates: Partial<InstitutionRequest>) => Promise<void>;
   createAuditLog: (action: string, target: string, targetId?: string, details?: string) => Promise<void>;
   markNotificationRead: (id: string) => Promise<void>;
   markAllNotificationsRead: () => Promise<void>;
@@ -270,13 +279,31 @@ export function useSupabaseData(): UseSupabaseDataReturn {
   }, [fetchAll]);
 
   // ---------------------------------------------------------------
-  // Generate institution code
+  // Generate institution code (format: CHRKNG2026, unique per branch)
   // ---------------------------------------------------------------
-  const generateInstitutionCode = (name: string): string => {
+  const generateInstitutionCode = async (name: string, campus?: string): Promise<string> => {
     const words = name.replace(/[^a-zA-Z\s]/g, '').split(/\s+/);
-    const prefix = words.map((w) => w[0]).join('').toUpperCase().slice(0, 3);
-    const num = Math.floor(1000 + Math.random() * 9000);
-    return `${prefix}-${num}`;
+    const prefix = words.map((w) => w[0]).join('').toUpperCase().slice(0, 4);
+    const year = new Date().getFullYear();
+
+    // Check existing codes to ensure uniqueness (different branch = different code)
+    const baseCode = campus
+      ? `${prefix}${campus.replace(/[^a-zA-Z]/g, '').toUpperCase().slice(0, 2)}${year}`
+      : `${prefix}${year}`;
+
+    const { data: existing } = await supabase
+      .from(INSTITUTIONS_TABLE)
+      .select('code')
+      .like('code', `${baseCode}%`);
+
+    if (!existing || existing.length === 0) return baseCode;
+
+    // If code exists, append branch suffix
+    let suffix = 1;
+    while (existing.some((e) => e.code === `${baseCode}${suffix > 0 ? String(suffix).padStart(2, '0') : ''}`)) {
+      suffix++;
+    }
+    return suffix > 1 ? `${baseCode}${String(suffix).padStart(2, '0')}` : baseCode;
   };
 
   // ---------------------------------------------------------------
@@ -286,7 +313,14 @@ export function useSupabaseData(): UseSupabaseDataReturn {
     const request = institutionRequests.find((r) => r.id === id);
     if (!request) return;
 
-    const institutionCode = generateInstitutionCode(request.institution_name);
+    const institutionCode = await generateInstitutionCode(request.institution_name, request.campus);
+
+    // Generate secure temporary password
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%';
+    let tempPassword = '';
+    for (let i = 0; i < 16; i++) {
+      tempPassword += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
 
     // Update request status
     const { error: updateErr } = await supabase
@@ -316,9 +350,37 @@ export function useSupabaseData(): UseSupabaseDataReturn {
       students_count: parseInt(request.student_population || '0', 10) || 0,
       vendors_count: parseInt(request.vendors_count || '0', 10) || 0,
       type: 'Institution',
+      campus: request.campus || null,
+      city: request.city || null,
+      state: request.state || null,
+      country: request.country || null,
+      institution_website: request.institution_website || null,
+      food_courts_count: parseInt(request.food_courts_count || '0', 10) || 0,
     };
 
     await supabase.from(INSTITUTIONS_TABLE).insert(institutionRecord);
+
+    // Create auth user + send email via server endpoint
+    try {
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+      await fetch(`${supabaseUrl}/functions/v1/approve-institution`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${supabaseAnonKey}`,
+        },
+        body: JSON.stringify({
+          institution_name: request.institution_name,
+          institution_email: request.institution_email,
+          institution_code: institutionCode,
+          contact_person: request.contact_person,
+          temp_password: tempPassword,
+        }),
+      });
+    } catch (emailErr) {
+      console.error('[Email] Failed to send approval email:', emailErr);
+    }
 
     // Create audit log
     await createAuditLog('Institution Approved', request.institution_name, id, `Code: ${institutionCode}`);
@@ -326,7 +388,7 @@ export function useSupabaseData(): UseSupabaseDataReturn {
     // Create notification
     await supabase.from(NOTIFICATIONS_TABLE).insert({
       title: 'Institution Approved',
-      message: `${request.institution_name} has been approved and is now active on the platform.`,
+      message: `${request.institution_name} has been approved and is now active on the platform. Code: ${institutionCode}`,
       type: 'success',
       read: false,
     });
@@ -357,6 +419,26 @@ export function useSupabaseData(): UseSupabaseDataReturn {
       return;
     }
 
+    // Send rejection email
+    try {
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+      await fetch(`${supabaseUrl}/functions/v1/send-rejection-email`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${supabaseAnonKey}`,
+        },
+        body: JSON.stringify({
+          institution_name: request.institution_name,
+          institution_email: request.institution_email,
+          rejection_reason: reason || 'No specific reason provided.',
+        }),
+      });
+    } catch (emailErr) {
+      console.error('[Email] Failed to send rejection email:', emailErr);
+    }
+
     await createAuditLog('Institution Rejected', request.institution_name, id, reason || 'No reason provided');
 
     await supabase.from(NOTIFICATIONS_TABLE).insert({
@@ -368,6 +450,35 @@ export function useSupabaseData(): UseSupabaseDataReturn {
 
     setInstitutionRequests((prev) =>
       prev.map((r) => (r.id === id ? { ...r, status: 'rejected', rejection_reason: reason } : r))
+    );
+  };
+
+  // ---------------------------------------------------------------
+  // Disable an institution (blocks login until re-enabled)
+  // ---------------------------------------------------------------
+  const disableInstitution = async (id: string) => {
+    const inst = approvedInstitutions.find((i) => i.id === id);
+    await supabase.from(INSTITUTIONS_TABLE).update({ status: 'disabled' }).eq('id', id);
+
+    // Also update the original request status
+    const request = institutionRequests.find((r) => r.institution_code === inst?.code);
+    if (request) {
+      await supabase.from(REQUESTS_TABLE).update({ status: 'disabled' }).eq('id', request.id);
+    }
+
+    await createAuditLog('Institution Disabled', inst?.name || id, id);
+    await supabase.from(NOTIFICATIONS_TABLE).insert({
+      title: 'Institution Disabled',
+      message: `${inst?.name || 'An institution'} has been disabled. Admin can no longer log in.`,
+      type: 'warning',
+      read: false,
+    });
+
+    setApprovedInstitutions((prev) =>
+      prev.map((i) => (i.id === id ? { ...i, status: 'disabled' } : i))
+    );
+    setInstitutionRequests((prev) =>
+      prev.map((r) => (r.institution_code === inst?.code ? { ...r, status: 'disabled' as const } : r))
     );
   };
 
@@ -402,6 +513,26 @@ export function useSupabaseData(): UseSupabaseDataReturn {
 
     setInstitutionRequests((prev) =>
       prev.map((r) => (r.id === id ? { ...r, status: 'changes_requested', admin_notes: notes } : r))
+    );
+  };
+
+  // ---------------------------------------------------------------
+  // Edit a request (admin can update details before approval)
+  // ---------------------------------------------------------------
+  const editRequest = async (id: string, updates: Partial<InstitutionRequest>) => {
+    const request = institutionRequests.find((r) => r.id === id);
+    if (!request) return;
+
+    const { error } = await supabase.from(REQUESTS_TABLE).update(updates).eq('id', id);
+    if (error) {
+      console.error('[Supabase] Edit request error:', error.message);
+      return;
+    }
+
+    await createAuditLog('Request Edited', request.institution_name, id, JSON.stringify(updates));
+
+    setInstitutionRequests((prev) =>
+      prev.map((r) => (r.id === id ? { ...r, ...updates } : r))
     );
   };
 
@@ -566,10 +697,12 @@ export function useSupabaseData(): UseSupabaseDataReturn {
     approveRequest,
     rejectRequest,
     requestChanges,
+    disableInstitution,
     suspendInstitution,
     activateInstitution,
     deleteInstitution,
     updateInstitution,
+    editRequest,
     createAuditLog,
     markNotificationRead,
     markAllNotificationsRead,

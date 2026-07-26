@@ -19,6 +19,7 @@ export const StatusBadge: React.FC<{ status: string }> = ({ status }) => {
     active: { color: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30', label: 'Active' },
     rejected: { color: 'bg-red-500/10 text-red-400 border-red-500/30', label: 'Rejected' },
     suspended: { color: 'bg-slate-500/10 text-slate-400 border-slate-500/30', label: 'Suspended' },
+    disabled: { color: 'bg-orange-500/10 text-orange-400 border-orange-500/30', label: 'Disabled' },
     pending_approval: { color: 'bg-amber-500/10 text-amber-400 border-amber-500/30', label: 'Pending' },
     changes_requested: { color: 'bg-blue-500/10 text-blue-400 border-blue-500/30', label: 'Changes Requested' },
   };
@@ -55,36 +56,91 @@ export const Modal: React.FC<{ open: boolean; onClose: () => void; title: string
 };
 
 export const downloadRequestPDF = (req: InstitutionRequest) => {
-  const lines = [
-    'INSTITUTION REGISTRATION REQUEST',
-    '================================',
-    '',
-    `Institution Name: ${req.institution_name}`,
-    `Email: ${req.institution_email}`,
-    `Contact Person: ${req.contact_person}`,
-    `Phone: ${req.phone_number || 'N/A'}`,
-    `Website: ${req.institution_website || 'N/A'}`,
-    `City: ${req.city || 'N/A'}`,
-    `State: ${req.state || 'N/A'}`,
-    `Country: ${req.country || 'N/A'}`,
-    `Campus: ${req.campus || 'N/A'}`,
-    `Student Population: ${req.student_population || 'N/A'}`,
-    `Food Courts: ${req.food_courts_count || 'N/A'}`,
-    `Vendors: ${req.vendors_count || 'N/A'}`,
-    `Plan: ${req.plan || 'Basic'}`,
-    `Status: ${req.status}`,
-    `Submitted: ${new Date(req.created_at).toLocaleString()}`,
-    `Message: ${req.message || 'None'}`,
-    req.rejection_reason ? `Rejection Reason: ${req.rejection_reason}` : '',
-    req.admin_notes ? `Admin Notes: ${req.admin_notes}` : '',
-    req.institution_code ? `Institution Code: ${req.institution_code}` : '',
-  ].filter(Boolean).join('\n');
+  const institutionCode = req.institution_code || 'N/A';
+  const now = new Date().toLocaleString();
 
-  const blob = new Blob([lines], { type: 'text/plain' });
+  const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>FOODEXA - Institution Request ${institutionCode}</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f8fafc; padding: 40px; color: #1e293b; }
+    .header { text-align: center; margin-bottom: 32px; border-bottom: 3px solid #6366f1; padding-bottom: 20px; }
+    .header h1 { font-size: 28px; color: #6366f1; letter-spacing: 2px; }
+    .header p { color: #64748b; font-size: 12px; margin-top: 4px; }
+    .section { margin-bottom: 24px; }
+    .section h2 { font-size: 14px; color: #6366f1; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 12px; border-bottom: 1px solid #e2e8f0; padding-bottom: 6px; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .field { padding: 10px 14px; background: white; border: 1px solid #e2e8f0; border-radius: 8px; }
+    .field label { font-size: 10px; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; display: block; margin-bottom: 4px; }
+    .field span { font-size: 13px; font-weight: 600; color: #1e293b; }
+    .status { display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 11px; font-weight: 700; text-transform: uppercase; }
+    .status-pending { background: #fef3c7; color: #d97706; }
+    .status-active { background: #d1fae5; color: #059669; }
+    .status-rejected { background: #fee2e2; color: #dc2626; }
+    .footer { text-align: center; margin-top: 40px; padding-top: 16px; border-top: 1px solid #e2e8f0; color: #94a3b8; font-size: 11px; }
+    .message-box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px; font-style: italic; color: #475569; margin-top: 12px; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>FOODEXA</h1>
+    <p>Institution Registration Request</p>
+    <p>Code: ${institutionCode} | Generated: ${now}</p>
+  </div>
+
+  <div class="section">
+    <h2>Institution Information</h2>
+    <div class="grid">
+      <div class="field"><label>Institution Name</label><span>${req.institution_name}</span></div>
+      <div class="field"><label>Email</label><span>${req.institution_email}</span></div>
+      <div class="field"><label>Contact Person</label><span>${req.contact_person}</span></div>
+      <div class="field"><label>Phone</label><span>${req.phone_number || 'N/A'}</span></div>
+      <div class="field"><label>Website</label><span>${req.institution_website || 'N/A'}</span></div>
+      <div class="field"><label>Campus</label><span>${req.campus || 'N/A'}</span></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>Location</h2>
+    <div class="grid">
+      <div class="field"><label>City</label><span>${req.city || 'N/A'}</span></div>
+      <div class="field"><label>State</label><span>${req.state || 'N/A'}</span></div>
+      <div class="field"><label>Country</label><span>${req.country || 'N/A'}</span></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>Details</h2>
+    <div class="grid">
+      <div class="field"><label>Student Population</label><span>${req.student_population || 'N/A'}</span></div>
+      <div class="field"><label>Food Courts</label><span>${req.food_courts_count || 'N/A'}</span></div>
+      <div class="field"><label>Vendors</label><span>${req.vendors_count || 'N/A'}</span></div>
+      <div class="field"><label>Plan</label><span>${req.plan || 'Basic'}</span></div>
+      <div class="field"><label>Submitted</label><span>${new Date(req.created_at).toLocaleString()}</span></div>
+      <div class="field"><label>Status</label><span class="status status-${req.status}">${req.status}</span></div>
+    </div>
+  </div>
+
+  ${req.message ? `<div class="section"><h2>Message</h2><div class="message-box">${req.message}</div></div>` : ''}
+  ${req.rejection_reason ? `<div class="section"><h2>Rejection Reason</h2><div class="message-box" style="border-color:#fca5a5;color:#dc2626;">${req.rejection_reason}</div></div>` : ''}
+  ${req.admin_notes ? `<div class="section"><h2>Admin Notes</h2><div class="message-box" style="border-color:#93c5fd;color:#2563eb;">${req.admin_notes}</div></div>` : ''}
+
+  <div class="footer">
+    <p>FOODEXA Enterprise - Institution Management Platform</p>
+    <p>This document was generated automatically on ${now}</p>
+  </div>
+</body>
+</html>`;
+
+  const blob = new Blob([html], { type: 'text/html' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `request-${req.institution_name.replace(/\s+/g, '-').toLowerCase()}.txt`;
+  a.download = `institution-request-${req.institution_name.replace(/\s+/g, '-').toLowerCase()}.html`;
   a.click();
   URL.revokeObjectURL(url);
 };

@@ -68,6 +68,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     }
 
+    // Check if institution is disabled
+    if (finalRole === 'institution_admin' && profile?.institution_id) {
+      const { data: inst } = await supabase
+        .from('institutions')
+        .select('status')
+        .eq('id', profile.institution_id)
+        .single();
+      if (inst?.status === 'disabled') {
+        setState({ user: null, role: null, institutionId: null, loading: false, error: 'Your institution account has been disabled. Please contact support.' });
+        await supabase.auth.signOut();
+        return;
+      }
+    }
+
     setState({
       user,
       role: finalRole,

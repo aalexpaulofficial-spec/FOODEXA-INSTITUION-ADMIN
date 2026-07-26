@@ -11,7 +11,7 @@ import { supabase } from '../../../../lib/supabaseClient';
 export const InstitutionDirectoryPage: React.FC = () => {
   const {
     approvedInstitutions, loading, isRealtime,
-    suspendInstitution, activateInstitution, deleteInstitution, updateInstitution, createAuditLog,
+    suspendInstitution, activateInstitution, disableInstitution, deleteInstitution, updateInstitution, createAuditLog,
     refresh,
   } = useSuperAdminData();
 
@@ -20,6 +20,7 @@ export const InstitutionDirectoryPage: React.FC = () => {
   const [editForm, setEditForm] = useState<any>({});
   const [deleteConfirm, setDeleteConfirm] = useState<any>(null);
   const [selectedInstitution, setSelectedInstitution] = useState<any>(null);
+  const [disableConfirm, setDisableConfirm] = useState<any>(null);
 
   const [toasts, setToasts] = useState<{ id: string; msg: string; type?: string }[]>([]);
   const addToast = (msg: string, type: string = 'success') => {
@@ -54,6 +55,13 @@ export const InstitutionDirectoryPage: React.FC = () => {
   const handleSuspend = async (id: string, name: string) => {
     await suspendInstitution(id);
     addToast(`Suspended: ${name}`, 'info');
+  };
+
+  const handleDisable = async () => {
+    if (!disableConfirm) return;
+    await disableInstitution(disableConfirm.id);
+    addToast(`Disabled: ${disableConfirm.name}`, 'info');
+    setDisableConfirm(null);
   };
 
   const handleActivate = async (id: string, name: string) => {
@@ -111,11 +119,11 @@ export const InstitutionDirectoryPage: React.FC = () => {
         </div>
         <div className="p-4 rounded-2xl bg-[#0C0C0E] border border-slate-800 shadow-xl space-y-1.5">
           <div className="flex items-center justify-between text-slate-400 text-[11px] font-bold uppercase tracking-wider">
-            <span>Suspended</span>
+            <span>Suspended / Disabled</span>
             <Ban className="w-4 h-4 text-red-400" />
           </div>
-          <div className="text-2xl font-black text-red-400 font-mono">{approvedInstitutions.filter((i) => i.status === 'suspended').length}</div>
-          <div className="text-[11px] text-red-400 font-medium">Suspended accounts</div>
+          <div className="text-2xl font-black text-red-400 font-mono">{approvedInstitutions.filter((i) => i.status === 'suspended' || i.status === 'disabled').length}</div>
+          <div className="text-[11px] text-red-400 font-medium">Blocked accounts</div>
         </div>
         <div className="p-4 rounded-2xl bg-[#0C0C0E] border border-slate-800 shadow-xl space-y-1.5">
           <div className="flex items-center justify-between text-slate-400 text-[11px] font-bold uppercase tracking-wider">
@@ -187,11 +195,17 @@ export const InstitutionDirectoryPage: React.FC = () => {
                   <Edit3 className="w-3 h-3" /> Edit
                 </button>
                 {inst.status === 'active' ? (
-                  <button onClick={() => handleSuspend(inst.id, inst.name)}
-                    className="px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-800 text-slate-400 hover:text-amber-400 text-[11px] font-semibold transition-all">
-                    Suspend
-                  </button>
-                ) : inst.status === 'suspended' ? (
+                  <>
+                    <button onClick={() => handleSuspend(inst.id, inst.name)}
+                      className="px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-800 text-slate-400 hover:text-amber-400 text-[11px] font-semibold transition-all">
+                      Suspend
+                    </button>
+                    <button onClick={() => setDisableConfirm(inst)}
+                      className="px-3 py-1.5 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-400 hover:bg-amber-500/20 text-[11px] font-semibold transition-all flex items-center gap-1">
+                      <Ban className="w-3 h-3" /> Disable
+                    </button>
+                  </>
+                ) : inst.status === 'suspended' || inst.status === 'disabled' ? (
                   <button onClick={() => handleActivate(inst.id, inst.name)}
                     className="px-3 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-[11px] font-semibold transition-all">
                     Reactivate
@@ -280,6 +294,27 @@ export const InstitutionDirectoryPage: React.FC = () => {
               <button onClick={handleDelete}
                 className="flex-1 py-2.5 rounded-xl bg-red-500/20 hover:bg-red-500/30 border border-red-500/40 text-red-400 text-xs font-bold flex items-center justify-center gap-2">
                 <Trash2 className="w-4 h-4" /> Delete
+              </button>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      <Modal open={!!disableConfirm} onClose={() => setDisableConfirm(null)} title="Disable Institution">
+        {disableConfirm && (
+          <div className="space-y-4">
+            <p className="text-xs text-slate-400">
+              Are you sure you want to disable <strong className="text-white">{disableConfirm.name}</strong>?
+              The institution admin will no longer be able to log in until re-enabled.
+            </p>
+            <div className="flex gap-3">
+              <button onClick={() => setDisableConfirm(null)}
+                className="flex-1 py-2.5 rounded-xl bg-slate-900 border border-slate-800 text-slate-300 text-xs font-bold">
+                Cancel
+              </button>
+              <button onClick={handleDisable}
+                className="flex-1 py-2.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-400 text-xs font-bold flex items-center justify-center gap-2">
+                <Ban className="w-4 h-4" /> Disable
               </button>
             </div>
           </div>
