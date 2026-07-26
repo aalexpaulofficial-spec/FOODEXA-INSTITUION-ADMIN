@@ -20,6 +20,7 @@ export function LoginView() {
     }
     setErrorMsg(null);
     setIsLoading(true);
+    localStorage.setItem('foodexa_role_preference', isSuperAdminLogin ? 'super_admin' : 'institution_admin');
     const err = await signIn(email, password);
     setIsLoading(false);
     if (err) {

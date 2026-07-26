@@ -83,9 +83,15 @@ export function App() {
   if (role === 'institution_admin' && !authInstId) {
     return (
       <div className="min-h-screen bg-[#09090B] text-[#FAFAFA] flex items-center justify-center">
-        <div className="max-w-md w-full p-8 bg-[#0C0C0E] rounded-2xl border border-zinc-800">
-          <h2 className="text-xl font-bold mb-4">Access Error</h2>
-          <p className="text-zinc-400">You are logged in but not associated with an institution. Please contact support.</p>
+        <div className="max-w-md w-full p-8 bg-[#0C0C0E] rounded-2xl border border-zinc-800 text-center">
+          <h2 className="text-xl font-bold mb-4 text-red-500">Access Error</h2>
+          <p className="text-zinc-400 mb-6">You are logged in but not associated with an institution. Please contact support or sign in with a different account.</p>
+          <button
+            onClick={signOut}
+            className="px-6 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-semibold transition-colors"
+          >
+            Sign Out
+          </button>
         </div>
       </div>
     );

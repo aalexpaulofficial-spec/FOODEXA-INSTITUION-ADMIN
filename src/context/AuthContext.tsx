@@ -53,10 +53,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return;
     }
     const profile = await fetchProfile(user.id);
-    const userRole = profile?.role as UserRole;
+    const dbRole = profile?.role as UserRole;
+    
+    // Read preference from login screen
+    const storedPref = localStorage.getItem('foodexa_role_preference') as UserRole | null;
+    
+    // Fallback logic if user_profiles doesn't exist or has no role
+    let finalRole: UserRole = dbRole;
+    if (!finalRole) {
+      if (storedPref === 'super_admin' || user.email === 'youngholyspiritteam@gmail.com') {
+        finalRole = 'super_admin';
+      } else {
+        finalRole = 'institution_admin';
+      }
+    }
+
     setState({
       user,
-      role: userRole || 'institution_admin',
+      role: finalRole,
       institutionId: profile?.institution_id || null,
       loading: false,
       error: null,
