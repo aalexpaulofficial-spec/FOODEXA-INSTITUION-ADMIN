@@ -122,9 +122,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentInstitution, 
             </div>
 
             <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 space-y-1">
-              <div className="font-bold text-slate-200">Active Workstation Sessions</div>
-              <div className="text-[11px] text-slate-400">IP 192.168.1.104 • Chrome on Linux Container (Current)</div>
-              <div className="text-[10px] text-emerald-400 font-mono pt-1">Session Encrypted with 256-Bit TLS</div>
+              <div className="font-bold text-slate-200">Active Session</div>
+              <div className="text-[11px] text-slate-400">Secured via Supabase Auth</div>
+              <div className="text-[10px] text-emerald-400 font-mono pt-1">Session Encrypted</div>
             </div>
           </div>
         </div>

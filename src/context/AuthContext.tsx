@@ -1,0 +1,96 @@
+import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import { User } from '@supabase/supabase-js';
+import { supabase } from '../lib/supabaseClient';
+
+export type UserRole = 'institution_admin' | 'super_admin';
+
+export interface AuthState {
+  user: User | null;
+  role: UserRole | null;
+  institutionId: string | null;
+  loading: boolean;
+  error: string | null;
+}
+
+interface AuthContextType extends AuthState {
+  signIn: (email: string, password: string) => Promise<string | null>;
+  signOut: () => Promise<void>;
+}
+
+const AuthContext = createContext<AuthContextType>({
+  user: null,
+  role: null,
+  institutionId: null,
+  loading: true,
+  error: null,
+  signIn: async () => null,
+  signOut: async () => {},
+});
+
+export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const [state, setState] = useState<AuthState>({
+    user: null,
+    role: null,
+    institutionId: null,
+    loading: true,
+    error: null,
+  });
+
+  const fetchProfile = useCallback(async (userId: string) => {
+    const { data } = await supabase
+      .from('user_profiles')
+      .select('role, institution_id')
+      .eq('id', userId)
+      .single();
+    return data;
+  }, []);
+
+  const syncAuth = useCallback(async (user: User | null) => {
+    if (!user) {
+      setState({ user: null, role: null, institutionId: null, loading: false, error: null });
+      return;
+    }
+    const profile = await fetchProfile(user.id);
+    setState({
+      user,
+      role: (profile?.role as UserRole) || 'institution_admin',
+      institutionId: profile?.institution_id || null,
+      loading: false,
+      error: null,
+    });
+  }, [fetchProfile]);
+
+  useEffect(() => {
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      syncAuth(session?.user ?? null);
+    });
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      syncAuth(session?.user ?? null);
+    });
+    return () => listener?.subscription.unsubscribe();
+  }, [syncAuth]);
+
+  const signIn = async (email: string, password: string): Promise<string | null> => {
+    setState((prev) => ({ ...prev, loading: true, error: null }));
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) {
+      setState((prev) => ({ ...prev, loading: false, error: error.message }));
+      return error.message;
+    }
+    await syncAuth(data.user);
+    return null;
+  };
+
+  const signOut = async () => {
+    await supabase.auth.signOut();
+    setState({ user: null, role: null, institutionId: null, loading: false, error: null });
+  };
+
+  return (
+    <AuthContext.Provider value={{ ...state, signIn, signOut }}>
+      {children}
+    </AuthContext.Provider>
+  );
+}
+
+export const useAuth = () => useContext(AuthContext);

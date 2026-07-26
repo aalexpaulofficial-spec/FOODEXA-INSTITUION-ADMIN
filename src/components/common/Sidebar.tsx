@@ -1,26 +1,8 @@
 import React from 'react';
 import {
-  LayoutDashboard,
-  Users,
-  Store,
-  ChefHat,
-  ShoppingBag,
-  UtensilsCrossed,
-  TrendingUp,
-  FileText,
-  Building,
-  UserCheck,
-  Bell,
-  Sparkles,
-  Settings,
-  ShieldCheck,
-  Building2,
-  CheckSquare,
-  BarChart3,
-  CreditCard,
-  BrainCircuit,
-  Sliders,
-  X
+  LayoutDashboard, Users, Store, ChefHat, ShoppingBag, UtensilsCrossed,
+  TrendingUp, FileText, Building, UserCheck, Bell, Sparkles, Settings,
+  ShieldCheck, Building2, CheckSquare, BarChart3, CreditCard, BrainCircuit, Sliders, X
 } from 'lucide-react';
 import { PortalRole } from '../../types';
 
@@ -38,17 +20,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
   currentPortal,
   currentTab,
   onTabChange,
-  pendingVendorCount = 2,
-  activeKitchenOrdersCount = 3,
+  pendingVendorCount = 0,
+  activeKitchenOrdersCount = 0,
   isMobileMenuOpen = false,
   onCloseMobileMenu
 }) => {
-  const institutionNav = [
+  const institutionNav: { id: string; label: string; icon: any; badge?: string | null; badgeColor?: string; isAi?: boolean }[] = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'students', label: 'Student Management', icon: Users },
     { id: 'canteens', label: 'Canteen Management', icon: Store, badge: pendingVendorCount > 0 ? `${pendingVendorCount} Pending` : null, badgeColor: 'bg-amber-500/10 text-amber-400 border-amber-500/20' },
-    { id: 'kitchen', label: 'Kitchen Queue', icon: ChefHat, badge: 'Live KDS', badgeColor: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' },
-    { id: 'orders', label: 'Order Management', icon: ShoppingBag, badge: activeKitchenOrdersCount ? `${activeKitchenOrdersCount}` : null, badgeColor: 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20' },
+    { id: 'kitchen', label: 'Kitchen Queue', icon: ChefHat },
+    { id: 'orders', label: 'Order Management', icon: ShoppingBag, badge: activeKitchenOrdersCount > 0 ? `${activeKitchenOrdersCount}` : null, badgeColor: 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20' },
     { id: 'menus', label: 'Menu Management', icon: UtensilsCrossed },
     { id: 'analytics', label: 'Analytics', icon: TrendingUp },
     { id: 'reports', label: 'Reports & Exports', icon: FileText },
@@ -59,10 +41,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'settings', label: 'Settings', icon: Settings }
   ];
 
-  const superAdminNav = [
+  const superAdminNav: { id: string; label: string; icon: any; badge?: string | null; badgeColor?: string; isAi?: boolean }[] = [
     { id: 'superadmin', label: 'Platform Overview', icon: ShieldCheck },
-    { id: 'institution_approval', label: 'Institution Approval', icon: Building2, badge: '2 Pending', badgeColor: 'bg-amber-500/10 text-amber-400 border-amber-500/20' },
-    { id: 'vendor_approval', label: 'Global Vendors', icon: CheckSquare, badge: `${pendingVendorCount}`, badgeColor: 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20' },
+    { id: 'institution_approval', label: 'Institution Approval', icon: Building2 },
+    { id: 'vendor_approval', label: 'Global Vendors', icon: CheckSquare },
     { id: 'global_analytics', label: 'Global Analytics', icon: BarChart3 },
     { id: 'subscriptions', label: 'Subscriptions', icon: CreditCard },
     { id: 'ai_insights', label: 'AI Risk & Insights', icon: BrainCircuit, isAi: true },
@@ -73,9 +55,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   const handleSelectTab = (tabId: string) => {
     onTabChange(tabId);
-    if (onCloseMobileMenu) {
-      onCloseMobileMenu();
-    }
+    if (onCloseMobileMenu) onCloseMobileMenu();
   };
 
   const navContent = (
@@ -83,15 +63,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
       <div className="p-4 space-y-6 overflow-y-auto">
         <div className="flex items-center justify-between lg:hidden pb-2 border-b border-zinc-800">
           <div className="flex items-center space-x-2">
-            <div className="w-7 h-7 bg-indigo-600 rounded-lg flex items-center justify-center font-black text-white text-xs">
-              FX
-            </div>
+            <div className="w-7 h-7 bg-indigo-600 rounded-lg flex items-center justify-center font-black text-white text-xs">FX</div>
             <span className="font-bold text-sm text-white">FOODEXA Menu</span>
           </div>
-          <button
-            onClick={onCloseMobileMenu}
-            className="p-1.5 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800"
-          >
+          <button onClick={onCloseMobileMenu} className="p-1.5 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -120,11 +95,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     {item.isAi ? (
                       <div className="w-2 h-2 bg-indigo-500 rounded-full animate-pulse" />
                     ) : (
-                      <Icon
-                        className={`w-4 h-4 ${
-                          isActive ? 'text-indigo-400' : 'text-zinc-500'
-                        }`}
-                      />
+                      <Icon className={`w-4 h-4 ${isActive ? 'text-indigo-400' : 'text-zinc-500'}`} />
                     )}
                     <span className="truncate">{item.label}</span>
                   </div>
@@ -141,16 +112,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </div>
       </div>
 
-      {/* Footer AI Banner */}
       <div className="p-4 border-t border-zinc-800/50 mt-auto bg-[#09090B]/50">
         <div className="p-3 rounded-xl bg-gradient-to-b from-indigo-950/20 to-zinc-900 border border-indigo-500/20 text-center relative overflow-hidden">
           <div className="flex items-center justify-center space-x-1.5 text-xs font-bold text-zinc-200 mb-1">
             <Sparkles className="w-3.5 h-3.5 text-indigo-400 animate-pulse" />
             <span>FOODEXA AI Center</span>
           </div>
-          <p className="text-[10px] text-zinc-400 font-medium">
-            Powered by Google Gemini
-          </p>
+          <p className="text-[10px] text-zinc-400 font-medium">Powered by Google Gemini</p>
           <button
             onClick={() => handleSelectTab('ai_center')}
             className="mt-2.5 w-full py-1.5 px-3 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-[11px] font-bold transition-all shadow-[0_0_15px_rgba(79,70,229,0.3)] flex items-center justify-center space-x-1"
@@ -164,22 +132,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   return (
     <>
-      {/* Desktop Sidebar */}
       <aside className="hidden lg:flex w-60 bg-[#0C0C0E] border-r border-zinc-800/50 flex-col justify-between shrink-0 min-h-[calc(100vh-4rem)]">
         {navContent}
       </aside>
 
-      {/* Mobile Drawer Overlay */}
       {isMobileMenuOpen && (
         <div className="lg:hidden fixed inset-0 z-50 flex">
-          {/* Backdrop */}
-          <div
-            className="fixed inset-0 bg-black/70 backdrop-blur-sm transition-opacity"
-            onClick={onCloseMobileMenu}
-          />
-
-          {/* Drawer Sidebar */}
-          <aside className="relative w-72 max-w-[80vw] bg-[#0C0C0E] border-r border-zinc-800 shadow-2xl flex flex-col h-full z-10 animate-slide-in-left">
+          <div className="fixed inset-0 bg-black/70 backdrop-blur-sm transition-opacity" onClick={onCloseMobileMenu} />
+          <aside className="relative w-72 max-w-[80vw] bg-[#0C0C0E] border-r border-zinc-800 shadow-2xl flex flex-col h-full z-10">
             {navContent}
           </aside>
         </div>
@@ -187,4 +147,3 @@ export const Sidebar: React.FC<SidebarProps> = ({
     </>
   );
 };
-

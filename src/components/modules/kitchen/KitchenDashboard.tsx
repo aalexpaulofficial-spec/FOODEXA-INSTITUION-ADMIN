@@ -72,10 +72,10 @@ export const KitchenDashboard: React.FC<KitchenDashboardProps> = ({
         {/* KDS Stats Ribbon */}
         <div className="flex items-center space-x-3 text-xs">
           <div className="px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-800 text-slate-300">
-            Current Kitchen Load: <strong className="text-amber-400">68% Capacity</strong>
+            Order Queue: <strong className="text-amber-400">{items.length} items</strong>
           </div>
           <div className="px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-800 text-slate-300">
-            Avg Waiting Time: <strong className="text-emerald-400 font-mono">11.4 mins</strong>
+            In Prep: <strong className="text-cyan-400 font-mono">{preparingItems.length}</strong>
           </div>
         </div>
       </div>

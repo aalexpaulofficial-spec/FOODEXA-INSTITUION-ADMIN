@@ -15,11 +15,12 @@ import {
   AlertCircle,
   Power
 } from 'lucide-react';
-import { Vendor, Counter } from '../../../types';
+import { Vendor, Counter, CampusBlock } from '../../../types';
 
 interface CanteenManagementProps {
   vendors: Vendor[];
   counters?: Counter[];
+  campusBlocks?: CampusBlock[];
   onApproveVendor: (vendorId: string) => void;
   onRejectVendor: (vendorId: string) => void;
   onSuspendVendor: (vendorId: string) => void;
@@ -41,6 +42,7 @@ const CATEGORY_OPTIONS = [
 export const CanteenManagement: React.FC<CanteenManagementProps> = ({
   vendors,
   counters = [],
+  campusBlocks = [],
   onApproveVendor,
   onRejectVendor,
   onSuspendVendor,
@@ -420,11 +422,10 @@ export const CanteenManagement: React.FC<CanteenManagementProps> = ({
                     onChange={(e) => setNewCampusBlock(e.target.value)}
                     className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500"
                   >
-                    <option value="Central Food Court">Central Food Court</option>
-                    <option value="North Tech Hub">North Tech Hub</option>
-                    <option value="South Science Wing">South Science Wing</option>
-                    <option value="Hostel Quad B">Hostel Quad B</option>
-                    <option value="Library Plaza">Library Plaza</option>
+                    {campusBlocks.length > 0
+                      ? campusBlocks.map(b => <option key={b.id} value={b.name}>{b.name}</option>)
+                      : <option value="Main Campus">Main Campus</option>
+                    }
                   </select>
                 </div>
               </div>

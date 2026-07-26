@@ -1,32 +1,6 @@
-import React, { useState } from 'react';
-import {
-  INITIAL_INSTITUTIONS,
-  INITIAL_STUDENTS,
-  INITIAL_VENDORS,
-  INITIAL_ORDERS,
-  INITIAL_MENU_ITEMS,
-  INITIAL_KITCHEN_QUEUE,
-  INITIAL_CAMPUS_BLOCKS,
-  INITIAL_STAFF,
-  INITIAL_ANNOUNCEMENTS,
-  INITIAL_AUDIT_LOGS,
-  INITIAL_COUNTERS
-} from './data/mockData';
-import {
-  Institution,
-  Student,
-  Vendor,
-  Order,
-  MenuItem,
-  KitchenQueueItem,
-  CampusBlock,
-  StaffMember,
-  Announcement,
-  AuditLog,
-  PortalRole,
-  OrderStatus,
-  Counter
-} from './types';
+import { useState } from 'react';
+import { useAuth } from './context/AuthContext';
+import { PortalRole } from './types';
 
 import { LoginView } from './components/modules/auth/LoginView';
 import { Header } from './components/common/Header';
@@ -50,158 +24,67 @@ import { AICenterView } from './components/modules/ai/AICenterView';
 import { SettingsView } from './components/modules/settings/SettingsView';
 import { SuperAdminView } from './components/modules/superadmin/SuperAdminView';
 
+import { useInstitutionData } from './hooks/useInstitutionData';
+
 export function App() {
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(true);
-  const [currentPortal, setCurrentPortal] = useState<PortalRole>('campus_admin');
+  const { user, role, institutionId: authInstId, loading: authLoading, signOut } = useAuth();
   const [currentTab, setCurrentTab] = useState<string>('dashboard');
-
-  // Institutions State
-  const [currentInstitution, setCurrentInstitution] = useState<Institution>(INITIAL_INSTITUTIONS[0]);
-
-  // Operational Domain State
-  const [students, setStudents] = useState<Student[]>(INITIAL_STUDENTS);
-  const [vendors, setVendors] = useState<Vendor[]>(INITIAL_VENDORS);
-  const [counters, setCounters] = useState<Counter[]>(INITIAL_COUNTERS);
-  const [orders, setOrders] = useState<Order[]>(INITIAL_ORDERS);
-  const [menuItems, setMenuItems] = useState<MenuItem[]>(INITIAL_MENU_ITEMS);
-  const [kitchenQueue, setKitchenQueue] = useState<KitchenQueueItem[]>(INITIAL_KITCHEN_QUEUE);
-  const [campusBlocks] = useState<CampusBlock[]>(INITIAL_CAMPUS_BLOCKS);
-  const [staff, setStaff] = useState<StaffMember[]>(INITIAL_STAFF);
-  const [announcements, setAnnouncements] = useState<Announcement[]>(INITIAL_ANNOUNCEMENTS);
-  const [auditLogs] = useState<AuditLog[]>(INITIAL_AUDIT_LOGS);
-
-  // Modals
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isQRScannerOpen, setIsQRScannerOpen] = useState(false);
   const [isAISearchOpen, setIsAISearchOpen] = useState(false);
   const [isStudentSyncOpen, setIsStudentSyncOpen] = useState(false);
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
-  // Handlers
-  const handleLoginSuccess = (portal: PortalRole) => {
-    setCurrentPortal(portal);
-    setIsAuthenticated(true);
-    if (portal === 'super_admin') {
-      setCurrentTab('superadmin');
-    } else {
-      setCurrentTab('dashboard');
-    }
-  };
+  const institutionId = role === 'institution_admin' ? authInstId : null;
+  const {
+    institution, students, vendors, counters, orders, menuItems, kitchenQueue,
+    campusBlocks, staff, announcements, auditLogs,
+    loading: dataLoading,
+    refresh,
+    updateStudentStatus, approveVendor, rejectVendor, suspendVendor,
+    addCounter, toggleCounterAvailability, updateKitchenStatus, updateOrderStatus,
+    addMenuItem, toggleMenuAvailability, toggleStaffPermission, addAnnouncement,
+  } = useInstitutionData(institutionId);
 
-  const handlePortalChange = (portal: PortalRole) => {
-    setCurrentPortal(portal);
-    if (portal === 'super_admin') {
-      setCurrentTab('superadmin');
-    } else if (currentTab === 'superadmin') {
-      setCurrentTab('dashboard');
-    }
-  };
+  const currentPortal: PortalRole = role === 'super_admin' ? 'super_admin' : 'campus_admin';
 
-
-  const handleUpdateStudentStatus = (studentId: string, status: 'active' | 'suspended') => {
-    setStudents((prev) =>
-      prev.map((s) => (s.id === studentId ? { ...s, status } : s))
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-[#09090B] text-[#FAFAFA] flex items-center justify-center">
+        <div className="flex flex-col items-center space-y-4">
+          <div className="w-12 h-12 rounded-full border-2 border-indigo-500 border-t-transparent animate-spin" />
+          <p className="text-sm text-zinc-400">Loading...</p>
+        </div>
+      </div>
     );
-  };
-
-  const handleApproveVendor = (vendorId: string) => {
-    setVendors((prev) =>
-      prev.map((v) => (v.id === vendorId ? { ...v, status: 'approved' } : v))
-    );
-  };
-
-  const handleRejectVendor = (vendorId: string) => {
-    setVendors((prev) =>
-      prev.map((v) => (v.id === vendorId ? { ...v, status: 'rejected' } : v))
-    );
-  };
-
-  const handleSuspendVendor = (vendorId: string) => {
-    setVendors((prev) =>
-      prev.map((v) => (v.id === vendorId ? { ...v, status: 'suspended' } : v))
-    );
-  };
-
-  const handleUpdateKitchenStatus = (itemId: string, status: OrderStatus) => {
-    setKitchenQueue((prev) =>
-      prev.map((item) => (item.id === itemId ? { ...item, status } : item))
-    );
-    // Real-time synchronization with orders list
-    setOrders((prev) =>
-      prev.map((o) => (o.id === itemId || o.orderNumber.includes(itemId) ? { ...o, status } : o))
-    );
-  };
-
-  const handleUpdateOrderStatus = (orderId: string, status: OrderStatus) => {
-    setOrders((prev) =>
-      prev.map((o) => (o.id === orderId ? { ...o, status } : o))
-    );
-  };
-
-  const handleAddMenuItem = (item: MenuItem) => {
-    setMenuItems((prev) => [item, ...prev]);
-  };
-
-  const handleToggleMenuAvailability = (itemId: string) => {
-    setMenuItems((prev) =>
-      prev.map((m) => (m.id === itemId ? { ...m, isAvailable: !m.isAvailable } : m))
-    );
-  };
-
-  const handleToggleStaffPermission = (staffId: string, permKey: string) => {
-    setStaff((prev) =>
-      prev.map((s) =>
-        s.id === staffId
-          ? {
-              ...s,
-              permissions: {
-                ...s.permissions,
-                [permKey as keyof typeof s.permissions]: !s.permissions[
-                  permKey as keyof typeof s.permissions
-                ]
-              }
-            }
-          : s
-      )
-    );
-  };
-
-  const handleAddAnnouncement = (ann: Announcement) => {
-    setAnnouncements((prev) => [ann, ...prev]);
-  };
-
-
-
-  // If unauthenticated, render login view
-  if (!isAuthenticated) {
-    return <LoginView onLoginSuccess={handleLoginSuccess} />;
   }
+
+  if (!user) {
+    return <LoginView />;
+  }
+
+  const handleUpdateOrderStatus = (orderId: string, status: any) => {
+    updateOrderStatus(orderId, status);
+  };
 
   return (
     <div className="min-h-screen bg-[#09090B] text-[#FAFAFA] flex flex-col font-sans selection:bg-indigo-500/30 selection:text-indigo-200">
-      {/* Top Header */}
       <Header
         currentPortal={currentPortal}
-        onPortalChange={handlePortalChange}
-        institutions={INITIAL_INSTITUTIONS}
-        currentInstitution={currentInstitution}
-        onInstitutionSelect={setCurrentInstitution}
+        onPortalChange={() => {}}
+        currentInstitution={institution || { id: '', name: 'Unknown Institution', code: '', location: '', studentsCount: 0, vendorsCount: 0, dailyOrdersCount: 0, monthlyRevenue: 0, status: 'active', contactPerson: '', email: '', phone: '', joinedDate: '', plan: 'Basic' }}
+        onInstitutionSelect={() => {}}
         onOpenAISearch={() => setIsAISearchOpen(true)}
         onOpenQRScanner={() => setIsQRScannerOpen(true)}
         onOpenStudentSync={() => setIsStudentSyncOpen(true)}
-        onLogout={() => setIsAuthenticated(false)}
+        onLogout={signOut}
         isMobileMenuOpen={isMobileMenuOpen}
         onToggleMobileMenu={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
       />
 
-      {/* Main Layout Body */}
       <div className="flex flex-1 overflow-hidden">
-        {/* Navigation Sidebar */}
         <Sidebar
           currentTab={currentTab}
-          onTabChange={(tab) => {
-            setCurrentTab(tab);
-            setIsMobileMenuOpen(false);
-          }}
+          onTabChange={(tab) => { setCurrentTab(tab); setIsMobileMenuOpen(false); }}
           currentPortal={currentPortal}
           pendingVendorCount={vendors.filter((v) => v.status === 'pending').length}
           activeKitchenOrdersCount={kitchenQueue.filter((k) => k.status === 'preparing').length}
@@ -209,112 +92,118 @@ export function App() {
           onCloseMobileMenu={() => setIsMobileMenuOpen(false)}
         />
 
-        {/* Dynamic Workspace Container */}
         <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 bg-[#09090B]">
           <div className="max-w-7xl mx-auto">
-            {currentPortal !== 'super_admin' && (
+            {dataLoading ? (
+              <div className="flex items-center justify-center py-32">
+                <div className="flex flex-col items-center space-y-4">
+                  <div className="w-10 h-10 rounded-full border-2 border-indigo-500 border-t-transparent animate-spin" />
+                  <p className="text-xs text-zinc-500">Loading institution data...</p>
+                </div>
+              </div>
+            ) : (
               <>
-                {currentTab === 'dashboard' && (
-                  <HomeDashboard
-                    currentInstitution={currentInstitution}
-                    orders={orders}
-                    vendors={vendors}
-                    onNavigate={setCurrentTab}
-                    onOpenQRScanner={() => setIsQRScannerOpen(true)}
-                  />
+                {currentPortal !== 'super_admin' && (
+                  <>
+                    {currentTab === 'dashboard' && (
+                      <HomeDashboard
+                        currentInstitution={institution || { id: '', name: 'Your Institution', code: '', location: '', studentsCount: 0, vendorsCount: 0, dailyOrdersCount: 0, monthlyRevenue: 0, status: 'active', contactPerson: '', email: '', phone: '', joinedDate: '', plan: 'Basic' }}
+                        orders={orders}
+                        vendors={vendors}
+                        onNavigate={setCurrentTab}
+                        onOpenQRScanner={() => setIsQRScannerOpen(true)}
+                      />
+                    )}
+
+                    {currentTab === 'students' && (
+                      <StudentManagement
+                        students={students}
+                        orders={orders}
+                        onUpdateStudentStatus={updateStudentStatus}
+                      />
+                    )}
+
+                    {currentTab === 'canteens' && (
+                      <CanteenManagement
+                        vendors={vendors}
+                        counters={counters}
+                        campusBlocks={campusBlocks}
+                        onApproveVendor={approveVendor}
+                        onRejectVendor={rejectVendor}
+                        onSuspendVendor={suspendVendor}
+                        onAddCounter={addCounter}
+                        onToggleCounterAvailability={toggleCounterAvailability}
+                      />
+                    )}
+
+                    {currentTab === 'kitchen' && (
+                      <KitchenDashboard
+                        queueItems={kitchenQueue}
+                        onUpdateKitchenStatus={updateKitchenStatus}
+                      />
+                    )}
+
+                    {currentTab === 'orders' && (
+                      <OrderManagement
+                        orders={orders}
+                        onUpdateOrderStatus={handleUpdateOrderStatus}
+                        onOpenQRScanner={() => setIsQRScannerOpen(true)}
+                      />
+                    )}
+
+                    {currentTab === 'menus' && (
+                      <MenuManagement
+                        menuItems={menuItems}
+                        onAddMenuItem={addMenuItem}
+                        onToggleAvailability={toggleMenuAvailability}
+                      />
+                    )}
+
+                    {currentTab === 'analytics' && <AnalyticsView orders={orders} />}
+
+                    {currentTab === 'reports' && <ReportsView />}
+
+                    {currentTab === 'campus' && <CampusManagement campusBlocks={campusBlocks} />}
+
+                    {currentTab === 'staff' && (
+                      <StaffManagement staff={staff} onTogglePermission={toggleStaffPermission} />
+                    )}
+
+                    {currentTab === 'notifications' && (
+                      <NotificationsView
+                        announcements={announcements}
+                        onAddAnnouncement={addAnnouncement}
+                      />
+                    )}
+
+                    {currentTab === 'ai_center' && (
+                      <AICenterView
+                        currentInstitution={institution || { id: '', name: 'Your Institution', code: '', location: '', studentsCount: 0, vendorsCount: 0, dailyOrdersCount: 0, monthlyRevenue: 0, status: 'active', contactPerson: '', email: '', phone: '', joinedDate: '', plan: 'Basic' }}
+                        menuItems={menuItems}
+                        orders={orders}
+                      />
+                    )}
+
+                    {currentTab === 'settings' && (
+                      <SettingsView currentInstitution={institution || { id: '', name: 'Your Institution', code: '', location: '', studentsCount: 0, vendorsCount: 0, dailyOrdersCount: 0, monthlyRevenue: 0, status: 'active', contactPerson: '', email: '', phone: '', joinedDate: '', plan: 'Basic' }} auditLogs={auditLogs} />
+                    )}
+                  </>
                 )}
 
-                {currentTab === 'students' && (
-                  <StudentManagement
-                    students={students}
-                    orders={orders}
-                    onUpdateStudentStatus={handleUpdateStudentStatus}
-                  />
-                )}
-
-                {currentTab === 'canteens' && (
-                  <CanteenManagement
-                    vendors={vendors}
-                    counters={counters}
-                    onApproveVendor={handleApproveVendor}
-                    onRejectVendor={handleRejectVendor}
-                    onSuspendVendor={handleSuspendVendor}
-                    onAddCounter={(c) => setCounters((prev) => [...prev, c])}
-                    onToggleCounterAvailability={(counterId) =>
-                      setCounters((prev) =>
-                        prev.map((c) => (c.id === counterId ? { ...c, isAvailable: !c.isAvailable } : c))
-                      )
-                    }
-                  />
-                )}
-
-                {currentTab === 'kitchen' && (
-                  <KitchenDashboard
-                    queueItems={kitchenQueue}
-                    onUpdateKitchenStatus={handleUpdateKitchenStatus}
-                  />
-                )}
-
-                {currentTab === 'orders' && (
-                  <OrderManagement
-                    orders={orders}
-                    onUpdateOrderStatus={handleUpdateOrderStatus}
-                    onOpenQRScanner={() => setIsQRScannerOpen(true)}
-                  />
-                )}
-
-                {currentTab === 'menus' && (
-                  <MenuManagement
-                    menuItems={menuItems}
-                    onAddMenuItem={handleAddMenuItem}
-                    onToggleAvailability={handleToggleMenuAvailability}
-                  />
-                )}
-
-                {currentTab === 'analytics' && <AnalyticsView />}
-
-                {currentTab === 'reports' && <ReportsView />}
-
-                {currentTab === 'campus' && <CampusManagement campusBlocks={campusBlocks} />}
-
-                {currentTab === 'staff' && (
-                  <StaffManagement staff={staff} onTogglePermission={handleToggleStaffPermission} />
-                )}
-
-                {currentTab === 'notifications' && (
-                  <NotificationsView
-                    announcements={announcements}
-                    onAddAnnouncement={handleAddAnnouncement}
-                  />
-                )}
-
-                {currentTab === 'ai_center' && (
-                  <AICenterView
-                    currentInstitution={currentInstitution}
-                    menuItems={menuItems}
-                    orders={orders}
-                  />
-                )}
-
-                {currentTab === 'settings' && (
-                  <SettingsView currentInstitution={currentInstitution} auditLogs={auditLogs} />
+                {currentPortal === 'super_admin' && (
+                  <SuperAdminView />
                 )}
               </>
-            )}
-
-            {currentPortal === 'super_admin' && (
-              <SuperAdminView />
             )}
           </div>
         </main>
       </div>
 
-      {/* Global Modals */}
       <QRPickupScannerModal
         isOpen={isQRScannerOpen}
         onClose={() => setIsQRScannerOpen(false)}
         orders={orders}
-        onVerifyPickup={(orderId) => handleUpdateOrderStatus(orderId, 'completed')}
+        onCompleteOrder={(orderId) => handleUpdateOrderStatus(orderId, 'completed')}
       />
 
       <AISmartSearchModal
@@ -324,7 +213,11 @@ export function App() {
         vendors={vendors}
         menuItems={menuItems}
         orders={orders}
-        onSelectEntity={(tab) => setCurrentTab(tab)}
+        onSelectResult={(type) => {
+          if (type === 'student') setCurrentTab('students');
+          else if (type === 'order') setCurrentTab('orders');
+          else if (type === 'vendor') setCurrentTab('canteens');
+        }}
       />
 
       <StudentDashboardSyncModal
@@ -333,23 +226,7 @@ export function App() {
         menuItems={menuItems}
         orders={orders}
         announcements={announcements}
-        onPlaceTestOrder={(newOrd) => {
-          setOrders((prev) => [newOrd, ...prev]);
-          setKitchenQueue((prev) => [
-            {
-              id: newOrd.id,
-              orderNumber: newOrd.orderNumber,
-              itemsSummary: newOrd.items.map((i) => `${i.quantity}x ${i.name}`).join(', '),
-              counterNumber: newOrd.pickupCounter || 'Counter B',
-              status: 'pending',
-              orderTime: newOrd.orderTime,
-              elapsedSeconds: 0,
-              isPriority: false,
-              notes: newOrd.notes
-            },
-            ...prev
-          ]);
-        }}
+        onPlaceTestOrder={() => {}}
       />
     </div>
   );
