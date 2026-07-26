@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import {
+  INITIAL_INSTITUTIONS,
   INITIAL_STUDENTS,
   INITIAL_VENDORS,
   INITIAL_ORDERS,
@@ -12,6 +13,7 @@ import {
   INITIAL_COUNTERS
 } from './data/mockData';
 import {
+  Institution,
   Student,
   Vendor,
   Order,
@@ -53,6 +55,8 @@ export function App() {
   const [currentPortal, setCurrentPortal] = useState<PortalRole>('campus_admin');
   const [currentTab, setCurrentTab] = useState<string>('dashboard');
 
+  // Institutions State
+  const [currentInstitution, setCurrentInstitution] = useState<Institution>(INITIAL_INSTITUTIONS[0]);
 
   // Operational Domain State
   const [students, setStudents] = useState<Student[]>(INITIAL_STUDENTS);
@@ -178,9 +182,9 @@ export function App() {
       <Header
         currentPortal={currentPortal}
         onPortalChange={handlePortalChange}
-        institutions={[]}
-        currentInstitution={null as any}
-        onInstitutionSelect={() => {}}
+        institutions={INITIAL_INSTITUTIONS}
+        currentInstitution={currentInstitution}
+        onInstitutionSelect={setCurrentInstitution}
         onOpenAISearch={() => setIsAISearchOpen(true)}
         onOpenQRScanner={() => setIsQRScannerOpen(true)}
         onOpenStudentSync={() => setIsStudentSyncOpen(true)}
