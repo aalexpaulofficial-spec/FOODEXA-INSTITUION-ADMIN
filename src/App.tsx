@@ -42,13 +42,12 @@ export function App() {
   ], []);
 
   const superAdminTabs = useMemo(() => [
-    'superadmin', 'institution_approval', 'vendor_approval', 'global_analytics',
-    'subscriptions', 'ai_insights', 'system_settings'
+    'approvals', 'directory', 'analytics', 'subscriptions', 'notifications', 'audit_logs'
   ], []);
 
   useEffect(() => {
     if (role === 'super_admin' && institutionTabs.includes(currentTab)) {
-      setCurrentTab('superadmin');
+      setCurrentTab('approvals');
     } else if (role === 'institution_admin' && superAdminTabs.includes(currentTab)) {
       setCurrentTab('dashboard');
     }

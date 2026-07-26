@@ -20,9 +20,12 @@ export interface InstitutionRequest {
   food_courts_count?: string;
   vendors_count?: string;
   message?: string;
-  status: 'pending' | 'active' | 'rejected' | 'suspended';
+  status: 'pending' | 'active' | 'rejected' | 'suspended' | 'changes_requested';
   created_at: string;
   plan?: 'Basic' | 'Pro' | 'Enterprise';
+  rejection_reason?: string;
+  admin_notes?: string;
+  institution_code?: string;
 }
 
 export interface SupabaseInstitution {
@@ -43,6 +46,36 @@ export interface SupabaseInstitution {
   logo_url?: string;
   type?: string;
   created_at?: string;
+  last_login?: string;
+}
+
+export interface AuditLog {
+  id: string;
+  user_id?: string;
+  user_name: string;
+  action: string;
+  target: string;
+  target_id?: string;
+  details?: string;
+  ip_address: string;
+  created_at: string;
+}
+
+export interface PlatformNotification {
+  id: string;
+  title: string;
+  message: string;
+  type: 'info' | 'success' | 'warning' | 'error';
+  read: boolean;
+  created_at: string;
+}
+
+export interface GlobalSearchResult {
+  type: 'institution' | 'request' | 'student' | 'vendor';
+  id: string;
+  name: string;
+  subtitle: string;
+  status?: string;
 }
 
 interface UseSupabaseDataReturn {
@@ -53,18 +86,32 @@ interface UseSupabaseDataReturn {
   isRealtime: boolean;
   totalStudents: number;
   totalOrders: number;
+  totalVendors: number;
+  totalRevenue: number;
+  auditLogs: AuditLog[];
+  notifications: PlatformNotification[];
+  unreadCount: number;
   approveRequest: (id: string) => Promise<void>;
-  rejectRequest: (id: string) => Promise<void>;
+  rejectRequest: (id: string, reason?: string) => Promise<void>;
+  requestChanges: (id: string, notes: string) => Promise<void>;
   suspendInstitution: (id: string) => Promise<void>;
   activateInstitution: (id: string) => Promise<void>;
+  deleteInstitution: (id: string) => Promise<void>;
+  updateInstitution: (id: string, updates: Partial<SupabaseInstitution>) => Promise<void>;
+  createAuditLog: (action: string, target: string, targetId?: string, details?: string) => Promise<void>;
+  markNotificationRead: (id: string) => Promise<void>;
+  markAllNotificationsRead: () => Promise<void>;
+  globalSearch: (term: string) => Promise<GlobalSearchResult[]>;
   refresh: () => void;
 }
 
-// Table name for institution registration requests
 const REQUESTS_TABLE = 'institution_requests';
 const INSTITUTIONS_TABLE = 'institutions';
 const STUDENTS_TABLE = 'students';
 const ORDERS_TABLE = 'orders';
+const VENDORS_TABLE = 'vendors';
+const AUDIT_LOGS_TABLE = 'platform_audit_logs';
+const NOTIFICATIONS_TABLE = 'platform_notifications';
 
 export function useSupabaseData(): UseSupabaseDataReturn {
   const [institutionRequests, setInstitutionRequests] = useState<InstitutionRequest[]>([]);
@@ -74,6 +121,31 @@ export function useSupabaseData(): UseSupabaseDataReturn {
   const [isRealtime, setIsRealtime] = useState(false);
   const [totalStudents, setTotalStudents] = useState(0);
   const [totalOrders, setTotalOrders] = useState(0);
+  const [totalVendors, setTotalVendors] = useState(0);
+  const [totalRevenue, setTotalRevenue] = useState(0);
+  const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
+  const [notifications, setNotifications] = useState<PlatformNotification[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  // ---------------------------------------------------------------
+  // Audit Log Helper
+  // ---------------------------------------------------------------
+  const createAuditLog = useCallback(async (action: string, target: string, targetId?: string, details?: string) => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      await supabase.from(AUDIT_LOGS_TABLE).insert({
+        user_id: user?.id || 'system',
+        user_name: user?.email || 'System',
+        action,
+        target,
+        target_id: targetId || null,
+        details: details || null,
+        ip_address: 'web-client',
+      });
+    } catch {
+      // silently fail - audit logs are non-critical
+    }
+  }, []);
 
   // ---------------------------------------------------------------
   // Fetch all data
@@ -83,23 +155,21 @@ export function useSupabaseData(): UseSupabaseDataReturn {
     setError(null);
 
     try {
-      // Fetch institution requests (all statuses)
+      // Fetch institution requests
       const { data: requests, error: reqErr } = await supabase
         .from(REQUESTS_TABLE)
         .select('*')
         .order('created_at', { ascending: false });
 
       if (reqErr) {
-        // Table might be named differently — surface the error clearly
         if (reqErr.code === '42P01') {
-          setError(`Table "${REQUESTS_TABLE}" not found in Supabase. Please check the table name.`);
+          setError(`Table "${REQUESTS_TABLE}" not found in Supabase. Please create it first.`);
         } else {
           setError(reqErr.message);
         }
         setLoading(false);
         return;
       }
-
       setInstitutionRequests((requests as InstitutionRequest[]) || []);
 
       // Fetch approved institutions
@@ -112,17 +182,38 @@ export function useSupabaseData(): UseSupabaseDataReturn {
         setApprovedInstitutions((institutions as SupabaseInstitution[]) || []);
       }
 
-      // Fetch total student count
-      const { count: studentCount } = await supabase
-        .from(STUDENTS_TABLE)
-        .select('id', { count: 'exact', head: true });
-      setTotalStudents(studentCount || 0);
+      // Fetch total counts in parallel
+      const [studentRes, orderRes, vendorRes] = await Promise.all([
+        supabase.from(STUDENTS_TABLE).select('id', { count: 'exact', head: true }),
+        supabase.from(ORDERS_TABLE).select('id', { count: 'exact', head: true }),
+        supabase.from(VENDORS_TABLE).select('id', { count: 'exact', head: true }),
+      ]);
 
-      // Fetch total order count
-      const { count: orderCount } = await supabase
-        .from(ORDERS_TABLE)
-        .select('id', { count: 'exact', head: true });
-      setTotalOrders(orderCount || 0);
+      setTotalStudents(studentRes.count || 0);
+      setTotalOrders(orderRes.count || 0);
+      setTotalVendors(vendorRes.count || 0);
+
+      // Calculate total revenue from institutions
+      const insts = (institutions as SupabaseInstitution[]) || [];
+      const revenue = insts.reduce((sum, inst) => sum + (inst.monthly_revenue || 0), 0);
+      setTotalRevenue(revenue);
+
+      // Fetch audit logs
+      const { data: logs } = await supabase
+        .from(AUDIT_LOGS_TABLE)
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(100);
+      setAuditLogs((logs as AuditLog[]) || []);
+
+      // Fetch notifications
+      const { data: notifs } = await supabase
+        .from(NOTIFICATIONS_TABLE)
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(50);
+      setNotifications((notifs as PlatformNotification[]) || []);
+      setUnreadCount(((notifs as PlatformNotification[]) || []).filter((n) => !n.read).length);
 
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Unknown error fetching data');
@@ -138,20 +229,36 @@ export function useSupabaseData(): UseSupabaseDataReturn {
     fetchAll();
 
     const channel = supabase
-      .channel('super_admin_realtime')
+      .channel('super_admin_realtime_v2')
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: REQUESTS_TABLE },
-        () => {
-          fetchAll();
-        }
+        () => fetchAll()
       )
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: INSTITUTIONS_TABLE },
-        () => {
-          fetchAll();
-        }
+        () => fetchAll()
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: STUDENTS_TABLE },
+        () => fetchAll()
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: ORDERS_TABLE },
+        () => fetchAll()
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: VENDORS_TABLE },
+        () => fetchAll()
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: NOTIFICATIONS_TABLE },
+        () => fetchAll()
       )
       .subscribe((status) => {
         setIsRealtime(status === 'SUBSCRIBED');
@@ -163,15 +270,31 @@ export function useSupabaseData(): UseSupabaseDataReturn {
   }, [fetchAll]);
 
   // ---------------------------------------------------------------
-  // Approve a request: update status + upsert into institutions table
+  // Generate institution code
+  // ---------------------------------------------------------------
+  const generateInstitutionCode = (name: string): string => {
+    const words = name.replace(/[^a-zA-Z\s]/g, '').split(/\s+/);
+    const prefix = words.map((w) => w[0]).join('').toUpperCase().slice(0, 3);
+    const num = Math.floor(1000 + Math.random() * 9000);
+    return `${prefix}-${num}`;
+  };
+
+  // ---------------------------------------------------------------
+  // Approve a request: full workflow
   // ---------------------------------------------------------------
   const approveRequest = async (id: string) => {
     const request = institutionRequests.find((r) => r.id === id);
     if (!request) return;
 
+    const institutionCode = generateInstitutionCode(request.institution_name);
+
+    // Update request status
     const { error: updateErr } = await supabase
       .from(REQUESTS_TABLE)
-      .update({ status: 'active' })
+      .update({
+        status: 'active',
+        institution_code: institutionCode,
+      })
       .eq('id', id);
 
     if (updateErr) {
@@ -179,9 +302,10 @@ export function useSupabaseData(): UseSupabaseDataReturn {
       return;
     }
 
-    // Insert into institutions table if it exists
+    // Create institution record
     const institutionRecord = {
       name: request.institution_name,
+      code: institutionCode,
       email: request.institution_email,
       contact_person: request.contact_person,
       phone: request.phone_number,
@@ -189,23 +313,43 @@ export function useSupabaseData(): UseSupabaseDataReturn {
       status: 'active',
       plan: request.plan || 'Basic',
       joined_date: new Date().toISOString().split('T')[0],
+      students_count: parseInt(request.student_population || '0', 10) || 0,
+      vendors_count: parseInt(request.vendors_count || '0', 10) || 0,
+      type: 'Institution',
     };
 
     await supabase.from(INSTITUTIONS_TABLE).insert(institutionRecord);
 
+    // Create audit log
+    await createAuditLog('Institution Approved', request.institution_name, id, `Code: ${institutionCode}`);
+
+    // Create notification
+    await supabase.from(NOTIFICATIONS_TABLE).insert({
+      title: 'Institution Approved',
+      message: `${request.institution_name} has been approved and is now active on the platform.`,
+      type: 'success',
+      read: false,
+    });
+
     // Optimistic UI update
     setInstitutionRequests((prev) =>
-      prev.map((r) => (r.id === id ? { ...r, status: 'active' } : r))
+      prev.map((r) => (r.id === id ? { ...r, status: 'active', institution_code: institutionCode } : r))
     );
   };
 
   // ---------------------------------------------------------------
-  // Reject a request
+  // Reject a request with reason
   // ---------------------------------------------------------------
-  const rejectRequest = async (id: string) => {
+  const rejectRequest = async (id: string, reason?: string) => {
+    const request = institutionRequests.find((r) => r.id === id);
+    if (!request) return;
+
     const { error: updateErr } = await supabase
       .from(REQUESTS_TABLE)
-      .update({ status: 'rejected' })
+      .update({
+        status: 'rejected',
+        rejection_reason: reason || null,
+      })
       .eq('id', id);
 
     if (updateErr) {
@@ -213,8 +357,51 @@ export function useSupabaseData(): UseSupabaseDataReturn {
       return;
     }
 
+    await createAuditLog('Institution Rejected', request.institution_name, id, reason || 'No reason provided');
+
+    await supabase.from(NOTIFICATIONS_TABLE).insert({
+      title: 'Institution Rejected',
+      message: `${request.institution_name} registration has been rejected.${reason ? ` Reason: ${reason}` : ''}`,
+      type: 'warning',
+      read: false,
+    });
+
     setInstitutionRequests((prev) =>
-      prev.map((r) => (r.id === id ? { ...r, status: 'rejected' } : r))
+      prev.map((r) => (r.id === id ? { ...r, status: 'rejected', rejection_reason: reason } : r))
+    );
+  };
+
+  // ---------------------------------------------------------------
+  // Request changes
+  // ---------------------------------------------------------------
+  const requestChanges = async (id: string, notes: string) => {
+    const request = institutionRequests.find((r) => r.id === id);
+    if (!request) return;
+
+    const { error: updateErr } = await supabase
+      .from(REQUESTS_TABLE)
+      .update({
+        status: 'changes_requested',
+        admin_notes: notes,
+      })
+      .eq('id', id);
+
+    if (updateErr) {
+      console.error('[Supabase] Request changes error:', updateErr.message);
+      return;
+    }
+
+    await createAuditLog('Changes Requested', request.institution_name, id, notes);
+
+    await supabase.from(NOTIFICATIONS_TABLE).insert({
+      title: 'Changes Requested',
+      message: `Changes requested for ${request.institution_name}: ${notes}`,
+      type: 'info',
+      read: false,
+    });
+
+    setInstitutionRequests((prev) =>
+      prev.map((r) => (r.id === id ? { ...r, status: 'changes_requested', admin_notes: notes } : r))
     );
   };
 
@@ -222,7 +409,17 @@ export function useSupabaseData(): UseSupabaseDataReturn {
   // Suspend institution
   // ---------------------------------------------------------------
   const suspendInstitution = async (id: string) => {
+    const inst = approvedInstitutions.find((i) => i.id === id);
     await supabase.from(INSTITUTIONS_TABLE).update({ status: 'suspended' }).eq('id', id);
+
+    await createAuditLog('Institution Suspended', inst?.name || id, id);
+    await supabase.from(NOTIFICATIONS_TABLE).insert({
+      title: 'Institution Suspended',
+      message: `${inst?.name || 'An institution'} has been suspended.`,
+      type: 'warning',
+      read: false,
+    });
+
     setApprovedInstitutions((prev) =>
       prev.map((i) => (i.id === id ? { ...i, status: 'suspended' } : i))
     );
@@ -232,10 +429,125 @@ export function useSupabaseData(): UseSupabaseDataReturn {
   // Activate institution
   // ---------------------------------------------------------------
   const activateInstitution = async (id: string) => {
+    const inst = approvedInstitutions.find((i) => i.id === id);
     await supabase.from(INSTITUTIONS_TABLE).update({ status: 'active' }).eq('id', id);
+
+    await createAuditLog('Institution Reactivated', inst?.name || id, id);
+    await supabase.from(NOTIFICATIONS_TABLE).insert({
+      title: 'Institution Reactivated',
+      message: `${inst?.name || 'An institution'} has been reactivated.`,
+      type: 'success',
+      read: false,
+    });
+
     setApprovedInstitutions((prev) =>
       prev.map((i) => (i.id === id ? { ...i, status: 'active' } : i))
     );
+  };
+
+  // ---------------------------------------------------------------
+  // Delete institution
+  // ---------------------------------------------------------------
+  const deleteInstitution = async (id: string) => {
+    const inst = approvedInstitutions.find((i) => i.id === id);
+    await supabase.from(INSTITUTIONS_TABLE).delete().eq('id', id);
+
+    await createAuditLog('Institution Deleted', inst?.name || id, id);
+    await supabase.from(NOTIFICATIONS_TABLE).insert({
+      title: 'Institution Deleted',
+      message: `${inst?.name || 'An institution'} has been permanently removed.`,
+      type: 'error',
+      read: false,
+    });
+
+    setApprovedInstitutions((prev) => prev.filter((i) => i.id !== id));
+  };
+
+  // ---------------------------------------------------------------
+  // Update institution
+  // ---------------------------------------------------------------
+  const updateInstitution = async (id: string, updates: Partial<SupabaseInstitution>) => {
+    const { error } = await supabase.from(INSTITUTIONS_TABLE).update(updates).eq('id', id);
+    if (error) {
+      console.error('[Supabase] Update error:', error.message);
+      return;
+    }
+
+    const inst = approvedInstitutions.find((i) => i.id === id);
+    await createAuditLog('Institution Updated', inst?.name || id, id, JSON.stringify(updates));
+
+    setApprovedInstitutions((prev) =>
+      prev.map((i) => (i.id === id ? { ...i, ...updates } : i))
+    );
+  };
+
+  // ---------------------------------------------------------------
+  // Mark notification read
+  // ---------------------------------------------------------------
+  const markNotificationRead = async (id: string) => {
+    await supabase.from(NOTIFICATIONS_TABLE).update({ read: true }).eq('id', id);
+    setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, read: true } : n)));
+    setUnreadCount((prev) => Math.max(0, prev - 1));
+  };
+
+  // ---------------------------------------------------------------
+  // Mark all notifications read
+  // ---------------------------------------------------------------
+  const markAllNotificationsRead = async () => {
+    const unread = notifications.filter((n) => !n.read);
+    if (unread.length === 0) return;
+    const ids = unread.map((n) => n.id);
+    await supabase.from(NOTIFICATIONS_TABLE).update({ read: true }).in('id', ids);
+    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+    setUnreadCount(0);
+  };
+
+  // ---------------------------------------------------------------
+  // Global Search
+  // ---------------------------------------------------------------
+  const globalSearch = async (term: string): Promise<GlobalSearchResult[]> => {
+    if (!term || term.length < 2) return [];
+    const q = term.toLowerCase();
+    const results: GlobalSearchResult[] = [];
+
+    // Search institutions
+    approvedInstitutions.forEach((inst) => {
+      if (
+        inst.name?.toLowerCase().includes(q) ||
+        inst.email?.toLowerCase().includes(q) ||
+        inst.code?.toLowerCase().includes(q) ||
+        inst.contact_person?.toLowerCase().includes(q) ||
+        inst.phone?.toLowerCase().includes(q) ||
+        inst.location?.toLowerCase().includes(q)
+      ) {
+        results.push({
+          type: 'institution',
+          id: inst.id,
+          name: inst.name,
+          subtitle: `${inst.code || 'N/A'} • ${inst.location || 'N/A'}`,
+          status: inst.status,
+        });
+      }
+    });
+
+    // Search requests
+    institutionRequests.forEach((req) => {
+      if (
+        req.institution_name?.toLowerCase().includes(q) ||
+        req.institution_email?.toLowerCase().includes(q) ||
+        req.contact_person?.toLowerCase().includes(q)
+      ) {
+        results.push({
+          type: 'request',
+          id: req.id,
+          name: req.institution_name,
+          subtitle: `${req.institution_email} • ${req.status}`,
+          status: req.status,
+        });
+      }
+    });
+
+    return results.slice(0, 20);
   };
 
   return {
@@ -246,10 +558,22 @@ export function useSupabaseData(): UseSupabaseDataReturn {
     isRealtime,
     totalStudents,
     totalOrders,
+    totalVendors,
+    totalRevenue,
+    auditLogs,
+    notifications,
+    unreadCount,
     approveRequest,
     rejectRequest,
+    requestChanges,
     suspendInstitution,
     activateInstitution,
+    deleteInstitution,
+    updateInstitution,
+    createAuditLog,
+    markNotificationRead,
+    markAllNotificationsRead,
+    globalSearch,
     refresh: fetchAll,
   };
 }

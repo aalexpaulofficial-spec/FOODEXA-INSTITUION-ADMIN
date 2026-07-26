@@ -42,13 +42,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
   ];
 
   const superAdminNav: { id: string; label: string; icon: any; badge?: string | null; badgeColor?: string; isAi?: boolean }[] = [
-    { id: 'superadmin', label: 'Platform Overview', icon: ShieldCheck },
-    { id: 'institution_approval', label: 'Institution Requests', icon: Building2 },
-    { id: 'vendor_approval', label: 'Global Vendors', icon: CheckSquare },
-    { id: 'global_analytics', label: 'Global Analytics', icon: BarChart3 },
+    { id: 'approvals', label: 'Institution Requests', icon: Building2 },
+    { id: 'directory', label: 'Institution Directory', icon: Building },
+    { id: 'analytics', label: 'Global Analytics', icon: BarChart3 },
     { id: 'subscriptions', label: 'Subscriptions', icon: CreditCard },
-    { id: 'ai_insights', label: 'AI Risk & Insights', icon: BrainCircuit, isAi: true },
-    { id: 'system_settings', label: 'Audit Logs', icon: Sliders }
+    { id: 'notifications', label: 'Notifications', icon: Bell },
+    { id: 'audit_logs', label: 'Audit Logs', icon: Sliders }
   ];
 
   const navItems = currentPortal === 'super_admin' ? superAdminNav : institutionNav;
@@ -112,21 +111,23 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </div>
       </div>
 
-      <div className="p-4 border-t border-zinc-800/50 mt-auto bg-[#09090B]/50">
-        <div className="p-3 rounded-xl bg-gradient-to-b from-indigo-950/20 to-zinc-900 border border-indigo-500/20 text-center relative overflow-hidden">
-          <div className="flex items-center justify-center space-x-1.5 text-xs font-bold text-zinc-200 mb-1">
-            <Sparkles className="w-3.5 h-3.5 text-indigo-400 animate-pulse" />
-            <span>FOODEXA AI Center</span>
+      {currentPortal !== 'super_admin' && (
+        <div className="p-4 border-t border-zinc-800/50 mt-auto bg-[#09090B]/50">
+          <div className="p-3 rounded-xl bg-gradient-to-b from-indigo-950/20 to-zinc-900 border border-indigo-500/20 text-center relative overflow-hidden">
+            <div className="flex items-center justify-center space-x-1.5 text-xs font-bold text-zinc-200 mb-1">
+              <Sparkles className="w-3.5 h-3.5 text-indigo-400 animate-pulse" />
+              <span>FOODEXA AI Center</span>
+            </div>
+            <p className="text-[10px] text-zinc-400 font-medium">Powered by Google Gemini</p>
+            <button
+              onClick={() => handleSelectTab('ai_center')}
+              className="mt-2.5 w-full py-1.5 px-3 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-[11px] font-bold transition-all shadow-[0_0_15px_rgba(79,70,229,0.3)] flex items-center justify-center space-x-1"
+            >
+              <span>Launch AI Center →</span>
+            </button>
           </div>
-          <p className="text-[10px] text-zinc-400 font-medium">Powered by Google Gemini</p>
-          <button
-            onClick={() => handleSelectTab('ai_center')}
-            className="mt-2.5 w-full py-1.5 px-3 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-[11px] font-bold transition-all shadow-[0_0_15px_rgba(79,70,229,0.3)] flex items-center justify-center space-x-1"
-          >
-            <span>Launch AI Center →</span>
-          </button>
         </div>
-      </div>
+      )}
     </div>
   );
 
