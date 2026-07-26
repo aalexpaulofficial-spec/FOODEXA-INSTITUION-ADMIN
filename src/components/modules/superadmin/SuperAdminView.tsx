@@ -25,30 +25,27 @@ import {
   RefreshCw,
   Sliders,
   Check,
-  FileSpreadsheet,
   Building2,
   Phone,
   Mail,
   Calendar,
   Layers,
-  FileText
+  FileText,
+  Wifi,
+  WifiOff,
+  Database,
+  Loader2
 } from 'lucide-react';
-import { Institution, Vendor, AuditLog } from '../../../types';
+import { useSupabaseData, InstitutionRequest, SupabaseInstitution } from '../../../hooks/useSupabaseData';
+import { supabase } from '../../../lib/supabaseClient';
 
-interface SuperAdminViewProps {
-  institutions: Institution[];
-  onSelectInstitution: (inst: Institution) => void;
-  onAddInstitution: (inst: Institution) => void;
-}
-
-// Fallback Logo Component to guarantee no broken images
-const InstitutionLogo: React.FC<{ src?: string; name: string; className?: string }> = ({
-  src,
+// ---------------------------------------------------------------
+// Fallback Logo
+// ---------------------------------------------------------------
+const InstitutionLogo: React.FC<{ name: string; className?: string }> = ({
   name,
-  className = 'w-10 h-10 rounded-xl'
+  className = 'w-10 h-10 rounded-xl',
 }) => {
-  const [imgError, setImgError] = useState(false);
-
   const initials = name
     .split(' ')
     .map((word) => word[0])
@@ -57,153 +54,200 @@ const InstitutionLogo: React.FC<{ src?: string; name: string; className?: string
     .join('')
     .toUpperCase();
 
-  if (!src || imgError) {
+  return (
+    <div
+      className={`${className} bg-gradient-to-br from-indigo-900 to-slate-900 border border-indigo-500/30 flex items-center justify-center text-indigo-300 font-extrabold text-xs shadow-inner shrink-0`}
+    >
+      {initials || 'IN'}
+    </div>
+  );
+};
+
+// ---------------------------------------------------------------
+// Status Badge
+// ---------------------------------------------------------------
+const StatusBadge: React.FC<{ status: string }> = ({ status }) => {
+  const map: Record<string, { color: string; label: string }> = {
+    pending:       { color: 'bg-amber-500/10 text-amber-400 border-amber-500/30',    label: 'Pending' },
+    active:        { color: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30', label: 'Active' },
+    rejected:      { color: 'bg-red-500/10 text-red-400 border-red-500/30',          label: 'Rejected' },
+    suspended:     { color: 'bg-slate-500/10 text-slate-400 border-slate-500/30',    label: 'Suspended' },
+    pending_approval: { color: 'bg-amber-500/10 text-amber-400 border-amber-500/30', label: 'Pending' },
+  };
+  const s = map[status] || { color: 'bg-slate-800 text-slate-400 border-slate-700', label: status };
+  return (
+    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${s.color}`}>
+      {s.label}
+    </span>
+  );
+};
+
+// ---------------------------------------------------------------
+// Skeleton Card
+// ---------------------------------------------------------------
+const SkeletonCard = () => (
+  <div className="p-4 rounded-2xl bg-[#0C0C0E] border border-slate-800 animate-pulse space-y-2">
+    <div className="h-3 bg-slate-800 rounded w-1/2" />
+    <div className="h-6 bg-slate-800 rounded w-1/3" />
+    <div className="h-3 bg-slate-800 rounded w-2/3" />
+  </div>
+);
+
+// ---------------------------------------------------------------
+// Main Component
+// ---------------------------------------------------------------
+export const SuperAdminView: React.FC = () => {
+  const {
+    institutionRequests,
+    approvedInstitutions,
+    loading,
+    error,
+    isRealtime,
+    totalStudents,
+    totalOrders,
+    approveRequest,
+    rejectRequest,
+    suspendInstitution,
+    activateInstitution,
+    refresh,
+  } = useSupabaseData();
+
+  const [activeTab, setActiveTab] = useState<
+    'directory' | 'analytics' | 'approvals' | 'governance'
+  >('approvals');
+
+  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'active' | 'rejected' | 'suspended'>('all');
+
+  // Toast
+  const [toasts, setToasts] = useState<{ id: string; msg: string; type?: 'success' | 'info' | 'error' }[]>([]);
+  const addToast = (msg: string, type: 'success' | 'info' | 'error' = 'success') => {
+    const id = `toast-${Date.now()}`;
+    setToasts((prev) => [...prev, { id, msg, type }]);
+    setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== id)), 3500);
+  };
+
+  // Onboard Modal (manual add)
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [addName, setAddName] = useState('');
+  const [addEmail, setAddEmail] = useState('');
+  const [addContact, setAddContact] = useState('');
+  const [addPhone, setAddPhone] = useState('');
+  const [addCity, setAddCity] = useState('');
+  const [addPlan, setAddPlan] = useState<'Basic' | 'Pro' | 'Enterprise'>('Basic');
+  const [addLoading, setAddLoading] = useState(false);
+
+  // Detail modal
+  const [selectedRequest, setSelectedRequest] = useState<InstitutionRequest | null>(null);
+
+  // ---------------------------------------------------------------
+  // Derived
+  // ---------------------------------------------------------------
+  const pendingRequests = institutionRequests.filter((r) => r.status === 'pending');
+  const allRequests = institutionRequests.filter((r) => {
+    const matchesSearch =
+      r.institution_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      r.institution_email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      r.contact_person?.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesStatus = statusFilter === 'all' || r.status === statusFilter;
+    return matchesSearch && matchesStatus;
+  });
+
+  const filteredInstitutions = approvedInstitutions.filter((i) => {
+    const matchesSearch =
+      i.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      i.email?.toLowerCase().includes(searchTerm.toLowerCase());
+    return matchesSearch;
+  });
+
+  // ---------------------------------------------------------------
+  // Handlers
+  // ---------------------------------------------------------------
+  const handleApprove = async (id: string, name: string) => {
+    await approveRequest(id);
+    addToast(`✔ Approved: ${name}`);
+  };
+
+  const handleReject = async (id: string, name: string) => {
+    await rejectRequest(id);
+    addToast(`✖ Rejected: ${name}`, 'error');
+  };
+
+  const handleSuspend = async (id: string, name: string) => {
+    await suspendInstitution(id);
+    addToast(`⏸ Suspended: ${name}`, 'info');
+  };
+
+  const handleActivate = async (id: string, name: string) => {
+    await activateInstitution(id);
+    addToast(`✔ Activated: ${name}`);
+  };
+
+  const handleManualOnboard = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!addName || !addEmail) return;
+    setAddLoading(true);
+
+    const { error: insertErr } = await supabase.from('institution_requests').insert({
+      institution_name: addName,
+      institution_email: addEmail,
+      contact_person: addContact,
+      phone_number: addPhone,
+      city: addCity,
+      plan: addPlan,
+      status: 'active',
+    });
+
+    setAddLoading(false);
+    if (insertErr) {
+      addToast(`Error: ${insertErr.message}`, 'error');
+    } else {
+      addToast(`✔ Onboarded ${addName}!`);
+      setShowAddModal(false);
+      setAddName(''); setAddEmail(''); setAddContact(''); setAddPhone(''); setAddCity('');
+      refresh();
+    }
+  };
+
+  // ---------------------------------------------------------------
+  // Render — Error State
+  // ---------------------------------------------------------------
+  if (error) {
     return (
-      <div
-        className={`${className} bg-gradient-to-br from-indigo-900 to-slate-900 border border-indigo-500/30 flex items-center justify-center text-indigo-300 font-extrabold text-xs shadow-inner shrink-0`}
-      >
-        {initials || 'IN'}
+      <div className="flex flex-col items-center justify-center min-h-[400px] space-y-4 text-center">
+        <div className="w-16 h-16 rounded-full bg-red-950 border border-red-500/40 flex items-center justify-center">
+          <Database className="w-8 h-8 text-red-400" />
+        </div>
+        <h2 className="text-xl font-bold text-white">Supabase Connection Error</h2>
+        <p className="text-sm text-slate-400 max-w-md">{error}</p>
+        <button
+          onClick={refresh}
+          className="px-5 py-2.5 rounded-xl bg-amber-500 text-slate-950 font-bold text-xs flex items-center gap-2"
+        >
+          <RefreshCw className="w-3.5 h-3.5" />
+          Retry Connection
+        </button>
       </div>
     );
   }
 
-  return (
-    <img
-      src={src}
-      alt={name}
-      onError={() => setImgError(true)}
-      className={`${className} object-cover border border-slate-800 shrink-0`}
-    />
-  );
-};
-
-export const SuperAdminView: React.FC<SuperAdminViewProps> = ({
-  institutions: initialInstitutions,
-  onSelectInstitution,
-  onAddInstitution
-}) => {
-  const [institutionsList, setInstitutionsList] = useState<Institution[]>(initialInstitutions);
-  const [activeTab, setActiveTab] = useState<
-    'directory' | 'analytics' | 'subscriptions' | 'governance' | 'approvals' | 'audit_logs' | 'ai_insights'
-  >('directory');
-
-  // Filters & Search
-  const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'pending_approval' | 'suspended'>('all');
-  const [planFilter, setPlanFilter] = useState<'all' | 'Basic' | 'Pro' | 'Enterprise'>('all');
-
-  // Toast System
-  const [toasts, setToasts] = useState<{ id: string; msg: string; type?: 'success' | 'info' }[]>([]);
-
-  // Onboarding Modal
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [name, setName] = useState('');
-  const [code, setCode] = useState('');
-  const [type, setType] = useState<'University' | 'College' | 'Institute' | 'Healthcare'>('University');
-  const [studentsCount, setStudentsCount] = useState('15000');
-  const [vendorsCount, setVendorsCount] = useState('10');
-  const [location, setLocation] = useState('Boston, MA');
-  const [contactPerson, setContactPerson] = useState('Dr. Sarah Jenkins');
-  const [email, setEmail] = useState('admin@university.edu');
-  const [phone, setPhone] = useState('+1 (555) 800-2020');
-  const [plan, setPlan] = useState<'Enterprise' | 'Pro' | 'Basic'>('Enterprise');
-  const [autoProvisionKDS, setAutoProvisionKDS] = useState(true);
-
-  // Selected Detail Modal
-  const [selectedInstForDetails, setSelectedInstForDetails] = useState<Institution | null>(null);
-
-  const addToast = (msg: string, type: 'success' | 'info' = 'success') => {
-    const id = `toast-${Date.now()}`;
-    setToasts((prev) => [...prev, { id, msg, type }]);
-    setTimeout(() => {
-      setToasts((prev) => prev.filter((t) => t.id !== id));
-    }, 3500);
-  };
-
-  // Sync state if props change
-  React.useEffect(() => {
-    setInstitutionsList(initialInstitutions);
-  }, [initialInstitutions]);
-
-  // Handle Approve / Suspend / Activate Institution
-  const handleUpdateStatus = (instId: string, newStatus: 'active' | 'pending_approval' | 'suspended') => {
-    setInstitutionsList((prev) =>
-      prev.map((inst) => (inst.id === instId ? { ...inst, status: newStatus } : inst))
-    );
-    addToast(`✔ Updated status of institution to ${newStatus.toUpperCase()}`);
-  };
-
-  // Handle Plan Upgrade
-  const handleUpdatePlan = (instId: string, newPlan: 'Basic' | 'Pro' | 'Enterprise') => {
-    setInstitutionsList((prev) =>
-      prev.map((inst) => (inst.id === instId ? { ...inst, plan: newPlan } : inst))
-    );
-    addToast(`✔ Upgraded license tier to ${newPlan}`);
-  };
-
-  // Handle Onboard Submit
-  const handleCreateSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    const newInst: Institution = {
-      id: `inst-${Date.now()}`,
-      name: name || 'Stanford Campus Center',
-      code: code || `INST-${Math.floor(1000 + Math.random() * 9000)}`,
-      location: location || 'Palo Alto, CA',
-      studentsCount: parseInt(studentsCount) || 12000,
-      vendorsCount: parseInt(vendorsCount) || 8,
-      dailyOrdersCount: Math.round((parseInt(studentsCount) || 12000) * 0.25),
-      monthlyRevenue: plan === 'Enterprise' ? 185000 : plan === 'Pro' ? 95000 : 45000,
-      status: 'active',
-      contactPerson: contactPerson || 'Dean Alex Morgan',
-      email: email || 'contact@stanford.edu',
-      phone: phone || '+1 (555) 900-1122',
-      joinedDate: new Date().toISOString().split('T')[0],
-      plan: plan,
-      type: type,
-      lastActivity: 'Just onboarded',
-      renewalDate: '2027-07-26',
-      logoUrl: 'https://images.unsplash.com/photo-1562774053-701939374585?auto=format&fit=crop&q=80&w=200'
-    };
-
-    setInstitutionsList((prev) => [newInst, ...prev]);
-    onAddInstitution(newInst);
-    setShowAddModal(false);
-    addToast(`✔ Successfully onboarded ${newInst.name}!`);
-
-    // Reset Form
-    setName('');
-    setCode('');
-  };
-
-  // Filtered List for Directory & Approvals
-  const filteredInstitutions = institutionsList.filter((inst) => {
-    const matchesSearch =
-      inst.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      inst.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      inst.location.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      inst.contactPerson.toLowerCase().includes(searchTerm.toLowerCase());
-
-    const matchesStatus = statusFilter === 'all' || inst.status === statusFilter;
-    const matchesPlan = planFilter === 'all' || inst.plan === planFilter;
-
-    return matchesSearch && matchesStatus && matchesPlan;
-  });
-
-  // Calculate Aggregated Telemetry
-  const totalStudents = institutionsList.reduce((acc, curr) => acc + curr.studentsCount, 0);
-  const totalCanteens = institutionsList.reduce((acc, curr) => acc + curr.vendorsCount, 0);
-  const totalDailyOrders = institutionsList.reduce((acc, curr) => acc + curr.dailyOrdersCount, 0);
-  const totalMonthlyRevenue = institutionsList.reduce((acc, curr) => acc + curr.monthlyRevenue, 0);
-  const pendingApprovalsCount = institutionsList.filter((i) => i.status === 'pending_approval').length;
-
+  // ---------------------------------------------------------------
+  // Render
+  // ---------------------------------------------------------------
   return (
     <div className="space-y-6 animate-fade-in font-sans pb-16">
-      {/* Floating Toast Notification */}
+      {/* Toast */}
       <div className="fixed bottom-6 right-6 z-50 flex flex-col space-y-2 pointer-events-none">
         {toasts.map((toast) => (
           <div
             key={toast.id}
-            className="pointer-events-auto px-4 py-3 rounded-2xl bg-[#0C0C0E] border border-amber-500/40 text-white text-xs font-bold shadow-2xl flex items-center space-x-2 animate-bounce-short"
+            className={`pointer-events-auto px-4 py-3 rounded-2xl text-white text-xs font-bold shadow-2xl flex items-center space-x-2 ${
+              toast.type === 'error'
+                ? 'bg-red-950 border border-red-500/40'
+                : toast.type === 'info'
+                ? 'bg-slate-900 border border-slate-700'
+                : 'bg-[#0C0C0E] border border-amber-500/40'
+            }`}
           >
             <Sparkles className="w-4 h-4 text-amber-400" />
             <span>{toast.msg}</span>
@@ -211,872 +255,470 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = ({
         ))}
       </div>
 
-      {/* Top Console Master Header */}
+      {/* Header */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-slate-800/80 pb-5">
         <div>
           <div className="inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-400 text-xs font-extrabold uppercase tracking-wider mb-2">
             <Globe className="w-3.5 h-3.5" />
-            <span>superadmin.foodexa.com • Enterprise Portal</span>
+            <span>Super Admin • FOODEXA Enterprise</span>
+            {isRealtime ? (
+              <span className="flex items-center gap-1 text-emerald-400 text-[10px]">
+                <Wifi className="w-3 h-3" /> Live
+              </span>
+            ) : (
+              <span className="flex items-center gap-1 text-slate-500 text-[10px]">
+                <WifiOff className="w-3 h-3" /> Connecting…
+              </span>
+            )}
           </div>
-          <h1 className="text-2xl font-black text-white tracking-tight flex items-center gap-2">
-            <span>Master Governance Console</span>
-            <span className="text-xs px-2.5 py-0.5 rounded-full bg-slate-800 text-amber-400 font-mono font-bold border border-amber-500/30">
-              SaaS v4.8
-            </span>
-          </h1>
+          <h1 className="text-2xl font-black text-white tracking-tight">Master Governance Console</h1>
           <p className="text-xs text-slate-400 mt-1">
-            Global orchestration of multi-institution campus canteens, licensing, SLA compliance, and cross-campus telemetry.
+            All data is live from Supabase — no mock records.
           </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
           <button
-            onClick={() => addToast('✔ Synchronized real-time telemetry across all 5 campuses', 'info')}
+            onClick={refresh}
             className="px-3.5 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 text-xs font-semibold transition-all flex items-center space-x-2"
           >
             <RefreshCw className="w-3.5 h-3.5 text-amber-400" />
-            <span>Sync Telemetry</span>
+            <span>Refresh</span>
           </button>
-
           <button
             onClick={() => setShowAddModal(true)}
             className="px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs transition-all shadow-lg shadow-amber-500/20 flex items-center space-x-2"
           >
             <Plus className="w-4 h-4" />
-            <span>Onboard New Institution</span>
+            <span>Onboard Institution</span>
           </button>
         </div>
       </div>
 
-      {/* Global SaaS Platform Metrics Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-        <div className="p-4 rounded-2xl bg-[#0C0C0E] border border-slate-800 shadow-xl space-y-1.5">
-          <div className="flex items-center justify-between text-slate-400 text-[11px] font-bold uppercase tracking-wider">
-            <span>Onboarded Campuses</span>
-            <Building2 className="w-4 h-4 text-amber-400" />
-          </div>
-          <div className="text-2xl font-black text-white font-mono">{institutionsList.length}</div>
-          <div className="text-[11px] text-emerald-400 font-medium flex items-center space-x-1">
-            <CheckCircle2 className="w-3 h-3" />
-            <span>{institutionsList.filter((i) => i.status === 'active').length} Active SLA</span>
-          </div>
+      {/* Metric Cards */}
+      {loading ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {Array.from({ length: 4 }).map((_, i) => <SkeletonCard key={i} />)}
         </div>
-
-        <div className="p-4 rounded-2xl bg-[#0C0C0E] border border-slate-800 shadow-xl space-y-1.5">
-          <div className="flex items-center justify-between text-slate-400 text-[11px] font-bold uppercase tracking-wider">
-            <span>Global Student Base</span>
-            <Users className="w-4 h-4 text-indigo-400" />
-          </div>
-          <div className="text-2xl font-black text-white font-mono">{totalStudents.toLocaleString()}</div>
-          <div className="text-[11px] text-indigo-400 font-medium">Across all universities</div>
-        </div>
-
-        <div className="p-4 rounded-2xl bg-[#0C0C0E] border border-slate-800 shadow-xl space-y-1.5">
-          <div className="flex items-center justify-between text-slate-400 text-[11px] font-bold uppercase tracking-wider">
-            <span>Food Court Outlets</span>
-            <Store className="w-4 h-4 text-amber-400" />
-          </div>
-          <div className="text-2xl font-black text-white font-mono">{totalCanteens} Outlets</div>
-          <div className="text-[11px] text-amber-400 font-medium">100% KDS Integrated</div>
-        </div>
-
-        <div className="p-4 rounded-2xl bg-[#0C0C0E] border border-slate-800 shadow-xl space-y-1.5">
-          <div className="flex items-center justify-between text-slate-400 text-[11px] font-bold uppercase tracking-wider">
-            <span>Daily Order Volume</span>
-            <TrendingUp className="w-4 h-4 text-cyan-400" />
-          </div>
-          <div className="text-2xl font-black text-white font-mono">{totalDailyOrders.toLocaleString()}</div>
-          <div className="text-[11px] text-cyan-400 font-medium">+14.2% peak surge</div>
-        </div>
-
-        <div className="p-4 rounded-2xl bg-[#0C0C0E] border border-slate-800 shadow-xl space-y-1.5">
-          <div className="flex items-center justify-between text-slate-400 text-[11px] font-bold uppercase tracking-wider">
-            <span>Monthly Revenue</span>
-            <DollarSign className="w-4 h-4 text-emerald-400" />
-          </div>
-          <div className="text-2xl font-black text-emerald-400 font-mono">
-            ${totalMonthlyRevenue.toLocaleString()}
-          </div>
-          <div className="text-[11px] text-emerald-300 font-medium">Platform ARR: $5.7M</div>
-        </div>
-      </div>
-
-      {/* Sub-Navigation Tabs */}
-      <div className="flex items-center space-x-2 border-b border-slate-800/80 pb-2 overflow-x-auto text-xs font-bold">
-        <button
-          onClick={() => setActiveTab('directory')}
-          className={`px-4 py-2.5 rounded-xl transition-all flex items-center space-x-2 shrink-0 ${
-            activeTab === 'directory'
-              ? 'bg-amber-500/20 border border-amber-500/40 text-amber-300 shadow-sm'
-              : 'text-slate-400 hover:text-white hover:bg-slate-900'
-          }`}
-        >
-          <Building2 className="w-4 h-4" />
-          <span>Institutions Directory ({institutionsList.length})</span>
-        </button>
-
-        <button
-          onClick={() => setActiveTab('approvals')}
-          className={`px-4 py-2.5 rounded-xl transition-all flex items-center space-x-2 shrink-0 ${
-            activeTab === 'approvals'
-              ? 'bg-amber-500/20 border border-amber-500/40 text-amber-300 shadow-sm'
-              : 'text-slate-400 hover:text-white hover:bg-slate-900'
-          }`}
-        >
-          <ShieldCheck className="w-4 h-4" />
-          <span>System Approvals</span>
-          {pendingApprovalsCount > 0 && (
-            <span className="px-1.5 py-0.5 rounded-full bg-amber-500 text-slate-950 font-black text-[10px]">
-              {pendingApprovalsCount}
-            </span>
-          )}
-        </button>
-
-        <button
-          onClick={() => setActiveTab('subscriptions')}
-          className={`px-4 py-2.5 rounded-xl transition-all flex items-center space-x-2 shrink-0 ${
-            activeTab === 'subscriptions'
-              ? 'bg-amber-500/20 border border-amber-500/40 text-amber-300 shadow-sm'
-              : 'text-slate-400 hover:text-white hover:bg-slate-900'
-          }`}
-        >
-          <CreditCard className="w-4 h-4" />
-          <span>Subscriptions & Licensing</span>
-        </button>
-
-        <button
-          onClick={() => setActiveTab('analytics')}
-          className={`px-4 py-2.5 rounded-xl transition-all flex items-center space-x-2 shrink-0 ${
-            activeTab === 'analytics'
-              ? 'bg-amber-500/20 border border-amber-500/40 text-amber-300 shadow-sm'
-              : 'text-slate-400 hover:text-white hover:bg-slate-900'
-          }`}
-        >
-          <BarChart2 className="w-4 h-4" />
-          <span>Global Analytics</span>
-        </button>
-
-        <button
-          onClick={() => setActiveTab('governance')}
-          className={`px-4 py-2.5 rounded-xl transition-all flex items-center space-x-2 shrink-0 ${
-            activeTab === 'governance'
-              ? 'bg-amber-500/20 border border-amber-500/40 text-amber-300 shadow-sm'
-              : 'text-slate-400 hover:text-white hover:bg-slate-900'
-          }`}
-        >
-          <Store className="w-4 h-4" />
-          <span>Vendor Governance</span>
-        </button>
-
-        <button
-          onClick={() => setActiveTab('audit_logs')}
-          className={`px-4 py-2.5 rounded-xl transition-all flex items-center space-x-2 shrink-0 ${
-            activeTab === 'audit_logs'
-              ? 'bg-amber-500/20 border border-amber-500/40 text-amber-300 shadow-sm'
-              : 'text-slate-400 hover:text-white hover:bg-slate-900'
-          }`}
-        >
-          <Layers className="w-4 h-4" />
-          <span>Global Audit Logs</span>
-        </button>
-
-        <button
-          onClick={() => setActiveTab('ai_insights')}
-          className={`px-4 py-2.5 rounded-xl transition-all flex items-center space-x-2 shrink-0 ${
-            activeTab === 'ai_insights'
-              ? 'bg-amber-500/20 border border-amber-500/40 text-amber-300 shadow-sm'
-              : 'text-slate-400 hover:text-white hover:bg-slate-900'
-          }`}
-        >
-          <Sparkles className="w-4 h-4 text-amber-400" />
-          <span>Platform AI Insights</span>
-        </button>
-      </div>
-
-      {/* TAB 1: INSTITUTIONS DIRECTORY */}
-      {activeTab === 'directory' && (
-        <div className="space-y-5">
-          {/* Filter Bar */}
-          <div className="p-4 rounded-2xl bg-[#0C0C0E] border border-slate-800 shadow-xl flex flex-col md:flex-row items-center justify-between gap-3">
-            <div className="relative flex-1 w-full">
-              <Search className="w-4 h-4 text-slate-500 absolute left-3.5 top-2.5" />
-              <input
-                type="text"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Search institution name, code, contact admin, or campus..."
-                className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-10 pr-4 py-2 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-amber-500"
-              />
-              {searchTerm && (
-                <button
-                  onClick={() => setSearchTerm('')}
-                  className="absolute right-3 top-2.5 text-slate-500 hover:text-white"
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              )}
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="p-4 rounded-2xl bg-[#0C0C0E] border border-slate-800 shadow-xl space-y-1.5">
+            <div className="flex items-center justify-between text-slate-400 text-[11px] font-bold uppercase tracking-wider">
+              <span>Institution Requests</span>
+              <Building2 className="w-4 h-4 text-amber-400" />
             </div>
-
-            <div className="flex items-center space-x-2 w-full md:w-auto">
-              <select
-                value={statusFilter}
-                onChange={(e: any) => setStatusFilter(e.target.value)}
-                className="bg-slate-950 border border-slate-800 text-slate-300 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-amber-500"
-              >
-                <option value="all">All SLA Statuses</option>
-                <option value="active">Active SLA</option>
-                <option value="pending_approval">Pending Approval</option>
-                <option value="suspended">Suspended</option>
-              </select>
-
-              <select
-                value={planFilter}
-                onChange={(e: any) => setPlanFilter(e.target.value)}
-                className="bg-slate-950 border border-slate-800 text-slate-300 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-amber-500"
-              >
-                <option value="all">All Plans</option>
-                <option value="Enterprise">Enterprise</option>
-                <option value="Pro">Pro Tier</option>
-                <option value="Basic">Basic Tier</option>
-              </select>
+            <div className="text-2xl font-black text-white font-mono">{institutionRequests.length}</div>
+            <div className="text-[11px] text-amber-400 font-medium flex items-center space-x-1">
+              <Clock className="w-3 h-3" />
+              <span>{pendingRequests.length} Pending Approval</span>
             </div>
           </div>
 
-          {/* Cards Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-            {filteredInstitutions.map((inst) => (
-              <div
-                key={inst.id}
-                className="p-5 rounded-3xl bg-[#0C0C0E] border border-slate-800/90 hover:border-slate-700 transition-all shadow-xl space-y-4 flex flex-col justify-between group"
-              >
-                <div className="space-y-3">
-                  {/* Top Header Row */}
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-center space-x-3">
-                      <InstitutionLogo name={inst.name} src={inst.logoUrl} />
-                      <div>
-                        <h3 className="font-bold text-white text-sm tracking-tight group-hover:text-amber-300 transition-colors">
-                          {inst.name}
-                        </h3>
-                        <p className="text-[11px] text-slate-400 font-mono">{inst.code} • {inst.location}</p>
-                      </div>
-                    </div>
+          <div className="p-4 rounded-2xl bg-[#0C0C0E] border border-slate-800 shadow-xl space-y-1.5">
+            <div className="flex items-center justify-between text-slate-400 text-[11px] font-bold uppercase tracking-wider">
+              <span>Active Institutions</span>
+              <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+            </div>
+            <div className="text-2xl font-black text-white font-mono">
+              {approvedInstitutions.filter((i) => i.status === 'active').length}
+            </div>
+            <div className="text-[11px] text-emerald-400 font-medium">Live on platform</div>
+          </div>
 
-                    <span
-                      className={`px-2.5 py-1 rounded-lg text-[10px] font-extrabold uppercase border ${
-                        inst.status === 'active'
-                          ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
-                          : inst.status === 'pending_approval'
-                          ? 'bg-amber-500/10 text-amber-400 border-amber-500/30'
-                          : 'bg-red-500/10 text-red-400 border-red-500/30'
-                      }`}
-                    >
-                      {inst.status === 'pending_approval' ? 'PENDING' : inst.status.toUpperCase()}
-                    </span>
-                  </div>
+          <div className="p-4 rounded-2xl bg-[#0C0C0E] border border-slate-800 shadow-xl space-y-1.5">
+            <div className="flex items-center justify-between text-slate-400 text-[11px] font-bold uppercase tracking-wider">
+              <span>Global Students</span>
+              <Users className="w-4 h-4 text-indigo-400" />
+            </div>
+            <div className="text-2xl font-black text-white font-mono">{totalStudents.toLocaleString()}</div>
+            <div className="text-[11px] text-indigo-400 font-medium">From Supabase</div>
+          </div>
 
-                  {/* Plan & Contact Row */}
-                  <div className="flex items-center justify-between bg-slate-950/60 p-2.5 rounded-xl border border-slate-800/80 text-xs">
-                    <div className="flex items-center space-x-2">
-                      <span className="text-slate-400">Plan:</span>
-                      <span className="font-bold text-amber-400 font-mono">{inst.plan} Tier</span>
-                    </div>
-                    <div className="text-[11px] text-slate-400 font-mono">
-                      {inst.lastActivity || 'Active recently'}
-                    </div>
-                  </div>
-
-                  {/* Metrics Table */}
-                  <div className="space-y-1.5 text-xs text-slate-300 pt-1">
-                    <div className="flex justify-between text-slate-400">
-                      <span>Enrolled Students:</span>
-                      <span className="font-mono text-slate-100 font-bold">
-                        {inst.studentsCount.toLocaleString()}
-                      </span>
-                    </div>
-                    <div className="flex justify-between text-slate-400">
-                      <span>Food Court Outlets:</span>
-                      <span className="font-bold text-amber-400 font-mono">{inst.vendorsCount} Canteens</span>
-                    </div>
-                    <div className="flex justify-between text-slate-400">
-                      <span>Daily Orders Volume:</span>
-                      <span className="font-mono text-cyan-400 font-bold">
-                        {inst.dailyOrdersCount.toLocaleString()} orders/day
-                      </span>
-                    </div>
-                    <div className="flex justify-between text-slate-400">
-                      <span>Monthly Volume:</span>
-                      <span className="font-mono font-bold text-emerald-400">
-                        ${inst.monthlyRevenue.toLocaleString()}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Contact Info */}
-                  <div className="p-2.5 rounded-xl bg-slate-900/40 text-[11px] text-slate-400 space-y-1">
-                    <div className="flex items-center space-x-1.5">
-                      <Users className="w-3.5 h-3.5 text-indigo-400" />
-                      <span className="text-slate-200 font-semibold">{inst.contactPerson}</span>
-                    </div>
-                    <div className="flex items-center justify-between text-slate-400 font-mono text-[10px]">
-                      <span>{inst.email}</span>
-                      <span>{inst.phone}</span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Primary Card Action Button */}
-                <div className="space-y-2 pt-2 border-t border-slate-800/80">
-                  <button
-                    onClick={() => {
-                      addToast(`✔ Switch context to ${inst.name}`);
-                      onSelectInstitution(inst);
-                    }}
-                    className="w-full py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs transition-all shadow-md shadow-amber-500/20 flex items-center justify-center space-x-1.5"
-                  >
-                    <span>Switch to Dashboard</span>
-                    <ChevronRight className="w-4 h-4" />
-                  </button>
-
-                  <div className="flex items-center justify-between text-[11px]">
-                    <button
-                      onClick={() => setSelectedInstForDetails(inst)}
-                      className="text-indigo-400 hover:text-indigo-300 font-semibold underline underline-offset-2"
-                    >
-                      View Full Details
-                    </button>
-
-                    {inst.status === 'active' ? (
-                      <button
-                        onClick={() => handleUpdateStatus(inst.id, 'suspended')}
-                        className="text-red-400 hover:text-red-300 font-semibold"
-                      >
-                        Suspend SLA
-                      </button>
-                    ) : (
-                      <button
-                        onClick={() => handleUpdateStatus(inst.id, 'active')}
-                        className="text-emerald-400 hover:text-emerald-300 font-semibold"
-                      >
-                        Activate SLA
-                      </button>
-                    )}
-                  </div>
-                </div>
-              </div>
-            ))}
+          <div className="p-4 rounded-2xl bg-[#0C0C0E] border border-slate-800 shadow-xl space-y-1.5">
+            <div className="flex items-center justify-between text-slate-400 text-[11px] font-bold uppercase tracking-wider">
+              <span>Total Orders</span>
+              <TrendingUp className="w-4 h-4 text-cyan-400" />
+            </div>
+            <div className="text-2xl font-black text-white font-mono">{totalOrders.toLocaleString()}</div>
+            <div className="text-[11px] text-cyan-400 font-medium">All time</div>
           </div>
         </div>
       )}
 
-      {/* TAB 2: SYSTEM APPROVALS */}
+      {/* Tabs */}
+      <div className="flex flex-wrap gap-1 border-b border-slate-800 pb-0">
+        {(['approvals', 'directory', 'analytics', 'governance'] as const).map((tab) => (
+          <button
+            key={tab}
+            onClick={() => setActiveTab(tab)}
+            className={`px-4 py-2.5 text-xs font-bold capitalize transition-all border-b-2 -mb-px ${
+              activeTab === tab
+                ? 'border-amber-500 text-amber-400'
+                : 'border-transparent text-slate-500 hover:text-slate-300'
+            }`}
+          >
+            {tab === 'approvals' ? (
+              <span className="flex items-center gap-2">
+                Institution Requests
+                {pendingRequests.length > 0 && (
+                  <span className="px-1.5 py-0.5 rounded-full bg-amber-500 text-slate-950 text-[10px] font-black">
+                    {pendingRequests.length}
+                  </span>
+                )}
+              </span>
+            ) : tab}
+          </button>
+        ))}
+      </div>
+
+      {/* ---- TAB: Approvals (Institution Requests) ---- */}
       {activeTab === 'approvals' && (
-        <div className="p-6 rounded-3xl bg-[#0C0C0E] border border-slate-800 shadow-xl space-y-6">
-          <div>
-            <h2 className="text-lg font-bold text-white flex items-center space-x-2">
-              <ShieldCheck className="w-5 h-5 text-amber-400" />
-              <span>Pending Institution & Vendor Governance Approvals</span>
-            </h2>
-            <p className="text-xs text-slate-400 mt-0.5">
-              Review incoming university registration applications, SLA agreements, and canteen vendor licenses.
-            </p>
+        <div className="space-y-4">
+          {/* Search + Filter */}
+          <div className="flex flex-col sm:flex-row gap-3">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+              <input
+                type="text"
+                placeholder="Search requests…"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full bg-slate-900 border border-slate-800 rounded-xl pl-9 pr-4 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-500/50"
+              />
+            </div>
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value as typeof statusFilter)}
+              className="bg-slate-900 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none"
+            >
+              <option value="all">All Status</option>
+              <option value="pending">Pending</option>
+              <option value="active">Approved</option>
+              <option value="rejected">Rejected</option>
+              <option value="suspended">Suspended</option>
+            </select>
           </div>
 
-          <div className="space-y-4">
-            {institutionsList.filter((i) => i.status === 'pending_approval').length === 0 ? (
-              <div className="p-12 text-center border border-dashed border-slate-800 rounded-2xl text-slate-500 space-y-2">
-                <CheckCircle2 className="w-8 h-8 text-emerald-400 mx-auto" />
-                <p className="text-xs font-bold text-slate-300">All Institution Applications Approved</p>
-                <p className="text-[11px]">There are currently no pending SLA approvals in the queue.</p>
+          {loading ? (
+            <div className="flex items-center justify-center py-16">
+              <Loader2 className="w-8 h-8 text-amber-400 animate-spin" />
+            </div>
+          ) : allRequests.length === 0 ? (
+            <div className="text-center py-16 space-y-3">
+              <div className="w-16 h-16 mx-auto rounded-full bg-slate-900 border border-slate-800 flex items-center justify-center">
+                <Building className="w-8 h-8 text-slate-600" />
               </div>
-            ) : (
-              institutionsList
-                .filter((i) => i.status === 'pending_approval')
-                .map((inst) => (
-                  <div
-                    key={inst.id}
-                    className="p-5 rounded-2xl bg-slate-900/60 border border-amber-500/30 flex flex-col md:flex-row items-start md:items-center justify-between gap-4"
-                  >
-                    <div className="flex items-center space-x-4">
-                      <InstitutionLogo name={inst.name} src={inst.logoUrl} className="w-12 h-12 rounded-2xl" />
-                      <div className="space-y-1">
-                        <div className="flex items-center space-x-2">
-                          <h3 className="font-bold text-white text-sm">{inst.name}</h3>
-                          <span className="px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 text-[10px] font-mono font-bold">
-                            {inst.plan} Tier Request
-                          </span>
-                        </div>
-                        <p className="text-xs text-slate-400">
-                          {inst.location} • Contact: {inst.contactPerson} ({inst.email})
-                        </p>
-                        <p className="text-[11px] text-slate-500 font-mono">
-                          Capacity: {inst.studentsCount.toLocaleString()} Students | Expected Canteens: {inst.vendorsCount}
-                        </p>
+              <p className="text-slate-400 text-sm font-semibold">No institution requests yet.</p>
+              <p className="text-slate-600 text-xs">When institutions register from the main website, they appear here instantly.</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {allRequests.map((req) => (
+                <div
+                  key={req.id}
+                  className="p-4 rounded-2xl bg-[#0C0C0E] border border-slate-800 hover:border-amber-500/20 transition-all space-y-3"
+                >
+                  <div className="flex items-start justify-between gap-3 flex-wrap">
+                    <div className="flex items-center gap-3">
+                      <InstitutionLogo name={req.institution_name} />
+                      <div>
+                        <p className="text-sm font-bold text-white">{req.institution_name}</p>
+                        <p className="text-xs text-slate-400">{req.institution_email}</p>
                       </div>
                     </div>
-
-                    <div className="flex items-center space-x-2 shrink-0">
-                      <button
-                        onClick={() => handleUpdateStatus(inst.id, 'active')}
-                        className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center space-x-1.5 shadow-lg shadow-emerald-600/20"
-                      >
-                        <Check className="w-4 h-4" />
-                        <span>Approve & Provision</span>
-                      </button>
-
-                      <button
-                        onClick={() => handleUpdateStatus(inst.id, 'suspended')}
-                        className="px-4 py-2 rounded-xl bg-red-600/20 hover:bg-red-600/40 text-red-300 border border-red-500/30 font-bold text-xs"
-                      >
-                        Reject Application
-                      </button>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <StatusBadge status={req.status} />
+                      <span className="text-[10px] text-slate-600">
+                        {new Date(req.created_at).toLocaleDateString()}
+                      </span>
                     </div>
                   </div>
-                ))
+
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-[11px] text-slate-400">
+                    <span className="flex items-center gap-1"><Users className="w-3 h-3" /> {req.contact_person}</span>
+                    <span className="flex items-center gap-1"><Phone className="w-3 h-3" /> {req.phone_number || '—'}</span>
+                    <span className="flex items-center gap-1"><Globe className="w-3 h-3" /> {[req.city, req.state, req.country].filter(Boolean).join(', ') || '—'}</span>
+                    <span className="flex items-center gap-1"><Layers className="w-3 h-3" /> {req.student_population || '—'} students</span>
+                  </div>
+
+                  {req.message && (
+                    <p className="text-[11px] text-slate-500 italic border-l-2 border-slate-800 pl-3">
+                      {req.message}
+                    </p>
+                  )}
+
+                  {req.status === 'pending' && (
+                    <div className="flex items-center gap-2 pt-1">
+                      <button
+                        onClick={() => handleApprove(req.id, req.institution_name)}
+                        className="flex-1 sm:flex-none px-4 py-2 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 text-xs font-bold flex items-center justify-center gap-1.5 transition-all"
+                      >
+                        <CheckCircle2 className="w-3.5 h-3.5" /> Approve
+                      </button>
+                      <button
+                        onClick={() => handleReject(req.id, req.institution_name)}
+                        className="flex-1 sm:flex-none px-4 py-2 rounded-xl bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 text-red-400 text-xs font-bold flex items-center justify-center gap-1.5 transition-all"
+                      >
+                        <XCircle className="w-3.5 h-3.5" /> Reject
+                      </button>
+                      <button
+                        onClick={() => setSelectedRequest(req)}
+                        className="px-3 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 text-xs font-semibold transition-all"
+                      >
+                        Details
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ---- TAB: Directory (Approved Institutions) ---- */}
+      {activeTab === 'directory' && (
+        <div className="space-y-4">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+            <input
+              type="text"
+              placeholder="Search institutions…"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full bg-slate-900 border border-slate-800 rounded-xl pl-9 pr-4 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-500/50"
+            />
+          </div>
+
+          {loading ? (
+            <div className="flex items-center justify-center py-16">
+              <Loader2 className="w-8 h-8 text-amber-400 animate-spin" />
+            </div>
+          ) : filteredInstitutions.length === 0 ? (
+            <div className="text-center py-16 space-y-3">
+              <div className="w-16 h-16 mx-auto rounded-full bg-slate-900 border border-slate-800 flex items-center justify-center">
+                <Building2 className="w-8 h-8 text-slate-600" />
+              </div>
+              <p className="text-slate-400 text-sm font-semibold">No approved institutions yet.</p>
+              <p className="text-slate-600 text-xs">Approved requests will appear here automatically.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              {filteredInstitutions.map((inst) => (
+                <div
+                  key={inst.id}
+                  className="p-4 rounded-2xl bg-[#0C0C0E] border border-slate-800 hover:border-indigo-500/30 transition-all space-y-3"
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <InstitutionLogo name={inst.name} />
+                      <div>
+                        <p className="text-sm font-bold text-white">{inst.name}</p>
+                        <p className="text-xs text-slate-400">{inst.email}</p>
+                      </div>
+                    </div>
+                    <StatusBadge status={inst.status} />
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-[11px] text-slate-400">
+                    <span className="flex items-center gap-1"><Users className="w-3 h-3" /> {inst.contact_person || '—'}</span>
+                    <span className="flex items-center gap-1"><Globe className="w-3 h-3" /> {inst.location || '—'}</span>
+                    <span className="flex items-center gap-1"><CreditCard className="w-3 h-3" /> {inst.plan || 'Basic'} Plan</span>
+                    <span className="flex items-center gap-1"><Calendar className="w-3 h-3" /> {inst.joined_date || '—'}</span>
+                  </div>
+                  <div className="flex gap-2">
+                    {inst.status === 'active' ? (
+                      <button
+                        onClick={() => handleSuspend(inst.id, inst.name)}
+                        className="px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-800 text-slate-400 hover:text-amber-400 text-[11px] font-semibold transition-all"
+                      >
+                        Suspend
+                      </button>
+                    ) : inst.status === 'suspended' ? (
+                      <button
+                        onClick={() => handleActivate(inst.id, inst.name)}
+                        className="px-3 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-[11px] font-semibold transition-all"
+                      >
+                        Reactivate
+                      </button>
+                    ) : null}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ---- TAB: Analytics ---- */}
+      {activeTab === 'analytics' && (
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="p-5 rounded-2xl bg-[#0C0C0E] border border-slate-800 space-y-2">
+              <div className="text-xs text-slate-400 uppercase font-bold tracking-wider flex items-center gap-2">
+                <Activity className="w-4 h-4 text-amber-400" /> Total Requests
+              </div>
+              <div className="text-3xl font-black text-white">{institutionRequests.length}</div>
+              <p className="text-[11px] text-slate-500">All time registrations</p>
+            </div>
+            <div className="p-5 rounded-2xl bg-[#0C0C0E] border border-slate-800 space-y-2">
+              <div className="text-xs text-slate-400 uppercase font-bold tracking-wider flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-400" /> Approved
+              </div>
+              <div className="text-3xl font-black text-emerald-400">
+                {institutionRequests.filter((r) => r.status === 'active').length}
+              </div>
+              <p className="text-[11px] text-slate-500">Active on platform</p>
+            </div>
+            <div className="p-5 rounded-2xl bg-[#0C0C0E] border border-slate-800 space-y-2">
+              <div className="text-xs text-slate-400 uppercase font-bold tracking-wider flex items-center gap-2">
+                <XCircle className="w-4 h-4 text-red-400" /> Rejected
+              </div>
+              <div className="text-3xl font-black text-red-400">
+                {institutionRequests.filter((r) => r.status === 'rejected').length}
+              </div>
+              <p className="text-[11px] text-slate-500">Declined requests</p>
+            </div>
+          </div>
+
+          <div className="p-5 rounded-2xl bg-[#0C0C0E] border border-slate-800 space-y-4">
+            <h3 className="text-sm font-bold text-white flex items-center gap-2">
+              <BarChart2 className="w-4 h-4 text-amber-400" /> Platform Summary
+            </h3>
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <div className="space-y-1">
+                <p className="text-slate-500 text-[11px] uppercase font-bold">Registered Students</p>
+                <p className="text-xl font-black text-white">{totalStudents.toLocaleString()}</p>
+              </div>
+              <div className="space-y-1">
+                <p className="text-slate-500 text-[11px] uppercase font-bold">Total Orders</p>
+                <p className="text-xl font-black text-white">{totalOrders.toLocaleString()}</p>
+              </div>
+              <div className="space-y-1">
+                <p className="text-slate-500 text-[11px] uppercase font-bold">Institutions</p>
+                <p className="text-xl font-black text-white">{approvedInstitutions.length}</p>
+              </div>
+              <div className="space-y-1">
+                <p className="text-slate-500 text-[11px] uppercase font-bold">Pending Review</p>
+                <p className="text-xl font-black text-amber-400">{pendingRequests.length}</p>
+              </div>
+            </div>
+            <p className="text-[10px] text-slate-600 border-t border-slate-800 pt-3">
+              All data sourced live from Supabase — <code>oxsbkwcmpsadbcceaalc.supabase.co</code>
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* ---- TAB: Governance ---- */}
+      {activeTab === 'governance' && (
+        <div className="p-6 rounded-2xl bg-[#0C0C0E] border border-slate-800 space-y-4">
+          <div className="flex items-center gap-2 text-sm font-bold text-white">
+            <ShieldCheck className="w-5 h-5 text-amber-400" />
+            Governance & Compliance
+          </div>
+          <p className="text-xs text-slate-400">
+            All Super Admin actions (approve, reject, suspend, activate) are written directly to your Supabase database in real time.
+            Use the Supabase Dashboard → Table Editor to view detailed audit logs.
+          </p>
+          <a
+            href="https://app.supabase.com/project/oxsbkwcmpsadbcceaalc"
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-900 border border-slate-800 text-slate-300 text-xs font-semibold hover:border-amber-500/40 transition-all"
+          >
+            <Database className="w-4 h-4 text-amber-400" />
+            Open Supabase Dashboard
+            <ArrowUpRight className="w-3 h-3" />
+          </a>
+        </div>
+      )}
+
+      {/* ---- Detail Modal ---- */}
+      {selectedRequest && (
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="w-full max-w-lg bg-slate-900 border border-slate-800 rounded-3xl p-6 space-y-4 relative">
+            <button
+              onClick={() => setSelectedRequest(null)}
+              className="absolute top-4 right-4 p-2 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-400"
+            >
+              <X className="w-4 h-4" />
+            </button>
+            <div className="flex items-center gap-3">
+              <InstitutionLogo name={selectedRequest.institution_name} className="w-12 h-12 rounded-xl" />
+              <div>
+                <p className="font-bold text-white">{selectedRequest.institution_name}</p>
+                <StatusBadge status={selectedRequest.status} />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3 text-xs text-slate-300">
+              <div><span className="text-slate-500 block">Email</span>{selectedRequest.institution_email}</div>
+              <div><span className="text-slate-500 block">Contact</span>{selectedRequest.contact_person}</div>
+              <div><span className="text-slate-500 block">Phone</span>{selectedRequest.phone_number || '—'}</div>
+              <div><span className="text-slate-500 block">Location</span>{[selectedRequest.city, selectedRequest.state, selectedRequest.country].filter(Boolean).join(', ') || '—'}</div>
+              <div><span className="text-slate-500 block">Students</span>{selectedRequest.student_population || '—'}</div>
+              <div><span className="text-slate-500 block">Food Courts</span>{selectedRequest.food_courts_count || '—'}</div>
+              <div><span className="text-slate-500 block">Vendors</span>{selectedRequest.vendors_count || '—'}</div>
+              <div><span className="text-slate-500 block">Website</span>
+                {selectedRequest.institution_website
+                  ? <a href={selectedRequest.institution_website} target="_blank" rel="noreferrer" className="text-indigo-400 underline">{selectedRequest.institution_website}</a>
+                  : '—'}
+              </div>
+            </div>
+            {selectedRequest.message && (
+              <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-300 italic">
+                {selectedRequest.message}
+              </div>
+            )}
+            {selectedRequest.status === 'pending' && (
+              <div className="flex gap-3">
+                <button
+                  onClick={async () => { await handleApprove(selectedRequest.id, selectedRequest.institution_name); setSelectedRequest(null); }}
+                  className="flex-1 py-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-bold"
+                >
+                  Approve
+                </button>
+                <button
+                  onClick={async () => { await handleReject(selectedRequest.id, selectedRequest.institution_name); setSelectedRequest(null); }}
+                  className="flex-1 py-2.5 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-xs font-bold"
+                >
+                  Reject
+                </button>
+              </div>
             )}
           </div>
         </div>
       )}
 
-      {/* TAB 3: SUBSCRIPTIONS & LICENSING */}
-      {activeTab === 'subscriptions' && (
-        <div className="space-y-6">
-          <div className="p-6 rounded-3xl bg-[#0C0C0E] border border-slate-800 shadow-xl space-y-4">
-            <h2 className="text-lg font-bold text-white flex items-center space-x-2">
-              <CreditCard className="w-5 h-5 text-amber-400" />
-              <span>SaaS Subscription Management & MRR Breakdown</span>
-            </h2>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
-              <div className="p-4 rounded-2xl bg-slate-900 border border-indigo-500/30 space-y-2">
-                <div className="text-indigo-400 font-bold uppercase text-[10px]">Enterprise SLA Tier</div>
-                <div className="text-xl font-black text-white font-mono">$4,999 / mo per campus</div>
-                <p className="text-slate-400 text-[11px]">Includes Unlimited KDS terminals, LX AI Auto-Categorization, Priority 24/7 SLA.</p>
-              </div>
-
-              <div className="p-4 rounded-2xl bg-slate-900 border border-slate-800 space-y-2">
-                <div className="text-amber-400 font-bold uppercase text-[10px]">Pro SLA Tier</div>
-                <div className="text-xl font-black text-white font-mono">$2,499 / mo per campus</div>
-                <p className="text-slate-400 text-[11px]">Includes up to 10 Canteen Outlets, LX AI Assistant, Standard SLA.</p>
-              </div>
-
-              <div className="p-4 rounded-2xl bg-slate-900 border border-slate-800 space-y-2">
-                <div className="text-slate-400 font-bold uppercase text-[10px]">Starter SLA Tier</div>
-                <div className="text-xl font-black text-white font-mono">$999 / mo per campus</div>
-                <p className="text-slate-400 text-[11px]">Includes up to 3 Canteen Outlets, Basic Reporting, Community Support.</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="p-6 rounded-3xl bg-[#0C0C0E] border border-slate-800 shadow-xl space-y-4 overflow-x-auto">
-            <h3 className="font-bold text-white text-sm">Active University Licensing Licenses</h3>
-
-            <table className="w-full text-left text-xs text-slate-300">
-              <thead className="bg-slate-900 text-slate-400 font-mono text-[10px] uppercase border-b border-slate-800">
-                <tr>
-                  <th className="p-3">Institution</th>
-                  <th className="p-3">License Tier</th>
-                  <th className="p-3">Monthly MRR</th>
-                  <th className="p-3">SLA Status</th>
-                  <th className="p-3">Next Renewal Date</th>
-                  <th className="p-3 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-800/60 font-mono">
-                {institutionsList.map((inst) => (
-                  <tr key={inst.id} className="hover:bg-slate-900/50">
-                    <td className="p-3 font-sans font-bold text-white flex items-center space-x-2">
-                      <InstitutionLogo name={inst.name} src={inst.logoUrl} className="w-7 h-7 rounded-lg" />
-                      <span>{inst.name}</span>
-                    </td>
-                    <td className="p-3">
-                      <span className="px-2 py-0.5 rounded bg-amber-500/10 text-amber-400 font-bold text-[10px]">
-                        {inst.plan}
-                      </span>
-                    </td>
-                    <td className="p-3 text-emerald-400 font-bold">
-                      ${(inst.plan === 'Enterprise' ? 4999 : inst.plan === 'Pro' ? 2499 : 999).toLocaleString()} /mo
-                    </td>
-                    <td className="p-3 font-sans">
-                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-300">
-                        ACTIVE
-                      </span>
-                    </td>
-                    <td className="p-3 text-slate-400">{inst.renewalDate || '2027-01-15'}</td>
-                    <td className="p-3 text-right font-sans">
-                      <select
-                        value={inst.plan}
-                        onChange={(e: any) => handleUpdatePlan(inst.id, e.target.value)}
-                        className="bg-slate-900 border border-slate-700 text-slate-200 rounded px-2 py-1 text-[11px]"
-                      >
-                        <option value="Enterprise">Set Enterprise</option>
-                        <option value="Pro">Set Pro</option>
-                        <option value="Basic">Set Basic</option>
-                      </select>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* TAB 4: GLOBAL ANALYTICS */}
-      {activeTab === 'analytics' && (
-        <div className="space-y-6">
-          <div className="p-6 rounded-3xl bg-[#0C0C0E] border border-slate-800 shadow-xl space-y-4">
-            <h2 className="text-lg font-bold text-white flex items-center space-x-2">
-              <BarChart2 className="w-5 h-5 text-amber-400" />
-              <span>Cross-Campus Daily Order & Revenue Growth</span>
-            </h2>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Campus Revenue Share Visualizer */}
-              <div className="bg-slate-900/60 p-5 rounded-2xl border border-slate-800 space-y-3">
-                <h3 className="font-bold text-xs text-slate-300 uppercase">Campus Revenue Contribution</h3>
-                {institutionsList.map((inst) => {
-                  const percentage = Math.round((inst.monthlyRevenue / totalMonthlyRevenue) * 100) || 10;
-                  return (
-                    <div key={inst.id} className="space-y-1 text-xs">
-                      <div className="flex justify-between font-semibold">
-                        <span className="text-slate-200">{inst.name}</span>
-                        <span className="text-emerald-400 font-mono">${inst.monthlyRevenue.toLocaleString()} ({percentage}%)</span>
-                      </div>
-                      <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
-                        <div
-                          className="bg-gradient-to-r from-amber-500 to-emerald-400 h-full rounded-full"
-                          style={{ width: `${percentage}%` }}
-                        />
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-
-              {/* Peak Order Hours Across All Universities */}
-              <div className="bg-slate-900/60 p-5 rounded-2xl border border-slate-800 space-y-3">
-                <h3 className="font-bold text-xs text-slate-300 uppercase">Peak Campus Order Hours</h3>
-                <div className="space-y-2 text-xs font-mono">
-                  <div className="flex justify-between p-2.5 rounded-xl bg-slate-950 border border-slate-800">
-                    <span className="text-slate-300 font-sans">Breakfast Rush (08:00 - 10:00)</span>
-                    <span className="text-amber-400 font-bold">1,840 Orders / Hr</span>
-                  </div>
-                  <div className="flex justify-between p-2.5 rounded-xl bg-slate-950 border border-slate-800">
-                    <span className="text-slate-300 font-sans">Lunch Peak (12:00 - 14:00)</span>
-                    <span className="text-emerald-400 font-bold">4,920 Orders / Hr</span>
-                  </div>
-                  <div className="flex justify-between p-2.5 rounded-xl bg-slate-950 border border-slate-800">
-                    <span className="text-slate-300 font-sans">Evening Snack (16:00 - 18:00)</span>
-                    <span className="text-cyan-400 font-bold">2,150 Orders / Hr</span>
-                  </div>
-                  <div className="flex justify-between p-2.5 rounded-xl bg-slate-950 border border-slate-800">
-                    <span className="text-slate-300 font-sans">Late Night Hostel (21:00 - 23:00)</span>
-                    <span className="text-indigo-400 font-bold">1,210 Orders / Hr</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* TAB 5: VENDOR GOVERNANCE */}
-      {activeTab === 'governance' && (
-        <div className="p-6 rounded-3xl bg-[#0C0C0E] border border-slate-800 shadow-xl space-y-4">
-          <h2 className="text-lg font-bold text-white flex items-center space-x-2">
-            <Store className="w-5 h-5 text-amber-400" />
-            <span>Global Food Court Vendor Governance & Health Scores</span>
-          </h2>
-          <p className="text-xs text-slate-400">
-            Monitor all vendor outlets operating across registered university campuses, hygiene certifications, and order throughput.
-          </p>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
-            <div className="p-4 rounded-2xl bg-slate-900 border border-slate-800 space-y-1">
-              <div className="text-slate-400 text-xs font-bold">Total Active Outlets</div>
-              <div className="text-2xl font-black text-white font-mono">{totalCanteens} Outlets</div>
-              <p className="text-emerald-400 text-[11px]">All certified by Campus Food Authority</p>
-            </div>
-
-            <div className="p-4 rounded-2xl bg-slate-900 border border-slate-800 space-y-1">
-              <div className="text-slate-400 text-xs font-bold">Average Hygiene SLA Rating</div>
-              <div className="text-2xl font-black text-amber-400 font-mono">4.88 / 5.0</div>
-              <p className="text-slate-400 text-[11px]">Audited daily by Student Feedback</p>
-            </div>
-
-            <div className="p-4 rounded-2xl bg-slate-900 border border-slate-800 space-y-1">
-              <div className="text-slate-400 text-xs font-bold">Kitchen Hardware Terminals</div>
-              <div className="text-2xl font-black text-cyan-400 font-mono">100% Online</div>
-              <p className="text-cyan-400 text-[11px]">Real-time WebSocket connection active</p>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* TAB 6: GLOBAL AUDIT LOGS */}
-      {activeTab === 'audit_logs' && (
-        <div className="p-6 rounded-3xl bg-[#0C0C0E] border border-slate-800 shadow-xl space-y-4">
-          <h2 className="text-lg font-bold text-white flex items-center space-x-2">
-            <Layers className="w-5 h-5 text-amber-400" />
-            <span>Real-time System Audit & Security Event Trail</span>
-          </h2>
-
-          <div className="space-y-2 text-xs font-mono">
-            <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 flex justify-between items-center text-slate-300">
-              <div>
-                <span className="text-amber-400 font-bold">[13:42:01 UTC]</span> Super Admin provisioned new SLA tier for Apex University
-              </div>
-              <span className="text-emerald-400 text-[10px]">SUCCESS (IP: 192.168.1.1)</span>
-            </div>
-
-            <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 flex justify-between items-center text-slate-300">
-              <div>
-                <span className="text-amber-400 font-bold">[11:15:30 UTC]</span> Automatic database backup completed for 5 campus environments
-              </div>
-              <span className="text-emerald-400 text-[10px]">SUCCESS (SYSTEM)</span>
-            </div>
-
-            <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 flex justify-between items-center text-slate-300">
-              <div>
-                <span className="text-amber-400 font-bold">[09:02:18 UTC]</span> Horizon Tech canteen vendor menu catalog synchronized with KDS
-              </div>
-              <span className="text-emerald-400 text-[10px]">SUCCESS (KDS)</span>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* TAB 7: AI INSIGHTS */}
-      {activeTab === 'ai_insights' && (
-        <div className="p-6 rounded-3xl bg-[#0C0C0E] border border-slate-800 shadow-xl space-y-4">
-          <h2 className="text-lg font-bold text-white flex items-center space-x-2">
-            <Sparkles className="w-5 h-5 text-amber-400" />
-            <span>LX AI Master Engine System Telemetry & Insights</span>
-          </h2>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
-            <div className="p-5 rounded-2xl bg-gradient-to-br from-indigo-950/60 to-slate-900 border border-indigo-500/30 space-y-2">
-              <h3 className="font-extrabold text-indigo-300 uppercase text-[11px]">Semester Demand Prediction</h3>
-              <p className="text-slate-300 leading-relaxed">
-                LX AI predicts a 28% order volume surge during upcoming Midterm Exams week across Apex University and Horizon Tech campuses.
-              </p>
-            </div>
-
-            <div className="p-5 rounded-2xl bg-gradient-to-br from-amber-950/60 to-slate-900 border border-amber-500/30 space-y-2">
-              <h3 className="font-extrabold text-amber-300 uppercase text-[11px]">Kitchen Bottleneck Prevention</h3>
-              <p className="text-slate-300 leading-relaxed">
-                Recommends activating 2 additional express pickup kiosks at North Tech Hub between 12:30 PM - 1:15 PM.
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Detail Modal */}
-      {selectedInstForDetails && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="w-full max-w-xl bg-[#0C0C0E] border border-slate-800 rounded-3xl p-6 space-y-5">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <div className="flex items-center space-x-3">
-                <InstitutionLogo name={selectedInstForDetails.name} src={selectedInstForDetails.logoUrl} className="w-10 h-10 rounded-xl" />
-                <div>
-                  <h3 className="font-bold text-white text-base">{selectedInstForDetails.name}</h3>
-                  <p className="text-xs text-slate-400 font-mono">{selectedInstForDetails.code}</p>
-                </div>
-              </div>
-              <button
-                onClick={() => setSelectedInstForDetails(null)}
-                className="text-slate-400 hover:text-white"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="space-y-3 text-xs text-slate-300">
-              <div className="grid grid-cols-2 gap-3 p-3 rounded-2xl bg-slate-900 border border-slate-800 font-mono">
-                <div>
-                  <span className="text-slate-500 block text-[10px]">LOCATION</span>
-                  <span className="text-slate-100 font-bold">{selectedInstForDetails.location}</span>
-                </div>
-                <div>
-                  <span className="text-slate-500 block text-[10px]">ADMIN CONTACT</span>
-                  <span className="text-amber-400 font-bold">{selectedInstForDetails.contactPerson}</span>
-                </div>
-                <div>
-                  <span className="text-slate-500 block text-[10px]">EMAIL</span>
-                  <span className="text-slate-200">{selectedInstForDetails.email}</span>
-                </div>
-                <div>
-                  <span className="text-slate-500 block text-[10px]">PHONE</span>
-                  <span className="text-slate-200">{selectedInstForDetails.phone}</span>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-3 gap-3 p-3 rounded-2xl bg-slate-900 border border-slate-800 text-center font-mono">
-                <div>
-                  <span className="text-slate-500 block text-[10px]">STUDENTS</span>
-                  <span className="text-white font-bold text-sm">{selectedInstForDetails.studentsCount.toLocaleString()}</span>
-                </div>
-                <div>
-                  <span className="text-slate-500 block text-[10px]">CANTEENS</span>
-                  <span className="text-amber-400 font-bold text-sm">{selectedInstForDetails.vendorsCount}</span>
-                </div>
-                <div>
-                  <span className="text-slate-500 block text-[10px]">MONTHLY REVENUE</span>
-                  <span className="text-emerald-400 font-bold text-sm">${selectedInstForDetails.monthlyRevenue.toLocaleString()}</span>
-                </div>
-              </div>
-            </div>
-
-            <button
-              onClick={() => {
-                const inst = selectedInstForDetails;
-                setSelectedInstForDetails(null);
-                onSelectInstitution(inst);
-              }}
-              className="w-full py-3 rounded-2xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs shadow-lg shadow-amber-500/20"
-            >
-              Switch to Campus Admin Portal
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Onboard New Institution Modal */}
+      {/* ---- Manual Onboard Modal ---- */}
       {showAddModal && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="w-full max-w-lg bg-[#0C0C0E] border border-slate-800 rounded-3xl p-6 space-y-4 shadow-2xl">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <div className="flex items-center space-x-2">
-                <Building2 className="w-5 h-5 text-amber-400" />
-                <h3 className="font-bold text-white text-base">Onboard New University Institution</h3>
-              </div>
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-3xl p-6 space-y-4 relative">
+            <button
+              onClick={() => setShowAddModal(false)}
+              className="absolute top-4 right-4 p-2 rounded-full bg-slate-800 text-slate-400"
+            >
+              <X className="w-4 h-4" />
+            </button>
+            <h2 className="text-base font-bold text-white">Manually Onboard Institution</h2>
+            <form onSubmit={handleManualOnboard} className="space-y-3">
+              <input required type="text" placeholder="Institution Name *" value={addName} onChange={(e) => setAddName(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-500/50" />
+              <input required type="email" placeholder="Email *" value={addEmail} onChange={(e) => setAddEmail(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-500/50" />
+              <input type="text" placeholder="Contact Person" value={addContact} onChange={(e) => setAddContact(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none" />
+              <input type="tel" placeholder="Phone Number" value={addPhone} onChange={(e) => setAddPhone(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none" />
+              <input type="text" placeholder="City" value={addCity} onChange={(e) => setAddCity(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none" />
+              <select value={addPlan} onChange={(e) => setAddPlan(e.target.value as 'Basic' | 'Pro' | 'Enterprise')} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none">
+                <option value="Basic">Basic</option>
+                <option value="Pro">Pro</option>
+                <option value="Enterprise">Enterprise</option>
+              </select>
               <button
-                type="button"
-                onClick={() => setShowAddModal(false)}
-                className="text-slate-400 hover:text-white"
+                type="submit"
+                disabled={addLoading}
+                className="w-full py-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs flex items-center justify-center gap-2 disabled:opacity-60"
               >
-                <X className="w-5 h-5" />
+                {addLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+                {addLoading ? 'Saving…' : 'Onboard to Supabase'}
               </button>
-            </div>
-
-            <form onSubmit={handleCreateSubmit} className="space-y-3 text-xs">
-              <div>
-                <label className="text-slate-300 font-semibold block mb-1">Institution Full Name</label>
-                <input
-                  type="text"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="e.g. Stanford University Campus"
-                  required
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 placeholder-slate-600 focus:outline-none focus:border-amber-500"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-slate-300 font-semibold block mb-1">Campus Identifier Code</label>
-                  <input
-                    type="text"
-                    value={code}
-                    onChange={(e) => setCode(e.target.value.toUpperCase())}
-                    placeholder="e.g. STAN-MAIN"
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 font-mono uppercase focus:outline-none focus:border-amber-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="text-slate-300 font-semibold block mb-1">Institution Type</label>
-                  <select
-                    value={type}
-                    onChange={(e: any) => setType(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 focus:outline-none focus:border-amber-500"
-                  >
-                    <option value="University">University</option>
-                    <option value="College">College</option>
-                    <option value="Institute">Institute</option>
-                    <option value="Healthcare">Healthcare College</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-slate-300 font-semibold block mb-1">Student Capacity</label>
-                  <input
-                    type="number"
-                    value={studentsCount}
-                    onChange={(e) => setStudentsCount(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 font-mono focus:outline-none focus:border-amber-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="text-slate-300 font-semibold block mb-1">Canteen Outlets Count</label>
-                  <input
-                    type="number"
-                    value={vendorsCount}
-                    onChange={(e) => setVendorsCount(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 font-mono focus:outline-none focus:border-amber-500"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="text-slate-300 font-semibold block mb-1">Campus Location</label>
-                <input
-                  type="text"
-                  value={location}
-                  onChange={(e) => setLocation(e.target.value)}
-                  placeholder="e.g. Palo Alto, California"
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 placeholder-slate-600 focus:outline-none focus:border-amber-500"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-slate-300 font-semibold block mb-1">Primary Admin Contact</label>
-                  <input
-                    type="text"
-                    value={contactPerson}
-                    onChange={(e) => setContactPerson(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 focus:outline-none focus:border-amber-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="text-slate-300 font-semibold block mb-1">Admin Official Email</label>
-                  <input
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 font-mono focus:outline-none focus:border-amber-500"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="text-slate-300 font-semibold block mb-1">SLA License Tier</label>
-                <select
-                  value={plan}
-                  onChange={(e: any) => setPlan(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 focus:outline-none focus:border-amber-500"
-                >
-                  <option value="Enterprise">Enterprise Tier ($4,999/mo - Unlimited KDS)</option>
-                  <option value="Pro">Pro Tier ($2,499/mo - Up to 10 Outlets)</option>
-                  <option value="Basic">Basic Tier ($999/mo - Standard)</option>
-                </select>
-              </div>
-
-              <div className="pt-2">
-                <button
-                  type="submit"
-                  className="w-full py-3 rounded-2xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs shadow-lg shadow-amber-500/20"
-                >
-                  Provision & Deploy Institution Environment
-                </button>
-              </div>
             </form>
           </div>
         </div>

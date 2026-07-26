@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import {
-  INITIAL_INSTITUTIONS,
   INITIAL_STUDENTS,
   INITIAL_VENDORS,
   INITIAL_ORDERS,
@@ -13,7 +12,6 @@ import {
   INITIAL_COUNTERS
 } from './data/mockData';
 import {
-  Institution,
   Student,
   Vendor,
   Order,
@@ -55,9 +53,6 @@ export function App() {
   const [currentPortal, setCurrentPortal] = useState<PortalRole>('campus_admin');
   const [currentTab, setCurrentTab] = useState<string>('dashboard');
 
-  // Institutions State
-  const [institutions, setInstitutions] = useState<Institution[]>(INITIAL_INSTITUTIONS);
-  const [currentInstitution, setCurrentInstitution] = useState<Institution>(INITIAL_INSTITUTIONS[0]);
 
   // Operational Domain State
   const [students, setStudents] = useState<Student[]>(INITIAL_STUDENTS);
@@ -97,9 +92,6 @@ export function App() {
     }
   };
 
-  const handleInstitutionSelect = (inst: Institution) => {
-    setCurrentInstitution(inst);
-  };
 
   const handleUpdateStudentStatus = (studentId: string, status: 'active' | 'suspended') => {
     setStudents((prev) =>
@@ -173,9 +165,7 @@ export function App() {
     setAnnouncements((prev) => [ann, ...prev]);
   };
 
-  const handleAddInstitution = (inst: Institution) => {
-    setInstitutions((prev) => [...prev, inst]);
-  };
+
 
   // If unauthenticated, render login view
   if (!isAuthenticated) {
@@ -188,9 +178,9 @@ export function App() {
       <Header
         currentPortal={currentPortal}
         onPortalChange={handlePortalChange}
-        institutions={institutions}
-        currentInstitution={currentInstitution}
-        onInstitutionSelect={handleInstitutionSelect}
+        institutions={[]}
+        currentInstitution={null as any}
+        onInstitutionSelect={() => {}}
         onOpenAISearch={() => setIsAISearchOpen(true)}
         onOpenQRScanner={() => setIsQRScannerOpen(true)}
         onOpenStudentSync={() => setIsStudentSyncOpen(true)}
@@ -309,13 +299,7 @@ export function App() {
             )}
 
             {currentPortal === 'super_admin' && (
-              <SuperAdminView
-                institutions={institutions}
-                onSelectInstitution={(inst) => {
-                  handleInstitutionSelect(inst);
-                }}
-                onAddInstitution={handleAddInstitution}
-              />
+              <SuperAdminView />
             )}
           </div>
         </main>
