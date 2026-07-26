@@ -1,0 +1,6 @@
+{
+  "name": "FOODEXA Institution Platform",
+  "description": "Official secure AI-native institution management platform for universities, colleges, canteens, and Super Admin.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

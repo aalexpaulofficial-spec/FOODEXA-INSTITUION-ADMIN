@@ -1,0 +1,232 @@
+export type Role = 'institution_admin' | 'kitchen_manager' | 'super_admin' | 'canteen_vendor';
+
+export type PortalMode = 'institution' | 'super_admin';
+export type PortalRole = 'campus_admin' | 'super_admin' | 'kitchen_manager' | 'canteen_vendor';
+
+export interface Student {
+  id: string;
+  name: string;
+  studentId: string;
+  email: string;
+  department: string;
+  semester: number;
+  campusBlock: string;
+  status: 'active' | 'suspended' | 'graduated';
+  avatar: string;
+  walletBalance: number;
+  totalOrders: number;
+  favoriteMeal: string;
+  qrCode: string;
+  lxInteractionsCount: number;
+  dietaryPreference: string[];
+}
+
+export interface Vendor {
+  id: string;
+  name: string;
+  ownerName: string;
+  email: string;
+  phone: string;
+  campusBlock: string;
+  outletType: string;
+  seatingCapacity: number;
+  openingHours: string;
+  status: 'approved' | 'pending' | 'suspended';
+  rating: number;
+  monthlyRevenue: number;
+  ordersCount: number;
+  appliedDate: string;
+  documentsSubmitted: boolean;
+}
+
+export type MenuStatus = 'draft' | 'published' | 'scheduled' | 'hidden' | 'out_of_stock' | 'archived';
+export type DietaryType = 'Veg' | 'Non-Veg' | 'Vegan' | 'Jain';
+
+export interface MenuAnalytics {
+  views: number;
+  orders: number;
+  revenue: number;
+  conversionRate: number;
+  averageRating: number;
+  trendingScore: number;
+}
+
+export interface MenuItem {
+  id: string;
+  vendorId: string;
+  vendorName: string;
+  name: string;
+  category: string;
+  price: number;
+  discountPrice?: number;
+  prepTimeMinutes?: number;
+  servingSize?: string;
+  calories: number;
+  proteinGrams: number;
+  carbsGrams?: number;
+  fatGrams?: number;
+  fiberGrams?: number;
+  sugarGrams?: number;
+  isVegetarian: boolean;
+  dietaryType?: DietaryType;
+  isAvailable: boolean;
+  stockCount: number;
+  quantityAvailable?: number;
+  imageUrl: string;
+  description: string;
+  ingredients?: string[];
+  allergens: string[];
+  aiPopularityScore: number;
+  availableTime?: string;
+  counterNumber?: string;
+  isTodaysSpecial?: boolean;
+  availableToday?: boolean;
+  status?: MenuStatus;
+  tags?: string[];
+  cuisineType?: string;
+  analytics?: MenuAnalytics;
+  orderPriorityIndex?: number;
+  createdAt?: string;
+}
+
+export type OrderStatus = 'pending' | 'accepted' | 'preparing' | 'ready' | 'completed' | 'cancelled';
+
+export interface Counter {
+  id: string;
+  code: string; // e.g. 'Counter A', 'Counter B', 'Counter C', 'Counter D'
+  name: string;
+  campusBlock: string;
+  categories: string[];
+  operatingHours: string;
+  isAvailable: boolean;
+  assignedStaff: string[];
+  queueLength: number;
+  avgWaitTimeMins: number;
+  activeMenuCount: number;
+}
+
+export interface Order {
+  id: string;
+  orderNumber: string; // e.g. 'FXA-2026-001245'
+  studentId: string;
+  studentName: string;
+  studentDepartment: string;
+  vendorId: string;
+  vendorName: string;
+  pickupCounter: string; // e.g. 'Counter B'
+  pickupNumber: string; // e.g. 'B-142'
+  estimatedWaitMins: number; // e.g. 8
+  items: {
+    menuItemId: string;
+    name: string;
+    quantity: number;
+    price: number;
+  }[];
+  totalAmount: number;
+  status: OrderStatus;
+  orderTime: string;
+  pickupTimeEstimated: string;
+  pickupCode: string;
+  paymentMethod: 'Razorpay UPI' | 'Razorpay Card' | 'Student Wallet' | 'UPI' | 'Card' | 'Meal Voucher';
+  paymentStatus: 'paid' | 'pending' | 'cancelled' | 'refunded';
+  notes?: string;
+  isPriority?: boolean;
+  qrCodeData?: string;
+}
+
+export interface KitchenQueueItem {
+  id: string;
+  orderId: string;
+  orderNumber: string;
+  itemsSummary: string;
+  status: OrderStatus;
+  prepTimeMinutes: number;
+  elapsedSeconds: number;
+  isPriority: boolean;
+  notes?: string;
+  counterNumber: string;
+}
+
+export interface StaffMember {
+  id: string;
+  name: string;
+  email: string;
+  role: 'Institution Admin' | 'Kitchen Manager' | 'Campus Supervisor' | 'Support Staff';
+  department: string;
+  assignedCampusBlock: string;
+  status: 'active' | 'inactive';
+  lastActive: string;
+  permissions: {
+    menuEdit: boolean;
+    orderManage: boolean;
+    vendorApprove: boolean;
+    analyticsView: boolean;
+    staffManage: boolean;
+  };
+}
+
+export interface CampusBlock {
+  id: string;
+  name: string;
+  code: string;
+  departmentsCount: number;
+  totalStudents: number;
+  canteensCount: number;
+  operatingHours: string;
+  foodCourts: {
+    name: string;
+    counters: number;
+    capacity: number;
+  }[];
+}
+
+export interface Announcement {
+  id: string;
+  title: string;
+  category: 'General' | 'Emergency Alert' | 'Maintenance' | 'Offers & Events';
+  content: string;
+  author: string;
+  date: string;
+  targetAudience: 'All Campus' | 'Hostel Block' | 'Engineering Dept' | 'Vendors Only';
+  isImportant: boolean;
+}
+
+export interface LXQuestion {
+  id: string;
+  question: string;
+  category: string;
+  frequency: number;
+  suggestedAnswer: string;
+  isApprovedFaq: boolean;
+}
+
+export interface Institution {
+  id: string;
+  name: string;
+  code: string;
+  location: string;
+  studentsCount: number;
+  vendorsCount: number;
+  dailyOrdersCount: number;
+  monthlyRevenue: number;
+  status: 'active' | 'pending_approval' | 'suspended';
+  contactPerson: string;
+  email: string;
+  phone: string;
+  joinedDate: string;
+  plan: 'Basic' | 'Pro' | 'Enterprise';
+  logoUrl?: string;
+  lastActivity?: string;
+  renewalDate?: string;
+  type?: 'University' | 'College' | 'Institute' | 'Healthcare';
+}
+
+export interface AuditLog {
+  id: string;
+  timestamp: string;
+  user: string;
+  action: string;
+  ipAddress: string;
+  module: string;
+  status: 'success' | 'warning' | 'error';
+}

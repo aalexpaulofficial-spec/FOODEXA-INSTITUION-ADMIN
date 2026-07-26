@@ -1,0 +1,297 @@
+@import "tailwindcss";
+
+@keyframes slideInLeft {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.animate-slide-in-left {
+  animation: slideInLeft 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.2s ease-out forwards;
+}
+
+/* Universal Smooth Theme Transitions */
+html, body, div, span, header, aside, main, nav, section, article, button, input, select, textarea, table, th, td, tr {
+  transition: background-color 0.25s cubic-bezier(0.4, 0, 0.2, 1),
+              border-color 0.25s cubic-bezier(0.4, 0, 0.2, 1),
+              color 0.25s cubic-bezier(0.4, 0, 0.2, 1),
+              box-shadow 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Light Mode Variables & Base Overrides */
+html.light,
+html:not(.dark) {
+  color-scheme: light;
+  --bg-page: #f8fafc;
+  --bg-card: #ffffff;
+  --border-card: #e2e8f0;
+  --text-main: #0f172a;
+  --text-muted: #475569;
+}
+
+html.dark {
+  color-scheme: dark;
+  --bg-page: #09090b;
+  --bg-card: #0c0c0e;
+  --border-card: #27272a;
+  --text-main: #f8fafc;
+  --text-muted: #a1a1aa;
+}
+
+/* Light Mode Page Background */
+html.light body,
+html:not(.dark) body {
+  background-color: #f8fafc !important;
+  color: #0f172a !important;
+}
+
+/* Header & Navigation in Light Mode */
+html.light header,
+html:not(.dark) header {
+  background-color: #ffffff !important;
+  border-color: #e2e8f0 !important;
+  color: #0f172a !important;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.04) !important;
+}
+
+/* Sidebar in Light Mode */
+html.light aside,
+html:not(.dark) aside {
+  background-color: #ffffff !important;
+  border-color: #e2e8f0 !important;
+  box-shadow: 1px 0 3px 0 rgba(0, 0, 0, 0.02) !important;
+}
+
+/* Cards, Panels, Modules in Light Mode */
+html.light .bg-\[\#09090B\],
+html.light .bg-\[\#0C0C0E\],
+html.light .bg-\[\#0C0C0E\]\/50,
+html.light .bg-\[\#09090B\]\/50,
+html.light .bg-slate-900,
+html.light .bg-slate-900\/80,
+html.light .bg-slate-900\/60,
+html.light .bg-slate-900\/90,
+html.light .bg-zinc-900,
+html.light .bg-zinc-900\/80,
+html.light .bg-zinc-900\/60,
+html.light .bg-zinc-900\/50,
+html:not(.dark) .bg-\[\#09090B\],
+html:not(.dark) .bg-\[\#0C0C0E\],
+html:not(.dark) .bg-\[\#0C0C0E\]\/50,
+html:not(.dark) .bg-\[\#09090B\]\/50,
+html:not(.dark) .bg-slate-900,
+html:not(.dark) .bg-slate-900\/80,
+html:not(.dark) .bg-slate-900\/60,
+html:not(.dark) .bg-slate-900\/90,
+html:not(.dark) .bg-zinc-900,
+html:not(.dark) .bg-zinc-900\/80,
+html:not(.dark) .bg-zinc-900\/60,
+html:not(.dark) .bg-zinc-900\/50 {
+  background-color: #ffffff !important;
+  border-color: #e2e8f0 !important;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05), 0 1px 2px -1px rgba(0, 0, 0, 0.05) !important;
+}
+
+/* Deep Container Elements (e.g. inner code boxes, input wraps, sub-cards) */
+html.light .bg-slate-950,
+html.light .bg-slate-950\/80,
+html.light .bg-slate-950\/90,
+html.light .bg-zinc-950,
+html.light .bg-zinc-950\/80,
+html.light .bg-zinc-950\/90,
+html:not(.dark) .bg-slate-950,
+html:not(.dark) .bg-slate-950\/80,
+html:not(.dark) .bg-slate-950\/90,
+html:not(.dark) .bg-zinc-950,
+html:not(.dark) .bg-zinc-950\/80,
+html:not(.dark) .bg-zinc-950\/90 {
+  background-color: #f1f5f9 !important; /* bg-slate-100 */
+  border-color: #cbd5e1 !important;
+}
+
+/* Typography Overrides in Light Mode */
+html.light .text-white,
+html.light .text-slate-100,
+html.light .text-slate-200,
+html.light .text-zinc-100,
+html.light .text-zinc-200,
+html.light .text-\[\#FAFAFA\],
+html:not(.dark) .text-white,
+html:not(.dark) .text-slate-100,
+html:not(.dark) .text-slate-200,
+html:not(.dark) .text-zinc-100,
+html:not(.dark) .text-zinc-200,
+html:not(.dark) .text-\[\#FAFAFA\] {
+  color: #0f172a !important; /* text-slate-900 */
+}
+
+html.light .text-slate-300,
+html.light .text-zinc-300,
+html.light .text-slate-400,
+html.light .text-zinc-400,
+html:not(.dark) .text-slate-300,
+html:not(.dark) .text-zinc-300,
+html:not(.dark) .text-slate-400,
+html:not(.dark) .text-zinc-400 {
+  color: #334155 !important; /* text-slate-700 */
+}
+
+html.light .text-slate-500,
+html.light .text-zinc-500,
+html:not(.dark) .text-slate-500,
+html:not(.dark) .text-zinc-500 {
+  color: #64748b !important; /* text-slate-500 */
+}
+
+/* High Contrast Accent Text in Light Mode */
+html.light .text-indigo-400,
+html:not(.dark) .text-indigo-400 {
+  color: #4f46e5 !important;
+}
+
+html.light .text-emerald-400,
+html:not(.dark) .text-emerald-400 {
+  color: #059669 !important;
+}
+
+html.light .text-amber-400,
+html:not(.dark) .text-amber-400 {
+  color: #d97706 !important;
+}
+
+html.light .text-cyan-400,
+html:not(.dark) .text-cyan-400 {
+  color: #0891b2 !important;
+}
+
+/* High Contrast Badge Backgrounds in Light Mode */
+html.light .bg-indigo-500\/10,
+html:not(.dark) .bg-indigo-500\/10 {
+  background-color: #eef2ff !important;
+  color: #4338ca !important;
+  border-color: #c7d2fe !important;
+}
+
+html.light .bg-emerald-500\/10,
+html:not(.dark) .bg-emerald-500\/10 {
+  background-color: #ecfdf5 !important;
+  color: #047857 !important;
+  border-color: #a7f3d0 !important;
+}
+
+html.light .bg-amber-500\/10,
+html:not(.dark) .bg-amber-500\/10 {
+  background-color: #fffbeb !important;
+  color: #b45309 !important;
+  border-color: #fde68a !important;
+}
+
+html.light .bg-red-500\/10,
+html:not(.dark) .bg-red-500\/10 {
+  background-color: #fef2f2 !important;
+  color: #b91c1c !important;
+  border-color: #fecaca !important;
+}
+
+html.light .bg-cyan-500\/10,
+html:not(.dark) .bg-cyan-500\/10 {
+  background-color: #ecfeff !important;
+  color: #0e7490 !important;
+  border-color: #a5f3fc !important;
+}
+
+/* Borders in Light Mode */
+html.light .border-slate-800,
+html.light .border-zinc-800,
+html.light .border-zinc-800\/50,
+html.light .border-slate-800\/80,
+html.light .border-slate-700,
+html.light .border-zinc-700,
+html:not(.dark) .border-slate-800,
+html:not(.dark) .border-zinc-800,
+html:not(.dark) .border-zinc-800\/50,
+html:not(.dark) .border-slate-800\/80,
+html:not(.dark) .border-slate-700,
+html:not(.dark) .border-zinc-700 {
+  border-color: #e2e8f0 !important;
+}
+
+/* Inputs, Selects & Textareas in Light Mode */
+html.light input,
+html.light select,
+html.light textarea,
+html:not(.dark) input,
+html:not(.dark) select,
+html:not(.dark) textarea {
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+  border-color: #cbd5e1 !important;
+}
+
+html.light input::placeholder,
+html.light textarea::placeholder,
+html:not(.dark) input::placeholder,
+html:not(.dark) textarea::placeholder {
+  color: #94a3b8 !important;
+}
+
+/* Hover effects in Light Mode */
+html.light .hover\:bg-zinc-800:hover,
+html.light .hover\:bg-slate-800:hover,
+html.light .hover\:bg-zinc-800\/40:hover,
+html:not(.dark) .hover\:bg-zinc-800:hover,
+html:not(.dark) .hover\:bg-slate-800:hover,
+html:not(.dark) .hover\:bg-zinc-800\/40:hover {
+  background-color: #f1f5f9 !important;
+  color: #0f172a !important;
+}
+
+/* Table Light Mode Overrides */
+html.light table,
+html:not(.dark) table {
+  background-color: #ffffff !important;
+}
+
+html.light th,
+html:not(.dark) th {
+  background-color: #f8fafc !important;
+  color: #475569 !important;
+  border-bottom: 1px solid #e2e8f0 !important;
+}
+
+html.light td,
+html:not(.dark) td {
+  border-bottom: 1px solid #f1f5f9 !important;
+  color: #1e293b !important;
+}
+
+html.light tr:hover td,
+html:not(.dark) tr:hover td {
+  background-color: #f8fafc !important;
+}
+
+/* Modal Backdrops in Light Mode */
+html.light .bg-slate-950\/80,
+html.light .bg-slate-950\/85,
+html.light .bg-slate-950\/90,
+html:not(.dark) .bg-slate-950\/80,
+html:not(.dark) .bg-slate-950\/85,
+html:not(.dark) .bg-slate-950\/90 {
+  background-color: rgba(15, 23, 42, 0.45) !important;
+}
