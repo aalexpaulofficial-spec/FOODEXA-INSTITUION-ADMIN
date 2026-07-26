@@ -59,48 +59,6 @@ const PRESET_TAGS = [
   'Quick Bite'
 ];
 
-const SAMPLE_FOOD_IMAGES = [
-  {
-    name: 'South Indian Dosa',
-    url: 'https://images.unsplash.com/photo-1668236543090-82eba5ee5976?auto=format&fit=crop&q=80&w=600',
-    category: 'South Indian',
-    desc: 'Crispy fermented rice crepe stuffed with spiced potato mash, served with fresh coconut chutney and hot sambar.',
-    prep: 8,
-    calories: 380,
-    protein: 10,
-    type: 'Veg' as DietaryType,
-    cuisine: 'South Indian',
-    ingredients: ['Rice Batter', 'Potato Mash', 'Coconut Chutney', 'Sambar'],
-    allergens: ['Mustard']
-  },
-  {
-    name: 'Protein Chicken Bowl',
-    url: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&q=80&w=600',
-    category: 'Healthy Meals',
-    desc: 'Grilled lean chicken breast, organic quinoa, avocado, edamame, and house lemon tahini dressing.',
-    prep: 12,
-    calories: 520,
-    protein: 38,
-    type: 'Non-Veg' as DietaryType,
-    cuisine: 'Continental',
-    ingredients: ['Grilled Chicken', 'Quinoa', 'Avocado', 'Edamame', 'Tahini'],
-    allergens: ['Sesame']
-  },
-  {
-    name: 'Iced Cold Brew Latte',
-    url: 'https://images.unsplash.com/photo-1517701604599-bb29b565090c?auto=format&fit=crop&q=80&w=600',
-    category: 'Beverages',
-    desc: 'Slow-steeped 18-hour cold brew coffee blended with oat milk and Madagascar vanilla bean syrup.',
-    prep: 3,
-    calories: 140,
-    protein: 6,
-    type: 'Vegan' as DietaryType,
-    cuisine: 'Beverages',
-    ingredients: ['Arabica Cold Brew', 'Oat Milk', 'Vanilla Syrup'],
-    allergens: []
-  }
-];
-
 export const AddEditMenuModal: React.FC<AddEditMenuModalProps> = ({
   isOpen,
   onClose,
@@ -115,29 +73,29 @@ export const AddEditMenuModal: React.FC<AddEditMenuModalProps> = ({
   const [imageUrl, setImageUrl] = useState('');
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
-  const [category, setCategory] = useState('Healthy Meals');
-  const [price, setPrice] = useState('8.50');
+  const [category, setCategory] = useState('');
+  const [price, setPrice] = useState('');
   const [discountPrice, setDiscountPrice] = useState('');
-  const [prepTimeMinutes, setPrepTimeMinutes] = useState('12');
-  const [servingSize, setServingSize] = useState('1 Bowl (380g)');
-  const [calories, setCalories] = useState('520');
-  const [proteinGrams, setProteinGrams] = useState('38');
-  const [carbsGrams, setCarbsGrams] = useState('42');
-  const [fatGrams, setFatGrams] = useState('16');
-  const [fiberGrams, setFiberGrams] = useState('8');
-  const [sugarGrams, setSugarGrams] = useState('4');
+  const [prepTimeMinutes, setPrepTimeMinutes] = useState('');
+  const [servingSize, setServingSize] = useState('');
+  const [calories, setCalories] = useState('');
+  const [proteinGrams, setProteinGrams] = useState('');
+  const [carbsGrams, setCarbsGrams] = useState('');
+  const [fatGrams, setFatGrams] = useState('');
+  const [fiberGrams, setFiberGrams] = useState('');
+  const [sugarGrams, setSugarGrams] = useState('');
   const [dietaryType, setDietaryType] = useState<DietaryType>('Veg');
-  const [availableTime, setAvailableTime] = useState('08:00 AM - 08:00 PM');
-  const [counterNumber, setCounterNumber] = useState('Counter 1');
-  const [quantityAvailable, setQuantityAvailable] = useState('50');
+  const [availableTime, setAvailableTime] = useState('');
+  const [counterNumber, setCounterNumber] = useState('');
+  const [quantityAvailable, setQuantityAvailable] = useState('');
   const [isTodaysSpecial, setIsTodaysSpecial] = useState(false);
   const [availableToday, setAvailableToday] = useState(true);
   const [status, setStatus] = useState<MenuStatus>('published');
-  const [cuisineType, setCuisineType] = useState('Continental');
-  const [vendorName, setVendorName] = useState('Campus Central Canteen');
-  const [ingredientsText, setIngredientsText] = useState('Chicken, Quinoa, Avocado, Edamame');
-  const [selectedAllergens, setSelectedAllergens] = useState<string[]>(['Dairy']);
-  const [selectedTags, setSelectedTags] = useState<string[]>(['Popular', 'Healthy']);
+  const [cuisineType, setCuisineType] = useState('');
+  const [vendorName, setVendorName] = useState('');
+  const [ingredientsText, setIngredientsText] = useState('');
+  const [selectedAllergens, setSelectedAllergens] = useState<string[]>([]);
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
 
   // LX AI State
   const [isLxAnalyzing, setIsLxAnalyzing] = useState(false);
@@ -223,7 +181,7 @@ export const AddEditMenuModal: React.FC<AddEditMenuModalProps> = ({
   if (!isOpen) return null;
 
   // Trigger LX AI Analysis
-  const triggerLxAnalysis = (targetImgUrl: string, sampleData?: typeof SAMPLE_FOOD_IMAGES[0]) => {
+  const triggerLxAnalysis = (targetImgUrl: string) => {
     setIsLxAnalyzing(true);
     setLxAnalysisProgress(10);
     onNotify('✔ LX AI analyzing food image...');
@@ -243,13 +201,11 @@ export const AddEditMenuModal: React.FC<AddEditMenuModalProps> = ({
       setIsLxAnalyzing(false);
       setLxAnalysisProgress(100);
 
-      const matchedSample = sampleData || SAMPLE_FOOD_IMAGES[0];
-
-      const detectedName = matchedSample.name || (name ? name : 'Special Gourmet Bowl');
-      const detectedCat = matchedSample.category || 'Healthy Meals';
-      const detectedDesc = matchedSample.desc || `LX AI Recipe Summary: Freshly prepared with high nutrient density, organic herbs, and balanced macro profile.`;
-      const detectedCuisine = matchedSample.cuisine || 'Continental';
-      const detectedType = matchedSample.type || 'Veg';
+      const detectedName = name ? name : 'Special Gourmet Bowl';
+      const detectedCat = category || 'Healthy Meals';
+      const detectedDesc = description || `LX AI Recipe Summary: Freshly prepared with high nutrient density, organic herbs, and balanced macro profile.`;
+      const detectedCuisine = cuisineType || 'Continental';
+      const detectedType = dietaryType || 'Veg';
 
       setLxSuggestions({
         suggestedName: detectedName,
@@ -257,13 +213,13 @@ export const AddEditMenuModal: React.FC<AddEditMenuModalProps> = ({
         suggestedDesc: detectedDesc,
         suggestedCuisine: detectedCuisine,
         suggestedType: detectedType,
-        suggestedPrepTime: matchedSample.prep || 10,
-        suggestedServingSize: '1 Plate / Bowl (350g)',
-        suggestedIngredients: matchedSample.ingredients || ['Fresh Greens', 'Olive Oil', 'Herbs'],
-        suggestedAllergens: matchedSample.allergens || [],
-        suggestedTags: ['Popular', 'Chef Special', 'High Protein'],
-        suggestedCalories: matchedSample.calories || 480,
-        suggestedProtein: matchedSample.protein || 28
+        suggestedPrepTime: parseInt(prepTimeMinutes) || 10,
+        suggestedServingSize: servingSize || '1 Plate / Bowl (350g)',
+        suggestedIngredients: ingredientsText ? ingredientsText.split(',').map(i => i.trim()) : ['Fresh Greens', 'Olive Oil', 'Herbs'],
+        suggestedAllergens: selectedAllergens || [],
+        suggestedTags: selectedTags.length > 0 ? selectedTags : ['Popular', 'Chef Special', 'High Protein'],
+        suggestedCalories: parseInt(calories) || 480,
+        suggestedProtein: parseInt(proteinGrams) || 28
       });
 
       onNotify('✔ Category suggested by LX AI');
@@ -305,10 +261,10 @@ export const AddEditMenuModal: React.FC<AddEditMenuModalProps> = ({
     }
   };
 
-  const handleSelectPresetImage = (preset: typeof SAMPLE_FOOD_IMAGES[0]) => {
-    setImageUrl(preset.url);
+  const handleSelectPresetImage = (url: string) => {
+    setImageUrl(url);
     onNotify('✔ Image uploaded');
-    triggerLxAnalysis(preset.url, preset);
+    triggerLxAnalysis(url);
   };
 
   const toggleTag = (tag: string) => {
@@ -584,15 +540,11 @@ export const AddEditMenuModal: React.FC<AddEditMenuModalProps> = ({
                           </button>
                           <button
                             type="button"
-                            onClick={() => {
-                              const demoUrl = SAMPLE_FOOD_IMAGES[0].url;
-                              setImageUrl(demoUrl);
-                              triggerLxAnalysis(demoUrl);
-                            }}
+                            onClick={() => fileInputRef.current?.click()}
                             className="px-3 py-1.5 rounded-xl bg-indigo-600/20 text-indigo-300 hover:bg-indigo-600/30 text-xs font-semibold flex items-center space-x-1"
                           >
                             <Camera className="w-3.5 h-3.5" />
-                            <span>Camera Feed</span>
+                            <span>Upload Image</span>
                           </button>
                         </div>
                       </div>
@@ -605,22 +557,6 @@ export const AddEditMenuModal: React.FC<AddEditMenuModalProps> = ({
                       onChange={handleFileUpload}
                       className="hidden"
                     />
-                  </div>
-
-                  {/* Preset Sample Quick Selectors */}
-                  <div className="flex items-center space-x-2 pt-1 overflow-x-auto">
-                    <span className="text-[10px] text-zinc-500 uppercase font-bold shrink-0">Sample Presets:</span>
-                    {SAMPLE_FOOD_IMAGES.map((preset, idx) => (
-                      <button
-                        key={idx}
-                        type="button"
-                        onClick={() => handleSelectPresetImage(preset)}
-                        className="px-2.5 py-1 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-[11px] text-zinc-300 shrink-0 transition-colors flex items-center space-x-1"
-                      >
-                        <img src={preset.url} alt="" className="w-3.5 h-3.5 rounded-full object-cover" />
-                        <span>{preset.name}</span>
-                      </button>
-                    ))}
                   </div>
                 </div>
 

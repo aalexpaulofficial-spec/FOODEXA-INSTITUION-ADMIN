@@ -61,7 +61,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Fallback logic if user_profiles doesn't exist or has no role
     let finalRole: UserRole = dbRole;
     if (!finalRole) {
-      if (storedPref === 'super_admin' || user.email === 'youngholyspiritteam@gmail.com') {
+      if (storedPref === 'super_admin') {
         finalRole = 'super_admin';
       } else {
         finalRole = 'institution_admin';

@@ -1,0 +1,347 @@
+import React, { useState } from 'react';
+import {
+  Search, Building2, Building, Users, Phone, Globe, Layers, Tag, CheckCircle2, XCircle, MessageSquare,
+  Eye, Download, Loader2, Clock, MapPin, Calendar, CreditCard, Edit3, Trash2, Store, TrendingUp,
+  DollarSign, Activity, BarChart2, Globe2, CheckCircle, X, Send, Copy, FileText, History,
+  Check, AlarmClock, RefreshCw, Plus, Sparkles
+} from 'lucide-react';
+import { useSuperAdminData, SuperAdminContextType } from './components/SuperAdminDataProvider';
+import { InstitutionLogo, StatusBadge, SkeletonCard, Modal, downloadRequestPDF } from './components/SuperAdminShared';
+
+export const InstitutionRequestsPage: React.FC = () => {
+  const {
+    institutionRequests, approvedInstitutions, loading, totalStudents, totalOrders, totalVendors,
+    totalRevenue, unreadCount, auditLogs, notifications, isRealtime,
+    approveRequest, rejectRequest, requestChanges, suspendInstitution, activateInstitution,
+    deleteInstitution, updateInstitution, createAuditLog, markNotificationRead,
+    markAllNotificationsRead, globalSearch, refresh,
+  } = useSuperAdminData();
+
+  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'active' | 'rejected' | 'suspended' | 'changes_requested'>('all');
+  const [selectedRequest, setSelectedRequest] = useState<any>(null);
+  const [rejectModal, setRejectModal] = useState<any>(null);
+  const [rejectReason, setRejectReason] = useState('');
+  const [changesModal, setChangesModal] = useState<any>(null);
+  const [changesNotes, setChangesNotes] = useState('');
+
+  const [toasts, setToasts] = useState<{ id: string; msg: string; type?: 'success' | 'info' | 'error' }[]>([]);
+  const addToast = (msg: string, type: 'success' | 'info' | 'error' = 'success') => {
+    const id = `toast-${Date.now()}`;
+    setToasts((prev) => [...prev, { id, msg, type }]);
+    setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== id)), 3500);
+  };
+
+  const pendingRequests = institutionRequests.filter((r) => r.status === 'pending');
+  const allRequests = institutionRequests.filter((r) => {
+    const matchesSearch =
+      r.institution_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      r.institution_email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      r.contact_person?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      r.institution_code?.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesStatus = statusFilter === 'all' || r.status === statusFilter;
+    return matchesSearch && matchesStatus;
+  });
+
+  const handleApprove = async (id: string, name: string) => {
+    await approveRequest(id);
+    addToast(`Approved: ${name}`);
+  };
+
+  const handleReject = async () => {
+    if (!rejectModal) return;
+    await rejectRequest(rejectModal.id, rejectReason);
+    addToast(`Rejected: ${rejectModal.institution_name}`, 'error');
+    setRejectModal(null);
+    setRejectReason('');
+  };
+
+  const handleRequestChanges = async () => {
+    if (!changesModal || !changesNotes) return;
+    await requestChanges(changesModal.id, changesNotes);
+    addToast(`Changes requested for ${changesModal.institution_name}`, 'info');
+    setChangesModal(null);
+    setChangesNotes('');
+  };
+
+  return (
+    <div className="space-y-6 animate-fade-in font-sans pb-16">
+      <div className="fixed bottom-6 right-6 z-50 flex flex-col space-y-2 pointer-events-none">
+        {toasts.map((toast) => (
+          <div key={toast.id} className={`pointer-events-auto px-4 py-3 rounded-2xl text-white text-xs font-bold shadow-2xl flex items-center space-x-2 ${
+            toast.type === 'error' ? 'bg-red-950 border border-red-500/40' :
+            toast.type === 'info' ? 'bg-slate-900 border border-slate-700' :
+            'bg-[#0C0C0E] border border-amber-500/40'
+          }`}>
+            <Sparkles className="w-4 h-4 text-amber-400" />
+            <span>{toast.msg}</span>
+          </div>
+        ))}
+      </div>
+
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-slate-800/80 pb-5">
+        <div>
+          <div className="inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-400 text-xs font-extrabold uppercase tracking-wider mb-2">
+            <Building2 className="w-3.5 h-3.5" />
+            <span>Institution Requests &bull; FOODEXA Enterprise</span>
+            {isRealtime ? (
+              <span className="flex items-center gap-1 text-emerald-400 text-[10px]"><div className="w-1.5 h-1.5 rounded-full bg-emerald-400" /> Live</span>
+            ) : (
+              <span className="flex items-center gap-1 text-slate-500 text-[10px]"><div className="w-1.5 h-1.5 rounded-full bg-slate-500" /> Connecting&hellip;</span>
+            )}
+          </div>
+          <h1 className="text-2xl font-black text-white tracking-tight">Institution Requests</h1>
+          <p className="text-xs text-slate-400 mt-1">Manage institution registrations, approvals, and onboarding.</p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="p-4 rounded-2xl bg-[#0C0C0E] border border-slate-800 shadow-xl space-y-1.5">
+          <div className="flex items-center justify-between text-slate-400 text-[11px] font-bold uppercase tracking-wider">
+            <span>Total Requests</span>
+            <Building2 className="w-4 h-4 text-amber-400" />
+          </div>
+          <div className="text-2xl font-black text-white font-mono">{institutionRequests.length}</div>
+          <div className="text-[11px] text-amber-400 font-medium flex items-center space-x-1">
+            <Clock className="w-3 h-3" />
+            <span>{pendingRequests.length} Pending</span>
+          </div>
+        </div>
+        <div className="p-4 rounded-2xl bg-[#0C0C0E] border border-slate-800 shadow-xl space-y-1.5">
+          <div className="flex items-center justify-between text-slate-400 text-[11px] font-bold uppercase tracking-wider">
+            <span>Approved</span>
+            <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+          </div>
+          <div className="text-2xl font-black text-emerald-400 font-mono">{institutionRequests.filter((r) => r.status === 'active').length}</div>
+          <div className="text-[11px] text-emerald-400 font-medium">Active on platform</div>
+        </div>
+        <div className="p-4 rounded-2xl bg-[#0C0C0E] border border-slate-800 shadow-xl space-y-1.5">
+          <div className="flex items-center justify-between text-slate-400 text-[11px] font-bold uppercase tracking-wider">
+            <span>Rejected</span>
+            <XCircle className="w-4 h-4 text-red-400" />
+          </div>
+          <div className="text-2xl font-black text-red-400 font-mono">{institutionRequests.filter((r) => r.status === 'rejected').length}</div>
+          <div className="text-[11px] text-red-400 font-medium">Declined</div>
+        </div>
+        <div className="p-4 rounded-2xl bg-[#0C0C0E] border border-slate-800 shadow-xl space-y-1.5">
+          <div className="flex items-center justify-between text-slate-400 text-[11px] font-bold uppercase tracking-wider">
+            <span>Changes Requested</span>
+            <MessageSquare className="w-4 h-4 text-blue-400" />
+          </div>
+          <div className="text-2xl font-black text-blue-400 font-mono">{institutionRequests.filter((r) => r.status === 'changes_requested').length}</div>
+          <div className="text-[11px] text-blue-400 font-medium">Awaiting resubmission</div>
+        </div>
+      </div>
+
+      <div className="space-y-4">
+        <div className="flex flex-col sm:flex-row gap-3">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+            <input type="text" placeholder="Search requests..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full bg-slate-900 border border-slate-800 rounded-xl pl-9 pr-4 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-500/50" />
+          </div>
+          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as typeof statusFilter)}
+            className="bg-slate-900 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none">
+            <option value="all">All Status</option>
+            <option value="pending">Pending</option>
+            <option value="active">Approved</option>
+            <option value="rejected">Rejected</option>
+            <option value="suspended">Suspended</option>
+            <option value="changes_requested">Changes Requested</option>
+          </select>
+        </div>
+
+        {loading ? (
+          <div className="flex items-center justify-center py-16"><Loader2 className="w-8 h-8 text-amber-400 animate-spin" /></div>
+        ) : allRequests.length === 0 ? (
+          <div className="text-center py-16 space-y-3">
+            <div className="w-16 h-16 mx-auto rounded-full bg-slate-900 border border-slate-800 flex items-center justify-center">
+              <Building className="w-8 h-8 text-slate-600" />
+            </div>
+            <p className="text-slate-400 text-sm font-semibold">No institution requests yet.</p>
+            <p className="text-slate-600 text-xs">When institutions register from the main website, they appear here instantly.</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {allRequests.map((req) => (
+              <div key={req.id} className="p-4 rounded-2xl bg-[#0C0C0E] border border-slate-800 hover:border-amber-500/20 transition-all space-y-3">
+                <div className="flex items-start justify-between gap-3 flex-wrap">
+                  <div className="flex items-center gap-3">
+                    <InstitutionLogo name={req.institution_name} />
+                    <div>
+                      <p className="text-sm font-bold text-white">{req.institution_name}</p>
+                      <p className="text-xs text-slate-400">{req.institution_email}</p>
+                      {req.institution_code && <p className="text-[10px] text-amber-400 font-mono">Code: {req.institution_code}</p>}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <StatusBadge status={req.status} />
+                    <span className="text-[10px] text-slate-600">{new Date(req.created_at).toLocaleDateString()}</span>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 text-[11px] text-slate-400">
+                  <span className="flex items-center gap-1"><Users className="w-3 h-3" /> {req.contact_person}</span>
+                  <span className="flex items-center gap-1"><Phone className="w-3 h-3" /> {req.phone_number || '—'}</span>
+                  <span className="flex items-center gap-1"><Globe className="w-3 h-3" /> {[req.city, req.state, req.country].filter(Boolean).join(', ') || '—'}</span>
+                  <span className="flex items-center gap-1"><Layers className="w-3 h-3" /> {req.student_population || '—'} students</span>
+                  <span className="flex items-center gap-1"><Tag className="w-3 h-3" /> {req.plan || 'Basic'} Plan</span>
+                </div>
+
+                {req.rejection_reason && (
+                  <div className="p-2 rounded-lg bg-red-500/5 border border-red-500/20 text-[11px] text-red-400">
+                    <strong>Rejection Reason:</strong> {req.rejection_reason}
+                  </div>
+                )}
+                {req.admin_notes && req.status === 'changes_requested' && (
+                  <div className="p-2 rounded-lg bg-blue-500/5 border border-blue-500/20 text-[11px] text-blue-400">
+                    <strong>Admin Notes:</strong> {req.admin_notes}
+                  </div>
+                )}
+
+                {req.status === 'pending' && (
+                  <div className="flex items-center gap-2 pt-1 flex-wrap">
+                    <button onClick={() => handleApprove(req.id, req.institution_name)}
+                      className="flex-1 sm:flex-none px-4 py-2 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 text-xs font-bold flex items-center justify-center gap-1.5 transition-all">
+                      <CheckCircle2 className="w-3.5 h-3.5" /> Approve
+                    </button>
+                    <button onClick={() => setRejectModal(req)}
+                      className="flex-1 sm:flex-none px-4 py-2 rounded-xl bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 text-red-400 text-xs font-bold flex items-center justify-center gap-1.5 transition-all">
+                      <XCircle className="w-3.5 h-3.5" /> Reject
+                    </button>
+                    <button onClick={() => setChangesModal(req)}
+                      className="flex-1 sm:flex-none px-4 py-2 rounded-xl bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/30 text-blue-400 text-xs font-bold flex items-center justify-center gap-1.5 transition-all">
+                      <MessageSquare className="w-3.5 h-3.5" /> Request Changes
+                    </button>
+                    <button onClick={() => setSelectedRequest(req)}
+                      className="px-3 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 text-xs font-semibold transition-all">
+                      <Eye className="w-3.5 h-3.5" />
+                    </button>
+                    <button onClick={() => downloadRequestPDF(req)}
+                      className="px-3 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 text-xs font-semibold transition-all">
+                      <Download className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                )}
+                {req.status !== 'pending' && (
+                  <div className="flex items-center gap-2 pt-1">
+                    <button onClick={() => setSelectedRequest(req)}
+                      className="px-3 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 text-xs font-semibold transition-all flex items-center gap-1.5">
+                      <Eye className="w-3.5 h-3.5" /> View Details
+                    </button>
+                    <button onClick={() => downloadRequestPDF(req)}
+                      className="px-3 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 text-xs font-semibold transition-all flex items-center gap-1.5">
+                      <Download className="w-3.5 h-3.5" /> Download
+                    </button>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <Modal open={!!selectedRequest} onClose={() => setSelectedRequest(null)} title="Request Details" wide>
+        {selectedRequest && (
+          <div className="space-y-4">
+            <div className="flex items-center gap-3">
+              <InstitutionLogo name={selectedRequest.institution_name} className="w-12 h-12 rounded-xl" />
+              <div>
+                <p className="font-bold text-white">{selectedRequest.institution_name}</p>
+                <StatusBadge status={selectedRequest.status} />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3 text-xs text-slate-300">
+              <div><span className="text-slate-500 block">Email</span>{selectedRequest.institution_email}</div>
+              <div><span className="text-slate-500 block">Contact</span>{selectedRequest.contact_person}</div>
+              <div><span className="text-slate-500 block">Phone</span>{selectedRequest.phone_number || '—'}</div>
+              <div><span className="text-slate-500 block">Website</span>
+                {selectedRequest.institution_website
+                  ? <a href={selectedRequest.institution_website} target="_blank" rel="noreferrer" className="text-indigo-400 underline">{selectedRequest.institution_website}</a>
+                  : '—'}
+              </div>
+              <div><span className="text-slate-500 block">City</span>{selectedRequest.city || '—'}</div>
+              <div><span className="text-slate-500 block">State</span>{selectedRequest.state || '—'}</div>
+              <div><span className="text-slate-500 block">Country</span>{selectedRequest.country || '—'}</div>
+              <div><span className="text-slate-500 block">Campus</span>{selectedRequest.campus || '—'}</div>
+              <div><span className="text-slate-500 block">Students</span>{selectedRequest.student_population || '—'}</div>
+              <div><span className="text-slate-500 block">Food Courts</span>{selectedRequest.food_courts_count || '—'}</div>
+              <div><span className="text-slate-500 block">Vendors</span>{selectedRequest.vendors_count || '—'}</div>
+              <div><span className="text-slate-500 block">Plan</span>{selectedRequest.plan || 'Basic'}</div>
+              <div><span className="text-slate-500 block">Submitted</span>{new Date(selectedRequest.created_at).toLocaleString()}</div>
+              {selectedRequest.institution_code && <div><span className="text-slate-500 block">Institution Code</span><span className="text-amber-400 font-mono">{selectedRequest.institution_code}</span></div>}
+            </div>
+            {selectedRequest.message && (
+              <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-300 italic">
+                {selectedRequest.message}
+              </div>
+            )}
+            {selectedRequest.rejection_reason && (
+              <div className="p-3 rounded-xl bg-red-500/5 border border-red-500/20 text-xs text-red-400">
+                <strong>Rejection Reason:</strong> {selectedRequest.rejection_reason}
+              </div>
+            )}
+            <div className="flex gap-3 pt-2">
+              {selectedRequest.status === 'pending' && (
+                <>
+                  <button onClick={async () => { await handleApprove(selectedRequest.id, selectedRequest.institution_name); setSelectedRequest(null); }}
+                    className="flex-1 py-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-bold flex items-center justify-center gap-2">
+                    <CheckCircle2 className="w-4 h-4" /> Approve
+                  </button>
+                  <button onClick={() => { setRejectModal(selectedRequest); setSelectedRequest(null); }}
+                    className="flex-1 py-2.5 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-xs font-bold flex items-center justify-center gap-2">
+                    <XCircle className="w-4 h-4" /> Reject
+                  </button>
+                </>
+              )}
+              <button onClick={() => downloadRequestPDF(selectedRequest)}
+                className="px-4 py-2.5 rounded-xl bg-slate-900 border border-slate-800 text-slate-300 text-xs font-bold flex items-center gap-2">
+                <Download className="w-4 h-4" /> Download
+              </button>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      <Modal open={!!rejectModal} onClose={() => { setRejectModal(null); setRejectReason(''); }} title="Reject Institution Request">
+        {rejectModal && (
+          <div className="space-y-4">
+            <p className="text-xs text-slate-400">Provide a reason for rejecting <strong className="text-white">{rejectModal.institution_name}</strong>:</p>
+            <textarea
+              value={rejectReason}
+              onChange={(e) => setRejectReason(e.target.value)}
+              placeholder="Rejection reason..."
+              rows={4}
+              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-red-500/50 resize-none"
+            />
+            <button onClick={handleReject}
+              className="w-full py-3 rounded-xl bg-red-500/20 hover:bg-red-500/30 border border-red-500/40 text-red-400 font-bold text-xs flex items-center justify-center gap-2">
+              <XCircle className="w-4 h-4" /> Reject Request
+            </button>
+          </div>
+        )}
+      </Modal>
+
+      <Modal open={!!changesModal} onClose={() => { setChangesModal(null); setChangesNotes(''); }} title="Request Changes">
+        {changesModal && (
+          <div className="space-y-4">
+            <p className="text-xs text-slate-400">Request changes for <strong className="text-white">{changesModal.institution_name}</strong>:</p>
+            <textarea
+              value={changesNotes}
+              onChange={(e) => setChangesNotes(e.target.value)}
+              placeholder="Describe what changes are needed..."
+              rows={4}
+              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500/50 resize-none"
+            />
+            <button onClick={handleRequestChanges} disabled={!changesNotes}
+              className="w-full py-3 rounded-xl bg-blue-500/20 hover:bg-blue-500/30 border border-blue-500/40 text-blue-400 font-bold text-xs flex items-center justify-center gap-2 disabled:opacity-50">
+              <Send className="w-4 h-4" /> Send Request
+            </button>
+          </div>
+        )}
+      </Modal>
+    </div>
+  );
+};
+
+export default InstitutionRequestsPage;

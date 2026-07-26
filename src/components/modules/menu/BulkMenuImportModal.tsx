@@ -34,73 +34,12 @@ export const BulkMenuImportModal: React.FC<BulkMenuImportModalProps> = ({
 
   if (!isOpen) return null;
 
-  const sampleCsvItems: ParsedRow[] = [
-    {
-      id: 'row-1',
-      name: 'South Indian Filter Coffee',
-      category: 'Beverages',
-      price: '2.50',
-      prepTime: '5',
-      calories: '90',
-      type: 'Veg',
-      vendorName: 'Brew & Byte Cafe',
-      description: 'Traditional brass tumbler filter coffee with hot frothed milk.',
-      errors: []
-    },
-    {
-      id: 'row-2',
-      name: 'Paneer Makhani Biryani',
-      category: 'North Indian',
-      price: '8.90',
-      prepTime: '18',
-      calories: '610',
-      type: 'Veg',
-      vendorName: 'Campus Spice & Grills',
-      description: 'Fragrant dum biryani with cottage cheese cubes & raita.',
-      errors: []
-    },
-    {
-      id: 'row-3',
-      name: 'Gourmet Cheese Pizza',
-      category: '', // Invalid: Missing Category
-      price: '12.00',
-      prepTime: '15',
-      calories: '720',
-      type: 'Veg',
-      vendorName: 'Artisan Dough Pizza',
-      description: 'Triple cheese blend on handcrafted sourdough.',
-      errors: ['Missing Category']
-    },
-    {
-      id: 'row-4',
-      name: 'Special Mystery Wrap',
-      category: 'Snacks',
-      price: '0.00', // Invalid: Price 0
-      prepTime: '10',
-      calories: '410',
-      type: 'Veg',
-      vendorName: 'Green Fork Organics',
-      description: 'Chef daily special wrap.',
-      errors: ['Price cannot be 0.00']
-    },
-    {
-      id: 'row-5',
-      name: 'Dragon Chili Chicken',
-      category: 'Chinese',
-      price: '9.50',
-      prepTime: '12',
-      calories: '540',
-      type: 'Non-Veg',
-      vendorName: 'Campus Spice & Grills',
-      description: 'Crispy fried chicken tossed in spicy garlic soy sauce.',
-      errors: []
-    }
-  ];
-
   const handleFileUpload = () => {
     setFileUploaded(true);
-    setParsedRows(sampleCsvItems);
-    onNotify('✔ File parsed! Review validation details below.');
+    // In a real implementation, this would parse the uploaded CSV/Excel file
+    // For now, show empty state to demonstrate the UI
+    setParsedRows([]);
+    onNotify('✔ File upload triggered. Please implement actual CSV parsing.');
   };
 
   const handleFixRow = (id: string, field: keyof ParsedRow, value: string) => {
@@ -126,22 +65,22 @@ export const BulkMenuImportModal: React.FC<BulkMenuImportModalProps> = ({
 
     const createdMenuItems: MenuItem[] = validRows.map((r, index) => ({
       id: `bulk-${Date.now()}-${index}`,
-      vendorId: 'ven-1',
-      vendorName: r.vendorName || 'Campus Central Kitchen',
+      vendorId: r.vendorName || '',
+      vendorName: r.vendorName || '',
       name: r.name,
-      category: r.category || 'General',
-      price: parseFloat(r.price) || 5.0,
-      prepTimeMinutes: parseInt(r.prepTime) || 10,
-      calories: parseInt(r.calories) || 350,
-      proteinGrams: 20,
-      isVegetarian: r.type !== 'Non-Veg',
+      category: r.category || '',
+      price: parseFloat(r.price) || 0,
+      prepTimeMinutes: parseInt(r.prepTime) || 0,
+      calories: parseInt(r.calories) || 0,
+      proteinGrams: 0,
+      isVegetarian: r.type === 'Veg',
       dietaryType: r.type === 'Non-Veg' ? 'Non-Veg' : 'Veg',
       isAvailable: true,
-      stockCount: 50,
-      imageUrl: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&q=80&w=400',
-      description: r.description || 'Imported via Bulk CSV Menu Import.',
+      stockCount: 0,
+      imageUrl: '',
+      description: r.description || '',
       allergens: [],
-      aiPopularityScore: 90,
+      aiPopularityScore: 0,
       status: 'published',
       tags: ['Bulk Import', r.category],
       isTodaysSpecial: false,

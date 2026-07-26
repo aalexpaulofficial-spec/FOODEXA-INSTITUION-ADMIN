@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
+import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
 import { PortalRole } from './types';
 
@@ -22,7 +23,15 @@ import { StaffManagement } from './components/modules/staff/StaffManagement';
 import { NotificationsView } from './components/modules/notifications/NotificationsView';
 import { AICenterView } from './components/modules/ai/AICenterView';
 import { SettingsView } from './components/modules/settings/SettingsView';
-import { SuperAdminView } from './components/modules/superadmin/SuperAdminView';
+
+import { SuperAdminDataProvider } from './components/modules/superadmin/pages/components/SuperAdminDataProvider';
+import { InstitutionRequestsPage } from './components/modules/superadmin/pages/InstitutionRequestsPage';
+import { InstitutionDirectoryPage } from './components/modules/superadmin/pages/InstitutionDirectoryPage';
+import { GlobalAnalyticsPage } from './components/modules/superadmin/pages/GlobalAnalyticsPage';
+import { SubscriptionsPage } from './components/modules/superadmin/pages/SubscriptionsPage';
+import { NotificationsPage } from './components/modules/superadmin/pages/NotificationsPage';
+import { AuditLogsPage } from './components/modules/superadmin/pages/AuditLogsPage';
+import { AICenterPage } from './components/modules/superadmin/pages/AICenterPage';
 
 import { useInstitutionData } from './hooks/useInstitutionData';
 
@@ -42,12 +51,12 @@ export function App() {
   ], []);
 
   const superAdminTabs = useMemo(() => [
-    'approvals', 'directory', 'analytics', 'subscriptions', 'notifications', 'audit_logs'
+    'institution-requests', 'institutions', 'analytics', 'subscriptions', 'notifications', 'audit-logs'
   ], []);
 
   useEffect(() => {
     if (role === 'super_admin' && institutionTabs.includes(currentTab)) {
-      setCurrentTab('approvals');
+      setCurrentTab('dashboard');
     } else if (role === 'institution_admin' && superAdminTabs.includes(currentTab)) {
       setCurrentTab('dashboard');
     }
@@ -128,20 +137,29 @@ export function App() {
 
         <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 bg-[#09090B]">
           <div className="max-w-7xl mx-auto">
-            {dataLoading ? (
-              <div className="flex items-center justify-center py-32">
-                <div className="flex flex-col items-center space-y-4">
-                  <div className="w-10 h-10 rounded-full border-2 border-indigo-500 border-t-transparent animate-spin" />
-                  <p className="text-xs text-zinc-500">Loading institution data...</p>
-                </div>
-              </div>
+            {role === 'super_admin' ? (
+              <SuperAdminDataProvider>
+                <Routes>
+                  <Route path="/super-admin/institution-requests" element={<InstitutionRequestsPage />} />
+                  <Route path="/super-admin/institutions" element={<InstitutionDirectoryPage />} />
+                  <Route path="/super-admin/analytics" element={<GlobalAnalyticsPage />} />
+                  <Route path="/super-admin/subscriptions" element={<SubscriptionsPage />} />
+                  <Route path="/super-admin/notifications" element={<NotificationsPage />} />
+                  <Route path="/super-admin/audit-logs" element={<AuditLogsPage />} />
+                  <Route path="/super-admin/ai-center" element={<AICenterPage />} />
+                  <Route path="*" element={<Navigate to="/super-admin/institution-requests" replace />} />
+                </Routes>
+              </SuperAdminDataProvider>
             ) : (
               <>
-                {currentPortal === 'super_admin' && role === 'super_admin' && (
-                  <SuperAdminView />
-                )}
-
-                {currentPortal === 'campus_admin' && role === 'institution_admin' && (
+                {dataLoading ? (
+                  <div className="flex items-center justify-center py-32">
+                    <div className="flex flex-col items-center space-y-4">
+                      <div className="w-10 h-10 rounded-full border-2 border-indigo-500 border-t-transparent animate-spin" />
+                      <p className="text-xs text-zinc-500">Loading institution data...</p>
+                    </div>
+                  </div>
+                ) : (
                   <>
                     {currentTab === 'dashboard' && (
                       <HomeDashboard
@@ -254,14 +272,13 @@ export function App() {
         }}
       />
 
-      <StudentDashboardSyncModal
-        isOpen={isStudentSyncOpen}
-        onClose={() => setIsStudentSyncOpen(false)}
-        menuItems={menuItems}
-        orders={orders}
-        announcements={announcements}
-        onPlaceTestOrder={() => {}}
-      />
+       <StudentDashboardSyncModal
+         isOpen={isStudentSyncOpen}
+         onClose={() => setIsStudentSyncOpen(false)}
+         menuItems={menuItems}
+         orders={orders}
+         announcements={announcements}
+       />
     </div>
   );
 }

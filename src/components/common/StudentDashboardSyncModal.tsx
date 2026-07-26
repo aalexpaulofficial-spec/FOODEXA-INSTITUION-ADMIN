@@ -4,16 +4,13 @@ import {
   X,
   Sparkles,
   QrCode,
-  CheckCircle2,
   Clock,
   Bell,
   Utensils,
-  CreditCard,
   ShoppingBag,
   Zap,
   Flame,
   ChevronRight,
-  ShieldCheck,
   AlertTriangle,
   RotateCw
 } from 'lucide-react';
@@ -25,7 +22,6 @@ interface StudentDashboardSyncModalProps {
   menuItems: MenuItem[];
   orders: Order[];
   announcements: Announcement[];
-  onPlaceTestOrder: (newOrder: Order) => void;
 }
 
 export const StudentDashboardSyncModal: React.FC<StudentDashboardSyncModalProps> = ({
@@ -34,63 +30,13 @@ export const StudentDashboardSyncModal: React.FC<StudentDashboardSyncModalProps>
   menuItems,
   orders,
   announcements,
-  onPlaceTestOrder
 }) => {
-  const [activeTab, setActiveTab] = useState<'menu' | 'live_order' | 'announcements' | 'pay_demo'>('live_order');
-  const [selectedMenuItem, setSelectedMenuItem] = useState<MenuItem | null>(null);
-  const [isRazorpayCheckoutOpen, setIsRazorpayCheckoutOpen] = useState(false);
-  const [paymentSuccessMsg, setPaymentSuccessMsg] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<'menu' | 'live_order' | 'announcements'>('live_order');
 
   if (!isOpen) return null;
 
   // Latest active order for student
   const activeStudentOrder = orders[0] || null;
-
-  const handleSimulateRazorpayPay = () => {
-    if (!selectedMenuItem) return;
-
-    const newOrderId = `FXA-2026-${Math.floor(100000 + Math.random() * 900000)}`;
-    const counterCode = selectedMenuItem.counterNumber || 'Counter B';
-    const pickupNum = `${counterCode.replace('Counter ', '')}-${Math.floor(100 + Math.random() * 900)}`;
-
-    const newOrder: Order = {
-      id: `ord-${Date.now()}`,
-      orderNumber: newOrderId,
-      studentId: 'std-101',
-      studentName: 'Alex Rivera',
-      studentDepartment: 'Computer Science',
-      vendorId: selectedMenuItem.vendorId,
-      vendorName: selectedMenuItem.vendorName,
-      pickupCounter: counterCode,
-      pickupNumber: pickupNum,
-      estimatedWaitMins: selectedMenuItem.prepTimeMinutes || 8,
-      items: [
-        {
-          menuItemId: selectedMenuItem.id,
-          name: selectedMenuItem.name,
-          quantity: 1,
-          price: selectedMenuItem.price
-        }
-      ],
-      totalAmount: selectedMenuItem.price,
-      status: 'pending',
-      orderTime: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      pickupTimeEstimated: 'In ~8 mins',
-      pickupCode: pickupNum,
-      paymentMethod: 'Razorpay UPI',
-      paymentStatus: 'paid',
-      notes: 'Placed via Live Sync Student App'
-    };
-
-    onPlaceTestOrder(newOrder);
-    setIsRazorpayCheckoutOpen(false);
-    setPaymentSuccessMsg(`Payment Successful! Order ${newOrderId} placed.`);
-    setActiveTab('live_order');
-
-    setTimeout(() => {
-      setPaymentSuccessMsg(null);
-    }, 4000);
-  };
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-lg flex items-center justify-center p-3 sm:p-4 animate-fade-in">
@@ -160,17 +106,7 @@ export const StudentDashboardSyncModal: React.FC<StudentDashboardSyncModalProps>
           </button>
         </div>
 
-        {/* Notification Alert Banner if any */}
-        {paymentSuccessMsg && (
-          <div className="p-3 bg-emerald-500/20 border-b border-emerald-500/30 text-emerald-300 text-xs font-bold flex items-center justify-between">
-            <div className="flex items-center space-x-2">
-              <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-              <span>{paymentSuccessMsg}</span>
-            </div>
-          </div>
-        )}
-
-        {/* Content Body */}
+         {/* Content Body */}
         <div className="flex-1 overflow-y-auto p-4 space-y-4 text-xs">
 
           {/* TAB 1: LIVE ORDER STATUS & QR PICKUP */}
@@ -346,7 +282,7 @@ export const StudentDashboardSyncModal: React.FC<StudentDashboardSyncModalProps>
                         </div>
                         <div className="text-[10px] text-slate-400 flex items-center space-x-2">
                           <span className="text-amber-400">{item.category}</span>
-                          <span>•</span>
+                          <span>&bull;</span>
                           <span>{item.counterNumber || 'Counter B'}</span>
                         </div>
                       </div>
@@ -357,15 +293,9 @@ export const StudentDashboardSyncModal: React.FC<StudentDashboardSyncModalProps>
                         ${item.price.toFixed(2)}
                       </div>
                       {item.isAvailable ? (
-                        <button
-                          onClick={() => {
-                            setSelectedMenuItem(item);
-                            setIsRazorpayCheckoutOpen(true);
-                          }}
-                          className="mt-1 px-2.5 py-1 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-[10px] transition-colors"
-                        >
-                          Order Now
-                        </button>
+                        <span className="mt-1 inline-block px-2.5 py-1 rounded-lg bg-emerald-500/20 text-emerald-400 text-[10px] font-bold">
+                          Available
+                        </span>
                       ) : (
                         <span className="text-[10px] text-red-400 italic">Unavailable</span>
                       )}
@@ -401,7 +331,7 @@ export const StudentDashboardSyncModal: React.FC<StudentDashboardSyncModalProps>
                     </div>
                     <p className="text-slate-300 text-[11px]">{ann.content}</p>
                     <div className="text-[9px] text-slate-500 pt-1 font-mono">
-                      By {ann.author} • {ann.date}
+                      By {ann.author} &bull; {ann.date}
                     </div>
                   </div>
                 ))}
@@ -409,50 +339,6 @@ export const StudentDashboardSyncModal: React.FC<StudentDashboardSyncModalProps>
             </div>
           )}
         </div>
-
-        {/* RAZORPAY DEMO CHECKOUT MODAL INSIDE SIMULATOR */}
-        {isRazorpayCheckoutOpen && selectedMenuItem && (
-          <div className="absolute inset-0 bg-slate-950/90 backdrop-blur-md z-30 p-5 flex flex-col justify-between animate-fade-in">
-            <div className="space-y-4">
-              <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-                <div className="flex items-center space-x-2 text-indigo-400 font-bold">
-                  <CreditCard className="w-5 h-5 text-indigo-400" />
-                  <span>Razorpay Demo Payment Gateway</span>
-                </div>
-                <button
-                  onClick={() => setIsRazorpayCheckoutOpen(false)}
-                  className="p-1 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-
-              <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 space-y-2">
-                <div className="text-[10px] text-slate-400 font-bold uppercase">Order Summary</div>
-                <div className="flex justify-between text-sm font-bold text-white">
-                  <span>{selectedMenuItem.name}</span>
-                  <span className="text-emerald-400 font-mono">${selectedMenuItem.price.toFixed(2)}</span>
-                </div>
-                <div className="text-[11px] text-slate-400">
-                  Pickup Counter: <strong className="text-amber-400">{selectedMenuItem.counterNumber || 'Counter B'}</strong>
-                </div>
-              </div>
-
-              <div className="p-3 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 text-[11px] space-y-1">
-                <div className="font-bold">Test Payment Mode Enabled</div>
-                <div>Simulate instant Razorpay UPI / Card transaction to test live KDS synchronization.</div>
-              </div>
-            </div>
-
-            <button
-              onClick={handleSimulateRazorpayPay}
-              className="w-full py-3 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold text-xs shadow-xl shadow-emerald-500/20 transition-all flex items-center justify-center space-x-2"
-            >
-              <ShieldCheck className="w-4 h-4" />
-              <span>Pay ${selectedMenuItem.price.toFixed(2)} via Razorpay Demo</span>
-            </button>
-          </div>
-        )}
       </div>
     </div>
   );

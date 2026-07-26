@@ -4,6 +4,7 @@ import {
   TrendingUp, FileText, Building, UserCheck, Bell, Sparkles, Settings,
   ShieldCheck, Building2, CheckSquare, BarChart3, CreditCard, BrainCircuit, Sliders, X
 } from 'lucide-react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { PortalRole } from '../../types';
 
 interface SidebarProps {
@@ -25,6 +26,22 @@ export const Sidebar: React.FC<SidebarProps> = ({
   isMobileMenuOpen = false,
   onCloseMobileMenu
 }) => {
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  const superAdminRoutes: Record<string, string> = {
+    'institution-requests': '/super-admin/institution-requests',
+    'institutions': '/super-admin/institutions',
+    'analytics': '/super-admin/analytics',
+    'subscriptions': '/super-admin/subscriptions',
+    'notifications': '/super-admin/notifications',
+    'audit-logs': '/super-admin/audit-logs',
+    'ai-center': '/super-admin/ai-center',
+  };
+
+  const isActiveRoute = (routePath: string) => location.pathname === routePath;
+  const currentRouteKey = Object.entries(superAdminRoutes).find(([, path]) => location.pathname === path)?.[0] || 'institution-requests';
+
   const institutionNav: { id: string; label: string; icon: any; badge?: string | null; badgeColor?: string; isAi?: boolean }[] = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'students', label: 'Student Management', icon: Users },
@@ -41,21 +58,28 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'settings', label: 'Settings', icon: Settings }
   ];
 
-  const superAdminNav: { id: string; label: string; icon: any; badge?: string | null; badgeColor?: string; isAi?: boolean }[] = [
-    { id: 'approvals', label: 'Institution Requests', icon: Building2 },
-    { id: 'directory', label: 'Institution Directory', icon: Building },
-    { id: 'analytics', label: 'Global Analytics', icon: BarChart3 },
-    { id: 'subscriptions', label: 'Subscriptions', icon: CreditCard },
-    { id: 'notifications', label: 'Notifications', icon: Bell },
-    { id: 'audit_logs', label: 'Audit Logs', icon: Sliders }
+  const superAdminNav: { id: string; label: string; icon: any; path: string; badge?: string | null; badgeColor?: string; isAi?: boolean }[] = [
+    { id: 'institution-requests', label: 'Institution Requests', icon: Building2, path: '/super-admin/institution-requests' },
+    { id: 'institutions', label: 'Institution Directory', icon: Building, path: '/super-admin/institutions' },
+    { id: 'analytics', label: 'Global Analytics', icon: BarChart3, path: '/super-admin/analytics' },
+    { id: 'subscriptions', label: 'Subscriptions', icon: CreditCard, path: '/super-admin/subscriptions' },
+    { id: 'notifications', label: 'Notifications', icon: Bell, path: '/super-admin/notifications' },
+    { id: 'audit-logs', label: 'Audit Logs', icon: Sliders, path: '/super-admin/audit-logs' },
+    { id: 'ai-center', label: 'AI Center', icon: Sparkles, path: '/super-admin/ai-center', isAi: true }
   ];
 
-  const navItems = currentPortal === 'super_admin' ? superAdminNav : institutionNav;
-
-  const handleSelectTab = (tabId: string) => {
-    onTabChange(tabId);
+  const handleSelectTab = (tabId: string, eventPath?: string) => {
+    if (currentPortal === 'super_admin' && eventPath) {
+      navigate(eventPath);
+    } else {
+      onTabChange(tabId);
+    }
     if (onCloseMobileMenu) onCloseMobileMenu();
   };
+
+  const navItems = currentPortal === 'super_admin'
+    ? superAdminNav.map(item => ({ ...item, isActive: isActiveRoute(item.path) }))
+    : institutionNav.map(item => ({ ...item, isActive: currentTab === item.id }));
 
   const navContent = (
     <div className="flex flex-col h-full justify-between select-none">
@@ -78,12 +102,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <nav className="space-y-1">
             {navItems.map((item) => {
               const Icon = item.icon;
-              const isActive = currentTab === item.id;
+              const isActive = (item as any).isActive;
 
               return (
                 <button
                   key={item.id}
-                  onClick={() => handleSelectTab(item.id)}
+                  onClick={() => handleSelectTab(item.id, (item as any).path)}
                   className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-xs font-medium transition-all ${
                     isActive
                       ? 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 shadow-[0_0_15px_rgba(99,102,241,0.15)] font-semibold'
@@ -111,23 +135,21 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </div>
       </div>
 
-      {currentPortal !== 'super_admin' && (
-        <div className="p-4 border-t border-zinc-800/50 mt-auto bg-[#09090B]/50">
-          <div className="p-3 rounded-xl bg-gradient-to-b from-indigo-950/20 to-zinc-900 border border-indigo-500/20 text-center relative overflow-hidden">
-            <div className="flex items-center justify-center space-x-1.5 text-xs font-bold text-zinc-200 mb-1">
-              <Sparkles className="w-3.5 h-3.5 text-indigo-400 animate-pulse" />
-              <span>FOODEXA AI Center</span>
-            </div>
-            <p className="text-[10px] text-zinc-400 font-medium">Powered by Google Gemini</p>
-            <button
-              onClick={() => handleSelectTab('ai_center')}
-              className="mt-2.5 w-full py-1.5 px-3 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-[11px] font-bold transition-all shadow-[0_0_15px_rgba(79,70,229,0.3)] flex items-center justify-center space-x-1"
-            >
-              <span>Launch AI Center →</span>
-            </button>
+      <div className="p-4 border-t border-zinc-800/50 mt-auto bg-[#09090B]/50">
+        <div className="p-3 rounded-xl bg-gradient-to-b from-indigo-950/20 to-zinc-900 border border-indigo-500/20 text-center relative overflow-hidden">
+          <div className="flex items-center justify-center space-x-1.5 text-xs font-bold text-zinc-200 mb-1">
+            <Sparkles className="w-3.5 h-3.5 text-indigo-400 animate-pulse" />
+            <span>FOODEXA AI Center</span>
           </div>
+          <p className="text-[10px] text-zinc-400 font-medium">Powered by Google Gemini</p>
+          <button
+            onClick={() => handleSelectTab('ai-center', '/super-admin/ai-center')}
+            className="mt-2.5 w-full py-1.5 px-3 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-[11px] font-bold transition-all shadow-[0_0_15px_rgba(79,70,229,0.3)] flex items-center justify-center space-x-1"
+          >
+            <span>Launch AI Center →</span>
+          </button>
         </div>
-      )}
+      </div>
     </div>
   );
 
