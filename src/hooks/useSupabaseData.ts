@@ -20,12 +20,13 @@ export interface InstitutionRequest {
   food_courts_count?: string;
   vendors_count?: string;
   message?: string;
-  status: 'pending' | 'active' | 'rejected' | 'suspended' | 'changes_requested' | 'disabled';
+  status: 'pending' | 'approved' | 'active' | 'rejected' | 'suspended' | 'changes_requested' | 'disabled';
   created_at: string;
   plan?: 'Basic' | 'Pro' | 'Enterprise';
   rejection_reason?: string;
   admin_notes?: string;
   institution_code?: string;
+  temp_password?: string;
 }
 
 export interface SupabaseInstitution {
@@ -105,7 +106,7 @@ interface UseSupabaseDataReturn {
   auditLogs: AuditLog[];
   notifications: PlatformNotification[];
   unreadCount: number;
-  approveRequest: (id: string) => Promise<ApprovalResult | null>;
+  approveRequest: (id: string) => Promise<ApprovalResult>;
   rejectRequest: (id: string, reason?: string) => Promise<void>;
   requestChanges: (id: string, notes: string) => Promise<void>;
   disableInstitution: (id: string) => Promise<void>;
@@ -326,155 +327,172 @@ export function useSupabaseData(): UseSupabaseDataReturn {
   // ---------------------------------------------------------------
   // Approve a request: full workflow
   // ---------------------------------------------------------------
-  const approveRequest = async (id: string): Promise<ApprovalResult | null> => {
+  const approveRequest = async (id: string): Promise<ApprovalResult> => {
+    // Step 1: Read the selected institution request
     const request = institutionRequests.find((r) => r.id === id);
-    if (!request) return null;
+    if (!request) {
+      const err = new Error('Institution request not found.');
+      console.error(err);
+      throw err;
+    }
 
-    const institutionCode = await generateInstitutionCode(request.institution_name);
-    const tempPassword = generateTempPassword();
     const approvedAt = new Date().toISOString();
 
-    try {
-      const { data: { user: adminUser } } = await supabase.auth.getUser();
-
-      // Step 1: Create auth user for institution admin
-      const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
-        email: request.institution_email,
-        password: tempPassword,
-        email_confirm: true,
-        user_metadata: {
-          role: 'institution_admin',
-          institution_name: request.institution_name,
-        },
-      });
-
-      if (authError || !authData.user) {
-        console.error('[Auth] Failed to create user:', authError?.message);
-        return null;
-      }
-
-      // Step 2: Insert institution record
-      const institutionRecord = {
-        name: request.institution_name,
-        code: institutionCode,
-        email: request.institution_email,
-        contact_person: request.contact_person,
-        phone: request.phone_number,
-        status: 'active',
-        plan: request.plan || 'Basic',
-        joined_date: approvedAt.split('T')[0],
-        students_count: parseInt(request.student_population || '0', 10) || 0,
-        vendors_count: parseInt(request.vendors_count || '0', 10) || 0,
-        type: 'Institution',
-        campus: request.campus || null,
-        city: request.city || null,
-        state: request.state || null,
-        country: request.country || null,
-        institution_website: request.institution_website || null,
-        food_courts_count: parseInt(request.food_courts_count || '0', 10) || 0,
-      };
-
-      const { data: instData, error: instError } = await supabaseAdmin
-        .from(INSTITUTIONS_TABLE)
-        .insert(institutionRecord)
-        .select('id')
-        .single();
-
-      if (instError) {
-        await supabaseAdmin.auth.admin.deleteUser(authData.user.id);
-        console.error('[Supabase] Institution insert error:', instError.message);
-        return null;
-      }
-
-      // Step 3: Create user profile
-      const { error: profileError } = await supabaseAdmin
-        .from('user_profiles')
-        .insert({
-          id: authData.user.id,
-          role: 'institution_admin',
-          institution_id: instData.id,
-        });
-
-      if (profileError) {
-        await supabaseAdmin.auth.admin.deleteUser(authData.user.id);
-        await supabaseAdmin.from(INSTITUTIONS_TABLE).delete().eq('id', instData.id);
-        console.error('[Supabase] Profile insert error:', profileError.message);
-        return null;
-      }
-
-      // Step 4: Update request status
-      const { error: updateErr } = await supabaseAdmin
-        .from(REQUESTS_TABLE)
-        .update({
-          status: 'active',
-          institution_code: institutionCode,
-        })
-        .eq('id', id);
-
-      if (updateErr) {
-        console.error('[Supabase] Request update error:', updateErr.message);
-      }
-
-      // Step 5: Send onboarding email via edge function
-      try {
-        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-        const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-        const portalUrl = 'https://foodexa-institution-platform.vercel.app';
-
-        await fetch(`${supabaseUrl}/functions/v1/approve-institution`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${supabaseAnonKey}`,
-          },
-          body: JSON.stringify({
-            institution_name: request.institution_name,
-            institution_email: request.institution_email,
-            institution_code: institutionCode,
-            login_email: request.institution_email,
-            temp_password: tempPassword,
-            portal_url: portalUrl,
-            contact_person: request.contact_person,
-            first_login_instructions: 'Please log in using the credentials above. You will be prompted to change your password on first login.',
-            password_change_reminder: 'For security, please change your temporary password after your first login.',
-          }),
-        });
-      } catch (emailErr) {
-        console.error('[Email] Failed to send approval email:', emailErr);
-      }
-
-      // Step 6: Create audit log
-      await createAuditLog(
-        'Institution Approved',
-        request.institution_name,
-        id,
-        `Code: ${institutionCode} | Approved by: ${adminUser?.email || 'Super Admin'}`
-      );
-
-      // Step 7: Create notification
-      await supabaseAdmin.from(NOTIFICATIONS_TABLE).insert({
-        title: 'Institution Approved',
-        message: `${request.institution_name} has been approved and activated on the platform. Code: ${institutionCode}`,
-        type: 'success',
-        read: false,
-      });
-
-      // Optimistic UI update
-      setInstitutionRequests((prev) =>
-        prev.map((r) => (r.id === id ? { ...r, status: 'active', institution_code: institutionCode } : r))
-      );
-
-      return {
-        institution_name: request.institution_name,
-        institution_code: institutionCode,
-        login_email: request.institution_email,
-        temp_password: tempPassword,
-        approved_at: approvedAt,
-      };
-    } catch (err) {
-      console.error('[Approve] Unexpected error:', err);
-      return null;
+    // Step 2: Update status from pending → approved
+    const { error: statusError } = await supabaseAdmin
+      .from(REQUESTS_TABLE)
+      .update({ status: 'approved' })
+      .eq('id', id);
+    if (statusError) {
+      console.error(statusError);
+      throw statusError;
     }
+
+    // Step 3: Generate Institution Code
+    const institutionCode = await generateInstitutionCode(request.institution_name);
+
+    // Step 4: Generate temporary password
+    const tempPassword = generateTempPassword();
+
+    // Step 5: Save the Institution Code and temporary password into existing columns
+    const { error: saveError } = await supabaseAdmin
+      .from(REQUESTS_TABLE)
+      .update({
+        institution_code: institutionCode,
+        temp_password: tempPassword,
+      })
+      .eq('id', id);
+    if (saveError) {
+      console.error(saveError);
+      throw saveError;
+    }
+
+    // Step 6: Create Institution Admin authentication account
+    const { data: { user: adminUser } } = await supabase.auth.getUser();
+
+    const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
+      email: request.institution_email,
+      password: tempPassword,
+      email_confirm: true,
+      user_metadata: {
+        role: 'institution_admin',
+        institution_name: request.institution_name,
+      },
+    });
+    if (authError || !authData.user) {
+      const err = authError || new Error('Auth user creation returned no user.');
+      console.error(err);
+      throw err;
+    }
+
+    // Step 7: Send onboarding email
+    try {
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+      const portalUrl = 'https://foodexa-institution-platform.vercel.app';
+
+      const emailResponse = await fetch(`${supabaseUrl}/functions/v1/approve-institution`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${supabaseAnonKey}`,
+        },
+        body: JSON.stringify({
+          institution_name: request.institution_name,
+          institution_email: request.institution_email,
+          institution_code: institutionCode,
+          login_email: request.institution_email,
+          temp_password: tempPassword,
+          portal_url: portalUrl,
+          contact_person: request.contact_person,
+          first_login_instructions: 'Please log in using the credentials above. You will be prompted to change your password on first login.',
+          password_change_reminder: 'For security, please change your temporary password after your first login.',
+        }),
+      });
+      if (!emailResponse.ok) {
+        const emailBody = await emailResponse.text();
+        console.error('[Email] Approval email failed:', emailResponse.status, emailBody);
+      }
+    } catch (emailErr) {
+      console.error('[Email] Failed to send approval email:', emailErr);
+    }
+
+    // Step 8: Move institution to Institution Directory
+    const institutionRecord = {
+      name: request.institution_name,
+      code: institutionCode,
+      email: request.institution_email,
+      contact_person: request.contact_person,
+      phone: request.phone_number,
+      status: 'active',
+      plan: request.plan || 'Basic',
+      joined_date: approvedAt.split('T')[0],
+      students_count: parseInt(request.student_population || '0', 10) || 0,
+      vendors_count: parseInt(request.vendors_count || '0', 10) || 0,
+      type: 'Institution',
+      campus: request.campus || null,
+      city: request.city || null,
+      state: request.state || null,
+      country: request.country || null,
+      institution_website: request.institution_website || null,
+      food_courts_count: parseInt(request.food_courts_count || '0', 10) || 0,
+    };
+
+    const { data: instData, error: instError } = await supabaseAdmin
+      .from(INSTITUTIONS_TABLE)
+      .insert(institutionRecord)
+      .select('id')
+      .single();
+    if (instError) {
+      console.error(instError);
+      throw instError;
+    }
+
+    // Create user profile
+    const { error: profileError } = await supabaseAdmin
+      .from('user_profiles')
+      .insert({
+        id: authData.user.id,
+        role: 'institution_admin',
+        institution_id: instData.id,
+      });
+    if (profileError) {
+      console.error(profileError);
+      throw profileError;
+    }
+
+    // Create audit log
+    await createAuditLog(
+      'Institution Approved',
+      request.institution_name,
+      id,
+      `Code: ${institutionCode} | Approved by: ${adminUser?.email || 'Super Admin'}`
+    );
+
+    // Create notification
+    const { error: notifError } = await supabaseAdmin.from(NOTIFICATIONS_TABLE).insert({
+      title: 'Institution Approved',
+      message: `${request.institution_name} has been approved and activated on the platform. Code: ${institutionCode}`,
+      type: 'success',
+      read: false,
+    });
+    if (notifError) {
+      console.error(notifError);
+      throw notifError;
+    }
+
+    // Step 9: Refresh UI immediately
+    setInstitutionRequests((prev) =>
+      prev.map((r) => (r.id === id ? { ...r, status: 'approved', institution_code: institutionCode } : r))
+    );
+
+    return {
+      institution_name: request.institution_name,
+      institution_code: institutionCode,
+      login_email: request.institution_email,
+      temp_password: tempPassword,
+      approved_at: approvedAt,
+    };
   };
 
   // ---------------------------------------------------------------

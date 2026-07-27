@@ -14,7 +14,7 @@ export interface SuperAdminContextType {
   auditLogs: AuditLog[];
   notifications: PlatformNotification[];
   unreadCount: number;
-  approveRequest: (id: string) => Promise<ApprovalResult | null>;
+  approveRequest: (id: string) => Promise<ApprovalResult>;
   rejectRequest: (id: string, reason?: string) => Promise<void>;
   requestChanges: (id: string, notes: string) => Promise<void>;
   disableInstitution: (id: string) => Promise<void>;

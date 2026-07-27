@@ -210,8 +210,13 @@ export const SuperAdminView: React.FC = () => {
   // Handlers
   // ---------------------------------------------------------------
   const handleApprove = async (id: string, name: string) => {
-    await approveRequest(id);
-    addToast(`Approved: ${name}`);
+    try {
+      await approveRequest(id);
+      addToast(`Approved: ${name}`);
+    } catch (err: any) {
+      console.error(err);
+      addToast(err.message || 'Approval failed.', 'error');
+    }
   };
 
   const handleReject = async () => {

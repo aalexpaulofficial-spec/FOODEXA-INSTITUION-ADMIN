@@ -51,13 +51,15 @@ export const InstitutionRequestsPage: React.FC = () => {
 
   const handleApprove = async (id: string) => {
     setApprovingId(id);
-    const result = await approveRequest(id);
-    setApprovingId(null);
-    if (result) {
+    try {
+      const result = await approveRequest(id);
       setApprovalResult(result);
       addToast(`Approved: ${result.institution_name}`);
-    } else {
-      addToast('Approval failed. Please try again.', 'error');
+    } catch (err: any) {
+      console.error(err);
+      addToast(err.message || 'Approval failed.', 'error');
+    } finally {
+      setApprovingId(null);
     }
   };
 
