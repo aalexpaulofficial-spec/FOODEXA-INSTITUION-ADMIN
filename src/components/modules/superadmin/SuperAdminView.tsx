@@ -662,7 +662,6 @@ export const SuperAdminView: React.FC = () => {
                   </div>
                   <div className="grid grid-cols-2 gap-2 text-[11px] text-slate-400">
                     <span className="flex items-center gap-1"><Users className="w-3 h-3" /> {inst.contact_person || '—'}</span>
-                    <span className="flex items-center gap-1"><MapPin className="w-3 h-3" /> {inst.location || '—'}</span>
                     <span className="flex items-center gap-1"><CreditCard className="w-3 h-3" /> {inst.plan || 'Basic'} Plan</span>
                     <span className="flex items-center gap-1"><Calendar className="w-3 h-3" /> {inst.joined_date || '—'}</span>
                     <span className="flex items-center gap-1"><Users className="w-3 h-3" /> {inst.students_count || 0} students</span>
@@ -1075,8 +1074,7 @@ export const SuperAdminView: React.FC = () => {
               className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-amber-500/50" />
             <input type="tel" value={editForm.phone || ''} onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
               className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-amber-500/50" />
-            <input type="text" value={editForm.location || ''} onChange={(e) => setEditForm({ ...editForm, location: e.target.value })}
-              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-amber-500/50" />
+
             <select value={editForm.plan || 'Basic'} onChange={(e) => setEditForm({ ...editForm, plan: e.target.value as 'Basic' | 'Pro' | 'Enterprise' })}
               className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none">
               <option value="Basic">Basic</option>

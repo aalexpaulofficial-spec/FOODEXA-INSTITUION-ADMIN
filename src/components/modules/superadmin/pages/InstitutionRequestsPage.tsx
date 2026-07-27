@@ -209,7 +209,6 @@ export const InstitutionRequestsPage: React.FC = () => {
                 <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 text-[11px] text-slate-400">
                   <span className="flex items-center gap-1"><Users className="w-3 h-3" /> {req.contact_person}</span>
                   <span className="flex items-center gap-1"><Phone className="w-3 h-3" /> {req.phone_number || '—'}</span>
-                  <span className="flex items-center gap-1"><Globe className="w-3 h-3" /> {[req.city, req.state, req.country].filter(Boolean).join(', ') || '—'}</span>
                   <span className="flex items-center gap-1"><Layers className="w-3 h-3" /> {req.student_population || '—'} students</span>
                   <span className="flex items-center gap-1"><Tag className="w-3 h-3" /> {req.plan || 'Basic'} Plan</span>
                 </div>

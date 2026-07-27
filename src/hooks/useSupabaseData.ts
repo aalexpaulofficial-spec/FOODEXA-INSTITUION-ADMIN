@@ -32,7 +32,6 @@ export interface SupabaseInstitution {
   id: string;
   name: string;
   code?: string;
-  location?: string;
   students_count?: number;
   vendors_count?: number;
   daily_orders_count?: number;
@@ -343,7 +342,6 @@ export function useSupabaseData(): UseSupabaseDataReturn {
       email: request.institution_email,
       contact_person: request.contact_person,
       phone: request.phone_number,
-      location: [request.city, request.state, request.country].filter(Boolean).join(', '),
       status: 'active',
       plan: request.plan || 'Basic',
       joined_date: new Date().toISOString().split('T')[0],
@@ -648,14 +646,13 @@ export function useSupabaseData(): UseSupabaseDataReturn {
         inst.email?.toLowerCase().includes(q) ||
         inst.code?.toLowerCase().includes(q) ||
         inst.contact_person?.toLowerCase().includes(q) ||
-        inst.phone?.toLowerCase().includes(q) ||
-        inst.location?.toLowerCase().includes(q)
+        inst.phone?.toLowerCase().includes(q)
       ) {
         results.push({
           type: 'institution',
           id: inst.id,
           name: inst.name,
-          subtitle: `${inst.code || 'N/A'} • ${inst.location || 'N/A'}`,
+          subtitle: `${inst.code || 'N/A'} • ${inst.email || 'N/A'}`,
           status: inst.status,
         });
       }

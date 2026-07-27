@@ -204,7 +204,6 @@ export interface Institution {
   id: string;
   name: string;
   code: string;
-  location: string;
   studentsCount: number;
   vendorsCount: number;
   dailyOrdersCount: number;

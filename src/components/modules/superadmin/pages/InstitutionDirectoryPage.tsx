@@ -176,7 +176,6 @@ export const InstitutionDirectoryPage: React.FC = () => {
 
               <div className="grid grid-cols-2 gap-2 text-[11px] text-slate-400">
                 <span className="flex items-center gap-1"><UserCheck className="w-3 h-3" /> {inst.contact_person || '—'}</span>
-                <span className="flex items-center gap-1"><MapPin className="w-3 h-3" /> {inst.location || '—'}</span>
                 <span className="flex items-center gap-1"><CreditCard className="w-3 h-3" /> {inst.plan || 'Basic'} Plan</span>
                 <span className="flex items-center gap-1"><Calendar className="w-3 h-3" /> {inst.joined_date || inst.created_at ? new Date(inst.joined_date || inst.created_at).toLocaleDateString() : '—'}</span>
                 <span className="flex items-center gap-1"><Users className="w-3 h-3" /> {inst.students_count || 0} students</span>
@@ -240,7 +239,6 @@ export const InstitutionDirectoryPage: React.FC = () => {
               <div><span className="text-slate-500 block">Code</span><span className="text-amber-400 font-mono">{selectedInstitution.code || '—'}</span></div>
               <div><span className="text-slate-500 block">Contact</span>{selectedInstitution.contact_person || '—'}</div>
               <div><span className="text-slate-500 block">Phone</span>{selectedInstitution.phone || '—'}</div>
-              <div><span className="text-slate-500 block">Location</span>{selectedInstitution.location || '—'}</div>
               <div><span className="text-slate-500 block">Plan</span>{selectedInstitution.plan || 'Basic'}</div>
               <div><span className="text-slate-500 block">Students</span>{selectedInstitution.students_count || 0}</div>
               <div><span className="text-slate-500 block">Vendors</span>{selectedInstitution.vendors_count || 0}</div>
@@ -263,8 +261,7 @@ export const InstitutionDirectoryPage: React.FC = () => {
               className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-amber-500/50" placeholder="Contact Person" />
             <input type="tel" value={editForm.phone || ''} onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
               className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-amber-500/50" placeholder="Phone" />
-            <input type="text" value={editForm.location || ''} onChange={(e) => setEditForm({ ...editForm, location: e.target.value })}
-              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-amber-500/50" placeholder="Location" />
+
             <select value={editForm.plan || 'Basic'} onChange={(e) => setEditForm({ ...editForm, plan: e.target.value as 'Basic' | 'Pro' | 'Enterprise' })}
               className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none">
               <option value="Basic">Basic</option>

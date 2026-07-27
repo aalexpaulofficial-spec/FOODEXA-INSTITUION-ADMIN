@@ -9,7 +9,6 @@ interface SettingsViewProps {
 
 export const SettingsView: React.FC<SettingsViewProps> = ({ currentInstitution, auditLogs }) => {
   const [instName, setInstName] = useState(currentInstitution.name);
-  const [location, setLocation] = useState(currentInstitution.location);
   const [email, setEmail] = useState(currentInstitution.email);
   const [phone, setPhone] = useState(currentInstitution.phone);
   const [tfaEnabled, setTfaEnabled] = useState(true);
@@ -55,16 +54,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentInstitution, 
                 type="text"
                 value={instName}
                 onChange={(e) => setInstName(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-slate-100 focus:outline-none focus:border-amber-500"
-              />
-            </div>
-
-            <div>
-              <label className="text-slate-400 font-semibold block mb-1">Campus Location</label>
-              <input
-                type="text"
-                value={location}
-                onChange={(e) => setLocation(e.target.value)}
                 className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-slate-100 focus:outline-none focus:border-amber-500"
               />
             </div>
