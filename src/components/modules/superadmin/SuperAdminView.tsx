@@ -10,7 +10,7 @@ import {
   CheckCheck, AlertTriangle, Info, UserMinus, UserPlus, History, Settings,
   CreditCard as CreditCardIcon, Receipt, Tag, Star, MapPin, Globe2
 } from 'lucide-react';
-import { useSupabaseData, InstitutionRequest, SupabaseInstitution, AuditLog, PlatformNotification } from '../../../hooks/useSupabaseData';
+import { useSupabaseData, InstitutionRequest, SupabaseInstitution, AuditLog, PlatformNotification, ApprovalDraft } from '../../../hooks/useSupabaseData';
 import { supabase } from '../../../lib/supabaseClient';
 
 // ---------------------------------------------------------------
@@ -120,7 +120,7 @@ export const SuperAdminView: React.FC = () => {
   const {
     institutionRequests, approvedInstitutions, loading, error, isRealtime,
     totalStudents, totalOrders, totalVendors, totalRevenue, auditLogs,
-    notifications, unreadCount, approveRequest, rejectRequest, requestChanges,
+    notifications, unreadCount, prepareApproval, approveRequest, rejectRequest, requestChanges,
     suspendInstitution, activateInstitution, deleteInstitution, updateInstitution,
     createAuditLog, markNotificationRead, markAllNotificationsRead,
     globalSearch, refresh,
@@ -164,6 +164,9 @@ export const SuperAdminView: React.FC = () => {
   const [editModal, setEditModal] = useState<SupabaseInstitution | null>(null);
   const [editForm, setEditForm] = useState<Partial<SupabaseInstitution>>({});
   const [deleteConfirm, setDeleteConfirm] = useState<SupabaseInstitution | null>(null);
+  const [approvalDraft, setApprovalDraft] = useState<ApprovalDraft | null>(null);
+  const [approvalInstitutionCode, setApprovalInstitutionCode] = useState('');
+  const [approvingId, setApprovingId] = useState<string | null>(null);
 
   // ---------------------------------------------------------------
   // Global Search
@@ -219,12 +222,36 @@ export const SuperAdminView: React.FC = () => {
   // Handlers
   // ---------------------------------------------------------------
   const handleApprove = async (id: string, name: string) => {
+    setApprovingId(id);
     try {
-      await approveRequest(id);
-      addToast(`Approved: ${name}`);
+      const draft = await prepareApproval(id);
+      setApprovalDraft(draft);
+      setApprovalInstitutionCode(draft.institution_code);
     } catch (err: any) {
       console.error(err);
       addToast(err.message || 'Approval failed.', 'error');
+    } finally {
+      setApprovingId(null);
+    }
+  };
+
+  const handleConfirmApproval = async () => {
+    if (!approvalDraft) return;
+    setApprovingId(approvalDraft.request.id);
+    try {
+      const result = await approveRequest(approvalDraft.request.id, {
+        institution_code: approvalInstitutionCode,
+        generated_email: approvalDraft.generated_email,
+        generated_password: approvalDraft.generated_password,
+      });
+      addToast(`Approved: ${result.institution_name}`);
+      setApprovalDraft(null);
+      setApprovalInstitutionCode('');
+    } catch (err: any) {
+      console.error(err);
+      addToast(err.message || 'Approval failed.', 'error');
+    } finally {
+      setApprovingId(null);
     }
   };
 
@@ -973,6 +1000,69 @@ export const SuperAdminView: React.FC = () => {
           )}
         </div>
       )}
+
+      {/* ==================== APPROVAL CONFIRMATION MODAL ==================== */}
+      <Modal
+        open={!!approvalDraft}
+        onClose={() => {
+          if (approvingId) return;
+          setApprovalDraft(null);
+          setApprovalInstitutionCode('');
+        }}
+        title="Approval Confirmation"
+        wide
+      >
+        {approvalDraft && (
+          <div className="space-y-5">
+            <div className="p-4 rounded-2xl bg-emerald-500/5 border border-emerald-500/20">
+              <h3 className="text-sm font-black text-white">Review before creating the institution</h3>
+              <p className="text-xs text-slate-400 mt-1">Nothing is saved until you click Approve & Create Institution.</p>
+            </div>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-3 text-xs text-slate-300">
+                <div><span className="text-slate-500 block">Institution Name</span>{approvalDraft.request.institution_name}</div>
+                <div><span className="text-slate-500 block">Campus</span>{approvalDraft.request.campus || 'N/A'}</div>
+                <div><span className="text-slate-500 block">City</span>{approvalDraft.request.city || 'N/A'}</div>
+                <div><span className="text-slate-500 block">State</span>{approvalDraft.request.state || 'N/A'}</div>
+                <div><span className="text-slate-500 block">Country</span>{approvalDraft.request.country || 'N/A'}</div>
+                <div><span className="text-slate-500 block">Contact Person</span>{approvalDraft.request.contact_person}</div>
+                <div><span className="text-slate-500 block">Institution Email</span>{approvalDraft.request.institution_email}</div>
+                <div><span className="text-slate-500 block">Role</span>{approvalDraft.request.role || 'N/A'}</div>
+                <div><span className="text-slate-500 block">Phone Number</span>{approvalDraft.request.phone_number || 'N/A'}</div>
+                <div><span className="text-slate-500 block">Website</span>{approvalDraft.request.institution_website || 'N/A'}</div>
+                <div><span className="text-slate-500 block">Student Population</span>{approvalDraft.request.student_population || 'N/A'}</div>
+                <div><span className="text-slate-500 block">Food Courts</span>{approvalDraft.request.food_courts_count || 'N/A'}</div>
+                <div><span className="text-slate-500 block">Vendors</span>{approvalDraft.request.vendors_count || 'N/A'}</div>
+                <div><span className="text-slate-500 block">Message</span>{approvalDraft.request.message || 'N/A'}</div>
+              </div>
+              <div className="rounded-2xl bg-slate-950 border border-slate-800 p-4 space-y-4">
+                <label className="block space-y-1.5">
+                  <span className="text-[11px] text-slate-500 font-semibold uppercase tracking-wider">Institution Code</span>
+                  <input
+                    type="text"
+                    value={approvalInstitutionCode}
+                    onChange={(e) => setApprovalInstitutionCode(e.target.value.toUpperCase())}
+                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-amber-400 font-mono font-bold focus:outline-none focus:border-amber-500/60"
+                  />
+                </label>
+                <div><span className="text-slate-500 block text-[11px] uppercase font-semibold">Institution Login Email</span><span className="text-sm text-white font-mono break-all">{approvalDraft.generated_email}</span></div>
+                <div><span className="text-slate-500 block text-[11px] uppercase font-semibold">Temporary Password</span><span className="text-sm text-indigo-400 font-mono font-bold break-all">{approvalDraft.generated_password}</span></div>
+              </div>
+            </div>
+            <div className="flex gap-3 pt-2">
+              <button onClick={() => { setApprovalDraft(null); setApprovalInstitutionCode(''); }} disabled={!!approvingId}
+                className="flex-1 py-3 rounded-xl bg-slate-900 border border-slate-800 text-slate-300 text-xs font-bold disabled:opacity-50">
+                Cancel
+              </button>
+              <button onClick={handleConfirmApproval} disabled={!!approvingId || !approvalInstitutionCode.trim()}
+                className="flex-1 py-3 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/40 text-emerald-400 text-xs font-black flex items-center justify-center gap-2 disabled:opacity-50">
+                {approvingId ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+                Approve & Create Institution
+              </button>
+            </div>
+          </div>
+        )}
+      </Modal>
 
       {/* ==================== DETAIL MODAL ==================== */}
       <Modal open={!!selectedRequest} onClose={() => setSelectedRequest(null)} title="Request Details" wide>

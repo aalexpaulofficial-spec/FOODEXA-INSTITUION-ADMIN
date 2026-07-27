@@ -7,13 +7,13 @@ import {
 } from 'lucide-react';
 import { useSuperAdminData } from './components/SuperAdminDataProvider';
 import { InstitutionLogo, StatusBadge, SkeletonCard, Modal, downloadRequestPDF } from './components/SuperAdminShared';
-import { ApprovalResult } from '../../../../hooks/useSupabaseData';
+import { ApprovalDraft, ApprovalResult } from '../../../../hooks/useSupabaseData';
 
 export const InstitutionRequestsPage: React.FC = () => {
   const {
     institutionRequests, approvedInstitutions, loading, totalStudents, totalOrders, totalVendors,
     totalRevenue, unreadCount, auditLogs, notifications, isRealtime,
-    approveRequest, rejectRequest, requestChanges, disableInstitution, suspendInstitution, activateInstitution,
+    prepareApproval, approveRequest, rejectRequest, requestChanges, disableInstitution, suspendInstitution, activateInstitution,
     deleteInstitution, updateInstitution, editRequest, createAuditLog, markNotificationRead,
     markAllNotificationsRead, globalSearch, refresh,
   } = useSuperAdminData();
@@ -28,6 +28,8 @@ export const InstitutionRequestsPage: React.FC = () => {
   const [editModal, setEditModal] = useState<any>(null);
   const [editForm, setEditForm] = useState<any>({});
   const [disableConfirm, setDisableConfirm] = useState<any>(null);
+  const [approvalDraft, setApprovalDraft] = useState<ApprovalDraft | null>(null);
+  const [approvalInstitutionCode, setApprovalInstitutionCode] = useState('');
   const [approvalResult, setApprovalResult] = useState<ApprovalResult | null>(null);
   const [approvingId, setApprovingId] = useState<string | null>(null);
 
@@ -54,8 +56,29 @@ export const InstitutionRequestsPage: React.FC = () => {
   const handleApprove = async (id: string) => {
     setApprovingId(id);
     try {
-      const result = await approveRequest(id);
+      const draft = await prepareApproval(id);
+      setApprovalDraft(draft);
+      setApprovalInstitutionCode(draft.institution_code);
+    } catch (err: any) {
+      console.error(err);
+      addToast(err.message || 'Approval failed.', 'error');
+    } finally {
+      setApprovingId(null);
+    }
+  };
+
+  const handleConfirmApproval = async () => {
+    if (!approvalDraft) return;
+    setApprovingId(approvalDraft.request.id);
+    try {
+      const result = await approveRequest(approvalDraft.request.id, {
+        institution_code: approvalInstitutionCode,
+        generated_email: approvalDraft.generated_email,
+        generated_password: approvalDraft.generated_password,
+      });
       setApprovalResult(result);
+      setApprovalDraft(null);
+      setApprovalInstitutionCode('');
       addToast(`Approved: ${result.institution_name}`);
     } catch (err: any) {
       console.error(err);
@@ -492,6 +515,104 @@ export const InstitutionRequestsPage: React.FC = () => {
               className="w-full py-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs flex items-center justify-center gap-2">
               <Check className="w-4 h-4" /> Save Changes
             </button>
+          </div>
+        )}
+      </Modal>
+
+      <Modal
+        open={!!approvalDraft}
+        onClose={() => {
+          if (approvingId) return;
+          setApprovalDraft(null);
+          setApprovalInstitutionCode('');
+        }}
+        title="Approval Confirmation"
+        wide
+      >
+        {approvalDraft && (
+          <div className="space-y-5">
+            <div className="p-4 rounded-2xl bg-emerald-500/5 border border-emerald-500/20">
+              <div className="flex items-start gap-3">
+                <CheckCircle2 className="w-5 h-5 text-emerald-400 mt-0.5" />
+                <div>
+                  <h3 className="text-sm font-black text-white">Review before creating the institution</h3>
+                  <p className="text-xs text-slate-400 mt-1">
+                    Nothing is saved until you click Approve & Create Institution.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <div className="space-y-3">
+                <h4 className="text-xs font-black text-slate-300 uppercase tracking-wider">Institution Details</h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs text-slate-300">
+                  <div><span className="text-slate-500 block">Institution Name</span>{approvalDraft.request.institution_name}</div>
+                  <div><span className="text-slate-500 block">Campus</span>{approvalDraft.request.campus || 'N/A'}</div>
+                  <div><span className="text-slate-500 block">City</span>{approvalDraft.request.city || 'N/A'}</div>
+                  <div><span className="text-slate-500 block">State</span>{approvalDraft.request.state || 'N/A'}</div>
+                  <div><span className="text-slate-500 block">Country</span>{approvalDraft.request.country || 'N/A'}</div>
+                  <div><span className="text-slate-500 block">Contact Person</span>{approvalDraft.request.contact_person}</div>
+                  <div><span className="text-slate-500 block">Institution Email</span>{approvalDraft.request.institution_email}</div>
+                  <div><span className="text-slate-500 block">Role</span>{approvalDraft.request.role || 'N/A'}</div>
+                  <div><span className="text-slate-500 block">Phone Number</span>{approvalDraft.request.phone_number || 'N/A'}</div>
+                  <div><span className="text-slate-500 block">Website</span>{approvalDraft.request.institution_website || 'N/A'}</div>
+                  <div><span className="text-slate-500 block">Student Population</span>{approvalDraft.request.student_population || 'N/A'}</div>
+                  <div><span className="text-slate-500 block">Food Courts</span>{approvalDraft.request.food_courts_count || 'N/A'}</div>
+                  <div><span className="text-slate-500 block">Vendors</span>{approvalDraft.request.vendors_count || 'N/A'}</div>
+                </div>
+                <div className="text-xs text-slate-300">
+                  <span className="text-slate-500 block">Message</span>
+                  <p className="mt-1 rounded-xl bg-slate-950 border border-slate-800 p-3 leading-relaxed">
+                    {approvalDraft.request.message || 'N/A'}
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <h4 className="text-xs font-black text-slate-300 uppercase tracking-wider">Generated Credentials</h4>
+                <div className="rounded-2xl bg-slate-950 border border-slate-800 p-4 space-y-4">
+                  <label className="block space-y-1.5">
+                    <span className="text-[11px] text-slate-500 font-semibold uppercase tracking-wider">Institution Code</span>
+                    <input
+                      type="text"
+                      value={approvalInstitutionCode}
+                      onChange={(e) => setApprovalInstitutionCode(e.target.value.toUpperCase())}
+                      className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-amber-400 font-mono font-bold focus:outline-none focus:border-amber-500/60"
+                    />
+                  </label>
+                  <div>
+                    <span className="text-[11px] text-slate-500 font-semibold uppercase tracking-wider block">Institution Login Email</span>
+                    <span className="text-sm text-white font-mono break-all">{approvalDraft.generated_email}</span>
+                  </div>
+                  <div>
+                    <span className="text-[11px] text-slate-500 font-semibold uppercase tracking-wider block">Temporary Password</span>
+                    <span className="text-sm text-indigo-400 font-mono font-bold break-all">{approvalDraft.generated_password}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex flex-col sm:flex-row gap-3 pt-2">
+              <button
+                onClick={() => {
+                  setApprovalDraft(null);
+                  setApprovalInstitutionCode('');
+                }}
+                disabled={!!approvingId}
+                className="flex-1 py-3 rounded-xl bg-slate-900 border border-slate-800 text-slate-300 text-xs font-bold hover:bg-slate-800 transition-all disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmApproval}
+                disabled={!!approvingId || !approvalInstitutionCode.trim()}
+                className="flex-1 py-3 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/40 text-emerald-400 text-xs font-black flex items-center justify-center gap-2 transition-all disabled:opacity-50"
+              >
+                {approvingId ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+                Approve & Create Institution
+              </button>
+            </div>
           </div>
         )}
       </Modal>

@@ -97,6 +97,16 @@ export interface ApprovalResult {
   approved_at: string;
 }
 
+export interface ApprovalCredentials {
+  institution_code: string;
+  generated_email: string;
+  generated_password: string;
+}
+
+export interface ApprovalDraft extends ApprovalCredentials {
+  request: InstitutionRequest;
+}
+
 interface UseSupabaseDataReturn {
   institutionRequests: InstitutionRequest[];
   approvedInstitutions: SupabaseInstitution[];
@@ -110,7 +120,8 @@ interface UseSupabaseDataReturn {
   auditLogs: AuditLog[];
   notifications: PlatformNotification[];
   unreadCount: number;
-  approveRequest: (id: string) => Promise<ApprovalResult>;
+  prepareApproval: (id: string) => Promise<ApprovalDraft>;
+  approveRequest: (id: string, credentials?: ApprovalCredentials) => Promise<ApprovalResult>;
   rejectRequest: (id: string, reason?: string) => Promise<void>;
   requestChanges: (id: string, notes: string) => Promise<void>;
   disableInstitution: (id: string) => Promise<void>;
@@ -322,16 +333,78 @@ export function useSupabaseData(): UseSupabaseDataReturn {
         supabaseAdmin.from(INSTITUTIONS_TABLE).select('id').eq('code', code).maybeSingle(),
       ]);
 
+      if (reqRes.error) {
+        console.error(reqRes.error);
+        throw reqRes.error;
+      }
+      if (instRes.error) {
+        console.error(instRes.error);
+        throw instRes.error;
+      }
+
       if (!reqRes.data && !instRes.data) return code;
     }
 
     return `${prefix}${year}${String(Math.floor(1000 + Math.random() * 9000))}`;
   };
 
+  const ensureInstitutionCodeAvailable = async (code: string, requestId: string) => {
+    const cleanedCode = code.trim().toUpperCase();
+    if (!cleanedCode) {
+      const err = new Error('Institution code is required.');
+      console.error(err);
+      throw err;
+    }
+
+    const [reqRes, instRes] = await Promise.all([
+      supabaseAdmin
+        .from(REQUESTS_TABLE)
+        .select('id')
+        .eq('institution_code', cleanedCode)
+        .neq('id', requestId)
+        .maybeSingle(),
+      supabaseAdmin
+        .from(INSTITUTIONS_TABLE)
+        .select('id')
+        .eq('code', cleanedCode)
+        .maybeSingle(),
+    ]);
+
+    if (reqRes.error) {
+      console.error(reqRes.error);
+      throw reqRes.error;
+    }
+    if (instRes.error) {
+      console.error(instRes.error);
+      throw instRes.error;
+    }
+    if (reqRes.data || instRes.data) {
+      const err = new Error(`Institution code "${cleanedCode}" is already in use.`);
+      console.error(err);
+      throw err;
+    }
+  };
+
+  const prepareApproval = async (id: string): Promise<ApprovalDraft> => {
+    const request = institutionRequests.find((r) => r.id === id);
+    if (!request) {
+      const err = new Error('Institution request not found.');
+      console.error(err);
+      throw err;
+    }
+
+    return {
+      request,
+      institution_code: await generateInstitutionCode(request.institution_name),
+      generated_email: request.institution_email,
+      generated_password: generateTempPassword(),
+    };
+  };
+
   // ---------------------------------------------------------------
   // Approve a request: full workflow
   // ---------------------------------------------------------------
-  const approveRequest = async (id: string): Promise<ApprovalResult> => {
+  const approveRequest = async (id: string, credentials?: ApprovalCredentials): Promise<ApprovalResult> => {
     // Step 1: Read the selected institution request
     const request = institutionRequests.find((r) => r.id === id);
     if (!request) {
@@ -342,33 +415,30 @@ export function useSupabaseData(): UseSupabaseDataReturn {
 
     const approvedAt = new Date().toISOString();
 
-    // Get current admin user for approved_by
-    const { data: { user: adminUser } } = await supabase.auth.getUser();
-    const approvedBy = adminUser?.email || 'Super Admin';
+    const { data: { user: adminUser }, error: userError } = await supabase.auth.getUser();
+    if (userError) {
+      console.error(userError);
+      throw userError;
+    }
+    if (!adminUser?.id) {
+      const err = new Error('Authenticated Super Admin user id was not found.');
+      console.error(err);
+      throw err;
+    }
+    const approvedBy = adminUser.id;
 
     // Step 2: Update status from pending → approved
-    const { error: statusError } = await supabaseAdmin
-      .from(REQUESTS_TABLE)
-      .update({ status: 'approved' })
-      .eq('id', id);
-    if (statusError) {
-      console.error(statusError);
-      throw statusError;
-    }
+    const institutionCode = (credentials?.institution_code || await generateInstitutionCode(request.institution_name)).trim().toUpperCase();
+    const tempPassword = credentials?.generated_password || generateTempPassword();
+    const generatedEmail = credentials?.generated_email || request.institution_email;
 
-    // Step 3: Generate Institution Code
-    const institutionCode = await generateInstitutionCode(request.institution_name);
-
-    // Step 4: Generate temporary password
-    const tempPassword = generateTempPassword();
-
-    // The login email is the institution's submitted email
-    const generatedEmail = request.institution_email;
+    await ensureInstitutionCodeAvailable(institutionCode, id);
 
     // Step 5: Save Institution Code, generated email, generated password, approved_at, approved_by
     const { error: saveError } = await supabaseAdmin
       .from(REQUESTS_TABLE)
       .update({
+        status: 'approved',
         institution_code: institutionCode,
         generated_email: generatedEmail,
         generated_password: tempPassword,
@@ -423,10 +493,13 @@ export function useSupabaseData(): UseSupabaseDataReturn {
       });
       if (!emailResponse.ok) {
         const emailBody = await emailResponse.text();
-        console.error('[Email] Approval email failed:', emailResponse.status, emailBody);
+        const err = new Error(`Approval email failed: ${emailResponse.status} ${emailBody}`);
+        console.error(err);
+        throw err;
       }
     } catch (emailErr) {
       console.error('[Email] Failed to send approval email:', emailErr);
+      throw emailErr;
     }
 
     // Step 8: Move institution to Institution Directory
@@ -505,6 +578,11 @@ export function useSupabaseData(): UseSupabaseDataReturn {
         approved_by: approvedBy,
       } : r))
     );
+    setApprovedInstitutions((prev) => [
+      { ...(institutionRecord as SupabaseInstitution), id: instData.id, status: 'active' },
+      ...prev,
+    ]);
+    await fetchAll();
 
     return {
       institution_name: request.institution_name,
@@ -831,6 +909,7 @@ export function useSupabaseData(): UseSupabaseDataReturn {
     auditLogs,
     notifications,
     unreadCount,
+    prepareApproval,
     approveRequest,
     rejectRequest,
     requestChanges,

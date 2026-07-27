@@ -1,5 +1,5 @@
 import React, { createContext, useContext } from 'react';
-import { useSupabaseData, InstitutionRequest, SupabaseInstitution, AuditLog, PlatformNotification, GlobalSearchResult, ApprovalResult } from '../../../../../hooks/useSupabaseData';
+import { useSupabaseData, InstitutionRequest, SupabaseInstitution, AuditLog, PlatformNotification, GlobalSearchResult, ApprovalResult, ApprovalCredentials, ApprovalDraft } from '../../../../../hooks/useSupabaseData';
 
 export interface SuperAdminContextType {
   institutionRequests: InstitutionRequest[];
@@ -14,7 +14,8 @@ export interface SuperAdminContextType {
   auditLogs: AuditLog[];
   notifications: PlatformNotification[];
   unreadCount: number;
-  approveRequest: (id: string) => Promise<ApprovalResult>;
+  prepareApproval: (id: string) => Promise<ApprovalDraft>;
+  approveRequest: (id: string, credentials?: ApprovalCredentials) => Promise<ApprovalResult>;
   rejectRequest: (id: string, reason?: string) => Promise<void>;
   requestChanges: (id: string, notes: string) => Promise<void>;
   disableInstitution: (id: string) => Promise<void>;
