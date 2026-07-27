@@ -195,6 +195,7 @@ export function App() {
                     {currentTab === 'kitchen' && (
                       <KitchenDashboard
                         queueItems={kitchenQueue}
+                        currentInstitution={institution}
                         onUpdateKitchenStatus={updateKitchenStatus}
                       />
                     )}
@@ -202,6 +203,7 @@ export function App() {
                     {currentTab === 'orders' && (
                       <OrderManagement
                         orders={orders}
+                        currentInstitution={institution}
                         onUpdateOrderStatus={handleUpdateOrderStatus}
                         onOpenQRScanner={() => setIsQRScannerOpen(true)}
                       />

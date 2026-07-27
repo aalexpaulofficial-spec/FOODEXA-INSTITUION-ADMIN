@@ -107,15 +107,15 @@ export interface Counter {
 
 export interface Order {
   id: string;
-  orderNumber: string; // e.g. 'FXA-2026-001245'
+  orderNumber: string;
   studentId: string;
   studentName: string;
   studentDepartment: string;
   vendorId: string;
   vendorName: string;
-  pickupCounter: string; // e.g. 'Counter B'
-  pickupNumber: string; // e.g. 'B-142'
-  estimatedWaitMins: number; // e.g. 8
+  pickupCounter: string;
+  pickupNumber: string;
+  estimatedWaitMins: number;
   items: {
     menuItemId: string;
     name: string;
@@ -132,6 +132,9 @@ export interface Order {
   notes?: string;
   isPriority?: boolean;
   qrCodeData?: string;
+  userRole?: string;
+  userEmail?: string;
+  userPhone?: string;
 }
 
 export interface KitchenQueueItem {
@@ -145,6 +148,9 @@ export interface KitchenQueueItem {
   isPriority: boolean;
   notes?: string;
   counterNumber: string;
+  customerName?: string;
+  customerRole?: string;
+  pickupTime?: string;
 }
 
 export interface StaffMember {

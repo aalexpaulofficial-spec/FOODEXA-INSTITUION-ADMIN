@@ -13,10 +13,11 @@ const COLORS = ['#f59e0b', '#06b6d4', '#10b981', '#8b5cf6', '#ec4899'];
 export const AnalyticsView: React.FC<AnalyticsViewProps> = ({ orders = [], students = [] }) => {
   const [timeRange] = useState('7d');
 
-  const { dailyRevenue, popularMeals, departmentShare, totalRevenue, totalMeals } = useMemo(() => {
+  const { dailyRevenue, popularMeals, departmentShare, totalRevenue, totalMeals, roleBreakdown } = useMemo(() => {
     const daily: Record<string, { revenue: number; orders: number }> = {};
     const meals: Record<string, number> = {};
     const depts: Record<string, number> = {};
+    const roles: Record<string, number> = {};
     let rev = 0;
     let mealsCount = 0;
 
@@ -33,14 +34,17 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({ orders = [], stude
       });
 
       depts[o.studentDepartment] = (depts[o.studentDepartment] || 0) + 1;
+      const r = (o as any).userRole || 'unknown';
+      roles[r] = (roles[r] || 0) + 1;
     });
 
     const dailyRevenueData = Object.entries(daily).map(([day, data]) => ({ day, revenue: data.revenue, orders: data.orders }));
     const popularMealsData = Object.entries(meals).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([name, sales]) => ({ name, sales }));
     const total = Object.values(meals).reduce((a, b) => a + b, 0);
     const departmentShareData = Object.entries(depts).map(([name, value], i) => ({ name, value: Math.round((value / orders.length) * 100), color: COLORS[i % COLORS.length] }));
+    const roleBreakdownData = Object.entries(roles).map(([name, value], i) => ({ name, value, color: COLORS[i % COLORS.length] }));
 
-    return { dailyRevenue: dailyRevenueData, popularMeals: popularMealsData, departmentShare: departmentShareData, totalRevenue: rev, totalMeals: mealsCount };
+    return { dailyRevenue: dailyRevenueData, popularMeals: popularMealsData, departmentShare: departmentShareData, totalRevenue: rev, totalMeals: mealsCount, roleBreakdown: roleBreakdownData };
   }, [orders]);
 
   return (
@@ -70,6 +74,27 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({ orders = [], stude
             <Sparkles className="w-3.5 h-3.5" />
             <span>Real-time analytics</span>
           </div>
+        </div>
+      </div>
+
+      {/* Role Breakdown */}
+      <div className="p-6 rounded-2xl bg-slate-900/80 border border-slate-800 shadow-xl space-y-4">
+        <h3 className="text-sm font-bold text-slate-200">Orders by Customer Role</h3>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          {[
+            { key: 'student', label: '🎓 Student', color: 'bg-indigo-500/10 text-indigo-300 border-indigo-500/20' },
+            { key: 'faculty', label: '👨‍🏫 Faculty', color: 'bg-purple-500/10 text-purple-300 border-purple-500/20' },
+            { key: 'guest', label: '👤 Guest', color: 'bg-slate-500/10 text-slate-300 border-slate-500/20' },
+          ].map((r) => {
+            const count = orders.filter(o => (o as any).userRole?.toLowerCase() === r.key).length;
+            return (
+              <div key={r.key} className={`p-4 rounded-xl border ${r.color} space-y-1`}>
+                <div className="text-[10px] uppercase font-bold tracking-wider opacity-80">{r.label}</div>
+                <div className="text-2xl font-black font-mono">{count}</div>
+                <div className="text-[10px] opacity-70">orders</div>
+              </div>
+            );
+          })}
         </div>
       </div>
 

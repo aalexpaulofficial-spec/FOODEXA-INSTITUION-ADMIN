@@ -14,6 +14,7 @@ interface InstitutionData {
   staff: StaffMember[];
   announcements: Announcement[];
   auditLogs: AuditLog[];
+  profiles: { user_id: string; role: string; full_name?: string; email?: string; phone?: string }[];
   loading: boolean;
   error: string | null;
   refresh: () => void;
@@ -43,8 +44,48 @@ export function useInstitutionData(institutionId: string | null): InstitutionDat
   const [staff, setStaff] = useState<StaffMember[]>([]);
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
+  const [profiles, setProfiles] = useState<{ user_id: string; role: string; full_name?: string; email?: string; phone?: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const enrichOrdersWithProfile = useCallback((rawOrders: any[], profileList: { user_id: string; role: string; full_name?: string; email?: string; phone?: string }[]) => {
+    const profileMap = new Map(profileList.map(p => [p.user_id, p]));
+    return rawOrders.map(o => {
+      const studentId = o.student_id || o.studentId;
+      const profile = studentId ? profileMap.get(studentId) : undefined;
+      return {
+        ...o,
+        userRole: profile?.role || o.user_role || '',
+        userEmail: profile?.email || o.user_email || '',
+        userPhone: profile?.phone || o.user_phone || '',
+      } as Order;
+    });
+  }, []);
+
+  const enrichKitchenQueueWithProfile = useCallback((rawOrders: any[], profileList: { user_id: string; role: string; full_name?: string; email?: string; phone?: string }[]) => {
+    const profileMap = new Map(profileList.map(p => [p.user_id, p]));
+    return rawOrders
+      .filter(o => ['pending', 'preparing', 'ready'].includes(o.status))
+      .map(o => {
+        const studentId = o.student_id || o.studentId;
+        const profile = studentId ? profileMap.get(studentId) : undefined;
+        return {
+          id: `kq-${o.id}`,
+          orderId: o.id,
+          orderNumber: o.order_number || o.orderNumber || '',
+          itemsSummary: o.items ? (Array.isArray(o.items) ? o.items.map((i: any) => `${i.quantity || i.quantity || 0}x ${i.name || ''}`).join(', ') : '') : '',
+          status: o.status,
+          prepTimeMinutes: o.estimated_wait_mins || o.estimatedWaitMins || 5,
+          elapsedSeconds: 0,
+          isPriority: o.is_priority || o.isPriority || false,
+          notes: o.notes,
+          counterNumber: o.pickup_counter || o.pickupCounter || '',
+          customerName: profile?.full_name || o.customer_name || o.student_name || o.studentName || '',
+          customerRole: profile?.role || o.user_role || '',
+          pickupTime: o.pickup_time_estimated || o.pickupTimeEstimated || '',
+        };
+      });
+  }, []);
 
   const fetchAll = useCallback(async () => {
     if (!institutionId) {
@@ -66,6 +107,7 @@ export function useInstitutionData(institutionId: string | null): InstitutionDat
         { data: staffData },
         { data: announcementsData },
         { data: auditLogsData },
+        { data: profilesData },
       ] = await Promise.all([
         supabase.from('institutions').select('*').eq('id', institutionId).single(),
         supabase.from('students').select('*').eq('institution_id', institutionId),
@@ -77,6 +119,7 @@ export function useInstitutionData(institutionId: string | null): InstitutionDat
         supabase.from('staff').select('*').eq('institution_id', institutionId),
         supabase.from('announcements').select('*').eq('institution_id', institutionId),
         supabase.from('audit_logs').select('*').eq('institution_id', institutionId),
+        supabase.from('profiles').select('*'),
       ]);
 
       if (instData) {
@@ -118,20 +161,11 @@ export function useInstitutionData(institutionId: string | null): InstitutionDat
       if (studentsData) setStudents(studentsData as Student[]);
       if (vendorsData) setVendors(vendorsData as Vendor[]);
       if (countersData) setCounters(countersData as Counter[]);
+      if (profilesData) setProfiles(profilesData as any);
       if (ordersData) {
-        setOrders(ordersData as Order[]);
-        setKitchenQueue((ordersData as Order[]).filter(o => ['pending', 'preparing', 'ready'].includes(o.status)).map(o => ({
-          id: `kq-${o.id}`,
-          orderId: o.id,
-          orderNumber: o.orderNumber,
-          itemsSummary: o.items.map(i => `${i.quantity}x ${i.name}`).join(', '),
-          status: o.status,
-          prepTimeMinutes: o.estimatedWaitMins || 5,
-          elapsedSeconds: 0,
-          isPriority: o.isPriority || false,
-          notes: o.notes,
-          counterNumber: o.pickupCounter,
-        })));
+        const enriched = enrichOrdersWithProfile(ordersData as any[], (profilesData as any[]) || []);
+        setOrders(enriched);
+        setKitchenQueue(enrichKitchenQueueWithProfile(ordersData as any[], (profilesData as any[]) || []));
       }
       if (menuItemsData) setMenuItems(menuItemsData as MenuItem[]);
       if (campusData) setCampusBlocks(campusData as CampusBlock[]);
@@ -143,7 +177,7 @@ export function useInstitutionData(institutionId: string | null): InstitutionDat
     } finally {
       setLoading(false);
     }
-  }, [institutionId]);
+  }, [institutionId, enrichOrdersWithProfile, enrichKitchenQueueWithProfile]);
 
   useEffect(() => {
     fetchAll();
@@ -160,6 +194,7 @@ export function useInstitutionData(institutionId: string | null): InstitutionDat
       .on('postgres_changes', { event: '*', schema: 'public', table: 'announcements', filter: `institution_id=eq.${institutionId}` }, () => fetchAll())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'counters', filter: `institution_id=eq.${institutionId}` }, () => fetchAll())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'staff', filter: `institution_id=eq.${institutionId}` }, () => fetchAll())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles', filter: `institution_id=eq.${institutionId}` }, () => fetchAll())
       .subscribe();
     return () => { supabase.removeChannel(channel); };
   }, [institutionId, fetchAll]);
@@ -234,7 +269,7 @@ export function useInstitutionData(institutionId: string | null): InstitutionDat
 
   return {
     institution,
-    students, vendors, counters, orders, menuItems, kitchenQueue, campusBlocks, staff, announcements, auditLogs,
+    students, vendors, counters, orders, menuItems, kitchenQueue, campusBlocks, staff, announcements, auditLogs, profiles,
     loading, error,
     refresh: fetchAll,
     updateStudentStatus, approveVendor, rejectVendor, suspendVendor, addCounter, toggleCounterAvailability,

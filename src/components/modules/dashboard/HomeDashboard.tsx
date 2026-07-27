@@ -221,18 +221,25 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
                 <tr>
                   <th className="p-4 font-semibold">Order ID</th>
                   <th className="p-4 font-semibold">Items</th>
+                  <th className="p-4 font-semibold">Customer</th>
+                  <th className="p-4 font-semibold">Role</th>
                   <th className="p-4 font-semibold">Counter</th>
                   <th className="p-4 font-semibold">Status</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-zinc-800/50">
                 {orders.filter(o => ['pending', 'preparing', 'ready'].includes(o.status)).length === 0 ? (
-                  <tr><td colSpan={4} className="p-8 text-center text-zinc-500">No active orders in queue</td></tr>
+                  <tr><td colSpan={6} className="p-8 text-center text-zinc-500">No active orders in queue</td></tr>
                 ) : (
-                  orders.filter(o => ['pending', 'preparing', 'ready'].includes(o.status)).map(o => (
+                  orders.filter(o => ['pending', 'preparing', 'ready'].includes(o.status)).map(o => {
+                    const role = (o.userRole || '').toLowerCase();
+                    const roleBadge = role === 'student' ? '🎓 Student' : role === 'faculty' ? '👨‍🏫 Faculty' : role === 'guest' ? '👤 Guest' : '';
+                    return (
                     <tr key={o.id} className="hover:bg-zinc-800/20 transition-colors">
                       <td className="p-4 font-mono text-indigo-400 font-bold">{o.orderNumber}</td>
                       <td className="p-4 text-zinc-200">{o.items.map(i => `${i.quantity}x ${i.name}`).join(', ')}</td>
+                      <td className="p-4 text-zinc-300 font-medium">{o.studentName}</td>
+                      <td className="p-4 text-zinc-400 text-[11px]">{roleBadge}</td>
                       <td className="p-4 text-zinc-400">{o.pickupCounter}</td>
                       <td className="p-4">
                         <span className={`flex items-center gap-2 text-zinc-300`}>
@@ -244,7 +251,8 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
                         </span>
                       </td>
                     </tr>
-                  ))
+                    );
+                  })
                 )}
               </tbody>
             </table>

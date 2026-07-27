@@ -9,22 +9,36 @@ import {
   RotateCcw,
   Sparkles,
   Timer,
-  ShoppingBag
+  ShoppingBag,
+  User,
+  GraduationCap,
+  UserCheck,
+  UserX,
+  CalendarClock
 } from 'lucide-react';
 import { KitchenQueueItem, OrderStatus } from '../../../types';
 
 interface KitchenDashboardProps {
   queueItems: KitchenQueueItem[];
+  currentInstitution?: { name: string; institution_code: string; campus?: string };
   onUpdateKitchenStatus: (itemId: string, status: OrderStatus) => void;
 }
 
+const getRoleDisplay = (role?: string) => {
+  const r = (role || '').toLowerCase();
+  if (r === 'student') return { icon: '🎓', text: 'Student', cls: 'text-indigo-300' };
+  if (r === 'faculty') return { icon: '👨‍🏫', text: 'Faculty', cls: 'text-purple-300' };
+  if (r === 'guest') return { icon: '👤', text: 'Guest', cls: 'text-slate-300' };
+  return { icon: '👤', text: role || 'Unknown', cls: 'text-slate-400' };
+};
+
 export const KitchenDashboard: React.FC<KitchenDashboardProps> = ({
   queueItems,
+  currentInstitution,
   onUpdateKitchenStatus
 }) => {
   const [items, setItems] = useState<KitchenQueueItem[]>(queueItems);
 
-  // Live timer tick for prep times
   useEffect(() => {
     const timer = setInterval(() => {
       setItems((prev) =>
@@ -49,9 +63,33 @@ export const KitchenDashboard: React.FC<KitchenDashboardProps> = ({
 
   const formatSeconds = (sec: number) => {
     const m = Math.floor(sec / 60);
-    const s = sec % 60;
+    const s = sec % 10;
     return `${m}:${s < 10 ? '0' : ''}${s}`;
   };
+
+  const renderCustomerInfo = (item: KitchenQueueItem) => (
+    <div className="flex items-center justify-between text-[11px] pt-1 border-t border-slate-800/60">
+      <div className="flex items-center gap-1.5">
+        <User className="w-3 h-3 text-slate-500" />
+        <span className="font-semibold text-slate-200">{item.customerName || '—'}</span>
+      </div>
+      <div className="flex items-center gap-1.5">
+        <span className={`text-xs font-bold ${getRoleDisplay(item.customerRole).cls}`}>
+          {getRoleDisplay(item.customerRole).icon} {getRoleDisplay(item.customerRole).text}
+        </span>
+      </div>
+    </div>
+  );
+
+  const renderPickupInfo = (item: KitchenQueueItem) => (
+    <div className="flex items-center justify-between text-[11px] text-slate-400">
+      <div className="flex items-center gap-1">
+        <CalendarClock className="w-3 h-3 text-slate-500" />
+        <span className="font-mono">{item.pickupTime ? new Date(item.pickupTime).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : '—'}</span>
+      </div>
+      <div className="font-mono text-slate-300 font-semibold">{item.counterNumber}</div>
+    </div>
+  );
 
   return (
     <div className="space-y-6 animate-fade-in font-sans">
@@ -66,6 +104,7 @@ export const KitchenDashboard: React.FC<KitchenDashboardProps> = ({
           </div>
           <p className="text-xs text-slate-400">
             Real-time kitchen order dispatching, preparation countdown timers, and counter routing.
+            Customer names and roles pulled from live profile data.
           </p>
         </div>
 
@@ -110,8 +149,9 @@ export const KitchenDashboard: React.FC<KitchenDashboardProps> = ({
                   )}
                 </div>
 
-                <div className="text-xs font-bold text-slate-200">{item.itemsSummary}</div>
-                <div className="text-[11px] text-slate-400 font-mono">{item.counterNumber}</div>
+                <div className="text-[11px] font-bold text-slate-200">{item.itemsSummary}</div>
+                {renderPickupInfo(item)}
+                {renderCustomerInfo(item)}
 
                 {item.notes && (
                   <div className="p-2 rounded bg-amber-500/5 border border-amber-500/10 text-[11px] text-amber-300 italic">
@@ -177,7 +217,9 @@ export const KitchenDashboard: React.FC<KitchenDashboardProps> = ({
                     </div>
                   </div>
 
-                  <div className="text-xs font-bold text-slate-200">{item.itemsSummary}</div>
+                  <div className="text-[11px] font-bold text-slate-200">{item.itemsSummary}</div>
+                  {renderPickupInfo(item)}
+                  {renderCustomerInfo(item)}
 
                   {/* Progress Bar */}
                   <div>
@@ -237,8 +279,9 @@ export const KitchenDashboard: React.FC<KitchenDashboardProps> = ({
                   </span>
                 </div>
 
-                <div className="text-xs font-bold text-slate-200">{item.itemsSummary}</div>
-                <div className="text-[11px] text-slate-400 font-mono">{item.counterNumber}</div>
+                <div className="text-[11px] font-bold text-slate-200">{item.itemsSummary}</div>
+                {renderPickupInfo(item)}
+                {renderCustomerInfo(item)}
 
                 <button
                   onClick={() => onUpdateKitchenStatus(item.id, 'completed')}

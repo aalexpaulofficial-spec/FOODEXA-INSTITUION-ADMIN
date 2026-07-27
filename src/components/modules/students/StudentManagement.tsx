@@ -297,7 +297,10 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
               </h3>
               <div className="space-y-2">
                 {getStudentOrders(activeStudentDrawer.id).length > 0 ? (
-                  getStudentOrders(activeStudentDrawer.id).map((ord) => (
+                  getStudentOrders(activeStudentDrawer.id).map((ord) => {
+                    const role = (ord as any).userRole || 'student';
+                    const roleBadge = role.toLowerCase() === 'student' ? '🎓 Student' : role.toLowerCase() === 'faculty' ? '👨‍🏫 Faculty' : role.toLowerCase() === 'guest' ? '👤 Guest' : role;
+                    return (
                     <div
                       key={ord.id}
                       className="p-3 rounded-xl bg-slate-950 border border-slate-800/80 flex items-center justify-between text-xs"
@@ -305,13 +308,15 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                       <div>
                         <div className="font-bold text-slate-200">{ord.orderNumber} • {ord.vendorName}</div>
                         <div className="text-[10px] text-slate-500">{ord.orderTime} • {ord.paymentMethod}</div>
+                        <div className="text-[10px] text-indigo-300 font-semibold mt-0.5">{roleBadge}</div>
                       </div>
                       <div className="text-right">
                         <div className="font-mono font-bold text-emerald-400">${ord.totalAmount.toFixed(2)}</div>
                         <div className="text-[10px] text-slate-400 uppercase font-semibold">{ord.status}</div>
                       </div>
                     </div>
-                  ))
+                    );
+                  })
                 ) : (
                   <div className="text-xs text-slate-500 py-3 text-center bg-slate-950/40 rounded-xl border border-slate-800">
                     No recent order records found.
