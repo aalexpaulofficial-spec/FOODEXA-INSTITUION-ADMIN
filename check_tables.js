@@ -2,14 +2,12 @@ import { createClient } from '@supabase/supabase-js';
 
 const supabase = createClient(
   'https://oxsbkwcmpsadbcceaalc.supabase.co',
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im94c2Jrd2NtcHNhZGJjY2VhYWxjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQwMjAyNjksImV4cCI6MjA5OTU5NjI2OX0.eJElI9vUOxX8bagwC95Civmv4vtnAnTNc_Fr9iJ6gsI'
+  process.env.SUPABASE_SERVICE_ROLE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im94c2Jrd2NtcHNhZGJjY2VhYWxjIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4NDAyMDI2OSwiZXhwIjoyMDk5NTk2MjY5fQ.j_zU0z340JjK4jNAKTgD31Ex8ryPEoXipZiEhZVt0co'
 );
 
 async function check() {
-  const { data, error } = await supabase.from('user_profiles').select('*').limit(1);
-  console.log('user_profiles:', { data, error });
-  
-  // also check if 'institutions' has user_id or something
+  const { data, error } = await supabase.from('institution_requests').select('*').limit(5);
+  console.log('institution_requests:', { data, error });
   const { data: inst, error: errInst } = await supabase.from('institutions').select('*').limit(1);
   console.log('institutions:', { data: inst, error: errInst });
 }

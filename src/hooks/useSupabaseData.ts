@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { supabase } from '../lib/supabaseClient';
+import { supabase, supabaseAdmin } from '../lib/supabaseClient';
 
 // ---------------------------------------------------------------
 // Types for Supabase rows
@@ -142,7 +142,7 @@ export function useSupabaseData(): UseSupabaseDataReturn {
   const createAuditLog = useCallback(async (action: string, target: string, targetId?: string, details?: string) => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      await supabase.from(AUDIT_LOGS_TABLE).insert({
+      await supabaseAdmin.from(AUDIT_LOGS_TABLE).insert({
         user_id: user?.id || 'system',
         user_name: user?.email || 'System',
         action,
@@ -165,7 +165,7 @@ export function useSupabaseData(): UseSupabaseDataReturn {
 
     try {
       // Fetch institution requests
-      const { data: requests, error: reqErr } = await supabase
+      const { data: requests, error: reqErr } = await supabaseAdmin
         .from(REQUESTS_TABLE)
         .select('*')
         .order('created_at', { ascending: false });
@@ -182,7 +182,7 @@ export function useSupabaseData(): UseSupabaseDataReturn {
       setInstitutionRequests((requests as InstitutionRequest[]) || []);
 
       // Fetch approved institutions
-      const { data: institutions, error: instErr } = await supabase
+      const { data: institutions, error: instErr } = await supabaseAdmin
         .from(INSTITUTIONS_TABLE)
         .select('*')
         .order('created_at', { ascending: false });
@@ -193,9 +193,9 @@ export function useSupabaseData(): UseSupabaseDataReturn {
 
       // Fetch total counts in parallel
       const [studentRes, orderRes, vendorRes] = await Promise.all([
-        supabase.from(STUDENTS_TABLE).select('id', { count: 'exact', head: true }),
-        supabase.from(ORDERS_TABLE).select('id', { count: 'exact', head: true }),
-        supabase.from(VENDORS_TABLE).select('id', { count: 'exact', head: true }),
+        supabaseAdmin.from(STUDENTS_TABLE).select('id', { count: 'exact', head: true }),
+        supabaseAdmin.from(ORDERS_TABLE).select('id', { count: 'exact', head: true }),
+        supabaseAdmin.from(VENDORS_TABLE).select('id', { count: 'exact', head: true }),
       ]);
 
       setTotalStudents(studentRes.count || 0);
@@ -208,7 +208,7 @@ export function useSupabaseData(): UseSupabaseDataReturn {
       setTotalRevenue(revenue);
 
       // Fetch audit logs
-      const { data: logs } = await supabase
+      const { data: logs } = await supabaseAdmin
         .from(AUDIT_LOGS_TABLE)
         .select('*')
         .order('created_at', { ascending: false })
@@ -216,7 +216,7 @@ export function useSupabaseData(): UseSupabaseDataReturn {
       setAuditLogs((logs as AuditLog[]) || []);
 
       // Fetch notifications
-      const { data: notifs } = await supabase
+      const { data: notifs } = await supabaseAdmin
         .from(NOTIFICATIONS_TABLE)
         .select('*')
         .order('created_at', { ascending: false })
@@ -291,7 +291,7 @@ export function useSupabaseData(): UseSupabaseDataReturn {
       ? `${prefix}${campus.replace(/[^a-zA-Z]/g, '').toUpperCase().slice(0, 2)}${year}`
       : `${prefix}${year}`;
 
-    const { data: existing } = await supabase
+    const { data: existing } = await supabaseAdmin
       .from(INSTITUTIONS_TABLE)
       .select('code')
       .like('code', `${baseCode}%`);
@@ -323,7 +323,7 @@ export function useSupabaseData(): UseSupabaseDataReturn {
     }
 
     // Update request status
-    const { error: updateErr } = await supabase
+    const { error: updateErr } = await supabaseAdmin
       .from(REQUESTS_TABLE)
       .update({
         status: 'active',
@@ -358,7 +358,7 @@ export function useSupabaseData(): UseSupabaseDataReturn {
       food_courts_count: parseInt(request.food_courts_count || '0', 10) || 0,
     };
 
-    await supabase.from(INSTITUTIONS_TABLE).insert(institutionRecord);
+    await supabaseAdmin.from(INSTITUTIONS_TABLE).insert(institutionRecord);
 
     // Create auth user + send email via server endpoint
     try {
@@ -386,7 +386,7 @@ export function useSupabaseData(): UseSupabaseDataReturn {
     await createAuditLog('Institution Approved', request.institution_name, id, `Code: ${institutionCode}`);
 
     // Create notification
-    await supabase.from(NOTIFICATIONS_TABLE).insert({
+    await supabaseAdmin.from(NOTIFICATIONS_TABLE).insert({
       title: 'Institution Approved',
       message: `${request.institution_name} has been approved and is now active on the platform. Code: ${institutionCode}`,
       type: 'success',
@@ -406,7 +406,7 @@ export function useSupabaseData(): UseSupabaseDataReturn {
     const request = institutionRequests.find((r) => r.id === id);
     if (!request) return;
 
-    const { error: updateErr } = await supabase
+    const { error: updateErr } = await supabaseAdmin
       .from(REQUESTS_TABLE)
       .update({
         status: 'rejected',
@@ -441,7 +441,7 @@ export function useSupabaseData(): UseSupabaseDataReturn {
 
     await createAuditLog('Institution Rejected', request.institution_name, id, reason || 'No reason provided');
 
-    await supabase.from(NOTIFICATIONS_TABLE).insert({
+    await supabaseAdmin.from(NOTIFICATIONS_TABLE).insert({
       title: 'Institution Rejected',
       message: `${request.institution_name} registration has been rejected.${reason ? ` Reason: ${reason}` : ''}`,
       type: 'warning',
@@ -458,16 +458,16 @@ export function useSupabaseData(): UseSupabaseDataReturn {
   // ---------------------------------------------------------------
   const disableInstitution = async (id: string) => {
     const inst = approvedInstitutions.find((i) => i.id === id);
-    await supabase.from(INSTITUTIONS_TABLE).update({ status: 'disabled' }).eq('id', id);
+    await supabaseAdmin.from(INSTITUTIONS_TABLE).update({ status: 'disabled' }).eq('id', id);
 
     // Also update the original request status
     const request = institutionRequests.find((r) => r.institution_code === inst?.code);
     if (request) {
-      await supabase.from(REQUESTS_TABLE).update({ status: 'disabled' }).eq('id', request.id);
+      await supabaseAdmin.from(REQUESTS_TABLE).update({ status: 'disabled' }).eq('id', request.id);
     }
 
     await createAuditLog('Institution Disabled', inst?.name || id, id);
-    await supabase.from(NOTIFICATIONS_TABLE).insert({
+    await supabaseAdmin.from(NOTIFICATIONS_TABLE).insert({
       title: 'Institution Disabled',
       message: `${inst?.name || 'An institution'} has been disabled. Admin can no longer log in.`,
       type: 'warning',
@@ -489,7 +489,7 @@ export function useSupabaseData(): UseSupabaseDataReturn {
     const request = institutionRequests.find((r) => r.id === id);
     if (!request) return;
 
-    const { error: updateErr } = await supabase
+    const { error: updateErr } = await supabaseAdmin
       .from(REQUESTS_TABLE)
       .update({
         status: 'changes_requested',
@@ -504,7 +504,7 @@ export function useSupabaseData(): UseSupabaseDataReturn {
 
     await createAuditLog('Changes Requested', request.institution_name, id, notes);
 
-    await supabase.from(NOTIFICATIONS_TABLE).insert({
+    await supabaseAdmin.from(NOTIFICATIONS_TABLE).insert({
       title: 'Changes Requested',
       message: `Changes requested for ${request.institution_name}: ${notes}`,
       type: 'info',
@@ -523,7 +523,7 @@ export function useSupabaseData(): UseSupabaseDataReturn {
     const request = institutionRequests.find((r) => r.id === id);
     if (!request) return;
 
-    const { error } = await supabase.from(REQUESTS_TABLE).update(updates).eq('id', id);
+    const { error } = await supabaseAdmin.from(REQUESTS_TABLE).update(updates).eq('id', id);
     if (error) {
       console.error('[Supabase] Edit request error:', error.message);
       return;
@@ -541,10 +541,10 @@ export function useSupabaseData(): UseSupabaseDataReturn {
   // ---------------------------------------------------------------
   const suspendInstitution = async (id: string) => {
     const inst = approvedInstitutions.find((i) => i.id === id);
-    await supabase.from(INSTITUTIONS_TABLE).update({ status: 'suspended' }).eq('id', id);
+    await supabaseAdmin.from(INSTITUTIONS_TABLE).update({ status: 'suspended' }).eq('id', id);
 
     await createAuditLog('Institution Suspended', inst?.name || id, id);
-    await supabase.from(NOTIFICATIONS_TABLE).insert({
+    await supabaseAdmin.from(NOTIFICATIONS_TABLE).insert({
       title: 'Institution Suspended',
       message: `${inst?.name || 'An institution'} has been suspended.`,
       type: 'warning',
@@ -561,10 +561,10 @@ export function useSupabaseData(): UseSupabaseDataReturn {
   // ---------------------------------------------------------------
   const activateInstitution = async (id: string) => {
     const inst = approvedInstitutions.find((i) => i.id === id);
-    await supabase.from(INSTITUTIONS_TABLE).update({ status: 'active' }).eq('id', id);
+    await supabaseAdmin.from(INSTITUTIONS_TABLE).update({ status: 'active' }).eq('id', id);
 
     await createAuditLog('Institution Reactivated', inst?.name || id, id);
-    await supabase.from(NOTIFICATIONS_TABLE).insert({
+    await supabaseAdmin.from(NOTIFICATIONS_TABLE).insert({
       title: 'Institution Reactivated',
       message: `${inst?.name || 'An institution'} has been reactivated.`,
       type: 'success',
@@ -581,10 +581,10 @@ export function useSupabaseData(): UseSupabaseDataReturn {
   // ---------------------------------------------------------------
   const deleteInstitution = async (id: string) => {
     const inst = approvedInstitutions.find((i) => i.id === id);
-    await supabase.from(INSTITUTIONS_TABLE).delete().eq('id', id);
+    await supabaseAdmin.from(INSTITUTIONS_TABLE).delete().eq('id', id);
 
     await createAuditLog('Institution Deleted', inst?.name || id, id);
-    await supabase.from(NOTIFICATIONS_TABLE).insert({
+    await supabaseAdmin.from(NOTIFICATIONS_TABLE).insert({
       title: 'Institution Deleted',
       message: `${inst?.name || 'An institution'} has been permanently removed.`,
       type: 'error',
@@ -598,7 +598,7 @@ export function useSupabaseData(): UseSupabaseDataReturn {
   // Update institution
   // ---------------------------------------------------------------
   const updateInstitution = async (id: string, updates: Partial<SupabaseInstitution>) => {
-    const { error } = await supabase.from(INSTITUTIONS_TABLE).update(updates).eq('id', id);
+    const { error } = await supabaseAdmin.from(INSTITUTIONS_TABLE).update(updates).eq('id', id);
     if (error) {
       console.error('[Supabase] Update error:', error.message);
       return;
@@ -616,7 +616,7 @@ export function useSupabaseData(): UseSupabaseDataReturn {
   // Mark notification read
   // ---------------------------------------------------------------
   const markNotificationRead = async (id: string) => {
-    await supabase.from(NOTIFICATIONS_TABLE).update({ read: true }).eq('id', id);
+    await supabaseAdmin.from(NOTIFICATIONS_TABLE).update({ read: true }).eq('id', id);
     setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, read: true } : n)));
     setUnreadCount((prev) => Math.max(0, prev - 1));
   };
@@ -628,7 +628,7 @@ export function useSupabaseData(): UseSupabaseDataReturn {
     const unread = notifications.filter((n) => !n.read);
     if (unread.length === 0) return;
     const ids = unread.map((n) => n.id);
-    await supabase.from(NOTIFICATIONS_TABLE).update({ read: true }).in('id', ids);
+    await supabaseAdmin.from(NOTIFICATIONS_TABLE).update({ read: true }).in('id', ids);
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
     setUnreadCount(0);
   };
