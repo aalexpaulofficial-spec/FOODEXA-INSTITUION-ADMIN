@@ -66,7 +66,6 @@ export interface SupabaseInstitution {
   monthly_revenue?: number;
   created_at?: string;
   last_login?: string;
-  address?: string;
 }
 
 export interface AuditLog {
