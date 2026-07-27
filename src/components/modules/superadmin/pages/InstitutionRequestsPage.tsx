@@ -3,10 +3,11 @@ import {
   Search, Building2, Building, Users, Phone, Globe, Layers, Tag, CheckCircle2, XCircle, MessageSquare,
   Eye, Download, Loader2, Clock, MapPin, Calendar, CreditCard, Edit3, Trash2, Store, TrendingUp,
   DollarSign, Activity, BarChart2, Globe2, CheckCircle, X, Send, Copy, FileText, History,
-  Check, AlarmClock, RefreshCw, Plus, Sparkles, Ban
+  Check, AlarmClock, RefreshCw, Plus, Sparkles, Ban, ExternalLink
 } from 'lucide-react';
-import { useSuperAdminData, SuperAdminContextType } from './components/SuperAdminDataProvider';
+import { useSuperAdminData } from './components/SuperAdminDataProvider';
 import { InstitutionLogo, StatusBadge, SkeletonCard, Modal, downloadRequestPDF } from './components/SuperAdminShared';
+import { ApprovalResult } from '../../../../hooks/useSupabaseData';
 
 export const InstitutionRequestsPage: React.FC = () => {
   const {
@@ -27,6 +28,8 @@ export const InstitutionRequestsPage: React.FC = () => {
   const [editModal, setEditModal] = useState<any>(null);
   const [editForm, setEditForm] = useState<any>({});
   const [disableConfirm, setDisableConfirm] = useState<any>(null);
+  const [approvalResult, setApprovalResult] = useState<ApprovalResult | null>(null);
+  const [approvingId, setApprovingId] = useState<string | null>(null);
 
   const [toasts, setToasts] = useState<{ id: string; msg: string; type?: 'success' | 'info' | 'error' }[]>([]);
   const addToast = (msg: string, type: 'success' | 'info' | 'error' = 'success') => {
@@ -46,9 +49,16 @@ export const InstitutionRequestsPage: React.FC = () => {
     return matchesSearch && matchesStatus;
   });
 
-  const handleApprove = async (id: string, name: string) => {
-    await approveRequest(id);
-    addToast(`Approved: ${name}`);
+  const handleApprove = async (id: string) => {
+    setApprovingId(id);
+    const result = await approveRequest(id);
+    setApprovingId(null);
+    if (result) {
+      setApprovalResult(result);
+      addToast(`Approved: ${result.institution_name}`);
+    } else {
+      addToast('Approval failed. Please try again.', 'error');
+    }
   };
 
   const handleReject = async () => {
@@ -76,9 +86,24 @@ export const InstitutionRequestsPage: React.FC = () => {
 
   const handleDisable = async () => {
     if (!disableConfirm) return;
-    await disableInstitution(disableConfirm.id);
-    addToast(`Disabled: ${disableConfirm.institution_name}`, 'info');
+    const req = disableConfirm;
+    const inst = approvedInstitutions.find((i) => i.code === req.institution_code);
+    if (inst) {
+      await disableInstitution(inst.id);
+    }
+    addToast(`Disabled: ${req.institution_name}`, 'info');
     setDisableConfirm(null);
+  };
+
+  const handleCopyCredentials = () => {
+    if (!approvalResult) return;
+    const text = `Institution: ${approvalResult.institution_name}\nCode: ${approvalResult.institution_code}\nEmail: ${approvalResult.login_email}\nPassword: ${approvalResult.temp_password}`;
+    navigator.clipboard.writeText(text);
+    addToast('Credentials copied to clipboard');
+  };
+
+  const handleOpenInstitution = () => {
+    window.open('https://foodexa-institution-platform.vercel.app', '_blank');
   };
 
   return (
@@ -230,9 +255,10 @@ export const InstitutionRequestsPage: React.FC = () => {
 
                 {req.status === 'pending' && (
                   <div className="flex items-center gap-2 pt-1 flex-wrap">
-                    <button onClick={() => handleApprove(req.id, req.institution_name)}
-                      className="flex-1 sm:flex-none px-4 py-2 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 text-xs font-bold flex items-center justify-center gap-1.5 transition-all">
-                      <CheckCircle2 className="w-3.5 h-3.5" /> Approve
+                    <button onClick={() => handleApprove(req.id)} disabled={approvingId === req.id}
+                      className="flex-1 sm:flex-none px-4 py-2 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 text-xs font-bold flex items-center justify-center gap-1.5 transition-all disabled:opacity-50 disabled:cursor-not-allowed">
+                      {approvingId === req.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
+                      {approvingId === req.id ? 'Approving...' : 'Approve'}
                     </button>
                     <button onClick={() => setRejectModal(req)}
                       className="flex-1 sm:flex-none px-4 py-2 rounded-xl bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 text-red-400 text-xs font-bold flex items-center justify-center gap-1.5 transition-all">
@@ -325,7 +351,7 @@ export const InstitutionRequestsPage: React.FC = () => {
             <div className="flex gap-3 pt-2">
               {selectedRequest.status === 'pending' && (
                 <>
-                  <button onClick={async () => { await handleApprove(selectedRequest.id, selectedRequest.institution_name); setSelectedRequest(null); }}
+                  <button onClick={async () => { await handleApprove(selectedRequest.id); setSelectedRequest(null); }}
                     className="flex-1 py-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-bold flex items-center justify-center gap-2">
                     <CheckCircle2 className="w-4 h-4" /> Approve
                   </button>
@@ -423,6 +449,67 @@ export const InstitutionRequestsPage: React.FC = () => {
               className="w-full py-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs flex items-center justify-center gap-2">
               <Check className="w-4 h-4" /> Save Changes
             </button>
+          </div>
+        )}
+      </Modal>
+
+      <Modal open={!!approvalResult} onClose={() => setApprovalResult(null)} title="" wide>
+        {approvalResult && (
+          <div className="space-y-5 text-center">
+            <div className="w-16 h-16 mx-auto rounded-full bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center">
+              <CheckCircle2 className="w-8 h-8 text-emerald-400" />
+            </div>
+            <div>
+              <h2 className="text-lg font-black text-white">Institution Approved</h2>
+              <p className="text-xs text-slate-400 mt-1">The institution has been successfully onboarded.</p>
+            </div>
+
+            <div className="bg-slate-950 rounded-2xl border border-slate-800 p-4 space-y-2.5 text-left">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] text-slate-500 font-semibold uppercase tracking-wider">Institution</span>
+                <span className="text-xs text-white font-bold">{approvalResult.institution_name}</span>
+              </div>
+              <div className="h-px bg-slate-800/60" />
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] text-slate-500 font-semibold uppercase tracking-wider">Institution Code</span>
+                <span className="text-xs text-amber-400 font-mono font-bold">{approvalResult.institution_code}</span>
+              </div>
+              <div className="h-px bg-slate-800/60" />
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] text-slate-500 font-semibold uppercase tracking-wider">Login Email</span>
+                <span className="text-xs text-white font-mono">{approvalResult.login_email}</span>
+              </div>
+              <div className="h-px bg-slate-800/60" />
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] text-slate-500 font-semibold uppercase tracking-wider">Temporary Password</span>
+                <span className="text-xs text-indigo-400 font-mono font-bold">{approvalResult.temp_password}</span>
+              </div>
+              <div className="h-px bg-slate-800/60" />
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] text-slate-500 font-semibold uppercase tracking-wider">Approved At</span>
+                <span className="text-xs text-slate-300">{new Date(approvalResult.approved_at).toLocaleString()}</span>
+              </div>
+              <div className="h-px bg-slate-800/60" />
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] text-slate-500 font-semibold uppercase tracking-wider">Email Status</span>
+                <span className="text-xs text-emerald-400 font-bold flex items-center gap-1"><CheckCircle className="w-3 h-3" /> Sent Successfully</span>
+              </div>
+            </div>
+
+            <div className="flex gap-3">
+              <button onClick={handleCopyCredentials}
+                className="flex-1 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-extrabold flex items-center justify-center gap-2 transition-all">
+                <Copy className="w-4 h-4" /> Copy Credentials
+              </button>
+              <button onClick={handleOpenInstitution}
+                className="flex-1 py-2.5 rounded-xl bg-indigo-500/20 hover:bg-indigo-500/30 border border-indigo-500/30 text-indigo-400 text-xs font-bold flex items-center justify-center gap-2 transition-all">
+                <ExternalLink className="w-4 h-4" /> Open Institution
+              </button>
+              <button onClick={() => setApprovalResult(null)}
+                className="px-4 py-2.5 rounded-xl bg-slate-900 border border-slate-800 text-slate-300 text-xs font-bold hover:bg-slate-800 transition-all">
+                Close
+              </button>
+            </div>
           </div>
         )}
       </Modal>

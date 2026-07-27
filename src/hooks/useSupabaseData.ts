@@ -84,6 +84,14 @@ export interface GlobalSearchResult {
   status?: string;
 }
 
+export interface ApprovalResult {
+  institution_name: string;
+  institution_code: string;
+  login_email: string;
+  temp_password: string;
+  approved_at: string;
+}
+
 interface UseSupabaseDataReturn {
   institutionRequests: InstitutionRequest[];
   approvedInstitutions: SupabaseInstitution[];
@@ -97,7 +105,7 @@ interface UseSupabaseDataReturn {
   auditLogs: AuditLog[];
   notifications: PlatformNotification[];
   unreadCount: number;
-  approveRequest: (id: string) => Promise<void>;
+  approveRequest: (id: string) => Promise<ApprovalResult | null>;
   rejectRequest: (id: string, reason?: string) => Promise<void>;
   requestChanges: (id: string, notes: string) => Promise<void>;
   disableInstitution: (id: string) => Promise<void>;
@@ -278,123 +286,195 @@ export function useSupabaseData(): UseSupabaseDataReturn {
   }, [fetchAll]);
 
   // ---------------------------------------------------------------
-  // Generate institution code (format: CHRKNG2026, unique per branch)
+  // Generate secure temporary password (10-12 chars)
   // ---------------------------------------------------------------
-  const generateInstitutionCode = async (name: string, campus?: string): Promise<string> => {
-    const words = name.replace(/[^a-zA-Z\s]/g, '').split(/\s+/);
-    const prefix = words.map((w) => w[0]).join('').toUpperCase().slice(0, 4);
-    const year = new Date().getFullYear();
-
-    // Check existing codes to ensure uniqueness (different branch = different code)
-    const baseCode = campus
-      ? `${prefix}${campus.replace(/[^a-zA-Z]/g, '').toUpperCase().slice(0, 2)}${year}`
-      : `${prefix}${year}`;
-
-    const { data: existing } = await supabaseAdmin
-      .from(INSTITUTIONS_TABLE)
-      .select('code')
-      .like('code', `${baseCode}%`);
-
-    if (!existing || existing.length === 0) return baseCode;
-
-    // If code exists, append branch suffix
-    let suffix = 1;
-    while (existing.some((e) => e.code === `${baseCode}${suffix > 0 ? String(suffix).padStart(2, '0') : ''}`)) {
-      suffix++;
+  const generateTempPassword = (): string => {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*';
+    const length = 10 + Math.floor(Math.random() * 3);
+    let password = '';
+    for (let i = 0; i < length; i++) {
+      password += chars.charAt(Math.floor(Math.random() * chars.length));
     }
-    return suffix > 1 ? `${baseCode}${String(suffix).padStart(2, '0')}` : baseCode;
+    return password;
+  };
+
+  // ---------------------------------------------------------------
+  // Generate institution code
+  // Format: First 6 letters (uppercase, no spaces/special) + Year(last 2) + Random 4-digit
+  // ---------------------------------------------------------------
+  const generateInstitutionCode = async (name: string): Promise<string> => {
+    const prefix = name.replace(/[^a-zA-Z]/g, '').toUpperCase().slice(0, 6);
+    if (!prefix) return `INST${new Date().getFullYear().toString().slice(-2)}${String(Math.floor(1000 + Math.random() * 9000))}`;
+
+    const year = new Date().getFullYear().toString().slice(-2);
+
+    for (let attempt = 0; attempt < 20; attempt++) {
+      const random = String(Math.floor(1000 + Math.random() * 9000));
+      const code = `${prefix}${year}${random}`;
+
+      const [reqRes, instRes] = await Promise.all([
+        supabaseAdmin.from(REQUESTS_TABLE).select('id').eq('institution_code', code).maybeSingle(),
+        supabaseAdmin.from(INSTITUTIONS_TABLE).select('id').eq('code', code).maybeSingle(),
+      ]);
+
+      if (!reqRes.data && !instRes.data) return code;
+    }
+
+    return `${prefix}${year}${String(Math.floor(1000 + Math.random() * 9000))}`;
   };
 
   // ---------------------------------------------------------------
   // Approve a request: full workflow
   // ---------------------------------------------------------------
-  const approveRequest = async (id: string) => {
+  const approveRequest = async (id: string): Promise<ApprovalResult | null> => {
     const request = institutionRequests.find((r) => r.id === id);
-    if (!request) return;
+    if (!request) return null;
 
-    const institutionCode = await generateInstitutionCode(request.institution_name, request.campus);
+    const institutionCode = await generateInstitutionCode(request.institution_name);
+    const tempPassword = generateTempPassword();
+    const approvedAt = new Date().toISOString();
 
-    // Generate secure temporary password
-    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%';
-    let tempPassword = '';
-    for (let i = 0; i < 16; i++) {
-      tempPassword += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-
-    // Update request status
-    const { error: updateErr } = await supabaseAdmin
-      .from(REQUESTS_TABLE)
-      .update({
-        status: 'active',
-        institution_code: institutionCode,
-      })
-      .eq('id', id);
-
-    if (updateErr) {
-      console.error('[Supabase] Approve error:', updateErr.message);
-      return;
-    }
-
-    // Create institution record
-    const institutionRecord = {
-      name: request.institution_name,
-      code: institutionCode,
-      email: request.institution_email,
-      contact_person: request.contact_person,
-      phone: request.phone_number,
-      status: 'active',
-      plan: request.plan || 'Basic',
-      joined_date: new Date().toISOString().split('T')[0],
-      students_count: parseInt(request.student_population || '0', 10) || 0,
-      vendors_count: parseInt(request.vendors_count || '0', 10) || 0,
-      type: 'Institution',
-      campus: request.campus || null,
-      city: request.city || null,
-      state: request.state || null,
-      country: request.country || null,
-      institution_website: request.institution_website || null,
-      food_courts_count: parseInt(request.food_courts_count || '0', 10) || 0,
-    };
-
-    await supabaseAdmin.from(INSTITUTIONS_TABLE).insert(institutionRecord);
-
-    // Create auth user + send email via server endpoint
     try {
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-      await fetch(`${supabaseUrl}/functions/v1/approve-institution`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${supabaseAnonKey}`,
-        },
-        body: JSON.stringify({
+      const { data: { user: adminUser } } = await supabase.auth.getUser();
+
+      // Step 1: Create auth user for institution admin
+      const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
+        email: request.institution_email,
+        password: tempPassword,
+        email_confirm: true,
+        user_metadata: {
+          role: 'institution_admin',
           institution_name: request.institution_name,
-          institution_email: request.institution_email,
-          institution_code: institutionCode,
-          contact_person: request.contact_person,
-          temp_password: tempPassword,
-        }),
+        },
       });
-    } catch (emailErr) {
-      console.error('[Email] Failed to send approval email:', emailErr);
+
+      if (authError || !authData.user) {
+        console.error('[Auth] Failed to create user:', authError?.message);
+        return null;
+      }
+
+      // Step 2: Insert institution record
+      const institutionRecord = {
+        name: request.institution_name,
+        code: institutionCode,
+        email: request.institution_email,
+        contact_person: request.contact_person,
+        phone: request.phone_number,
+        status: 'active',
+        plan: request.plan || 'Basic',
+        joined_date: approvedAt.split('T')[0],
+        students_count: parseInt(request.student_population || '0', 10) || 0,
+        vendors_count: parseInt(request.vendors_count || '0', 10) || 0,
+        type: 'Institution',
+        campus: request.campus || null,
+        city: request.city || null,
+        state: request.state || null,
+        country: request.country || null,
+        institution_website: request.institution_website || null,
+        food_courts_count: parseInt(request.food_courts_count || '0', 10) || 0,
+      };
+
+      const { data: instData, error: instError } = await supabaseAdmin
+        .from(INSTITUTIONS_TABLE)
+        .insert(institutionRecord)
+        .select('id')
+        .single();
+
+      if (instError) {
+        await supabaseAdmin.auth.admin.deleteUser(authData.user.id);
+        console.error('[Supabase] Institution insert error:', instError.message);
+        return null;
+      }
+
+      // Step 3: Create user profile
+      const { error: profileError } = await supabaseAdmin
+        .from('user_profiles')
+        .insert({
+          id: authData.user.id,
+          role: 'institution_admin',
+          institution_id: instData.id,
+        });
+
+      if (profileError) {
+        await supabaseAdmin.auth.admin.deleteUser(authData.user.id);
+        await supabaseAdmin.from(INSTITUTIONS_TABLE).delete().eq('id', instData.id);
+        console.error('[Supabase] Profile insert error:', profileError.message);
+        return null;
+      }
+
+      // Step 4: Update request status
+      const { error: updateErr } = await supabaseAdmin
+        .from(REQUESTS_TABLE)
+        .update({
+          status: 'active',
+          institution_code: institutionCode,
+        })
+        .eq('id', id);
+
+      if (updateErr) {
+        console.error('[Supabase] Request update error:', updateErr.message);
+      }
+
+      // Step 5: Send onboarding email via edge function
+      try {
+        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+        const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+        const portalUrl = 'https://foodexa-institution-platform.vercel.app';
+
+        await fetch(`${supabaseUrl}/functions/v1/approve-institution`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${supabaseAnonKey}`,
+          },
+          body: JSON.stringify({
+            institution_name: request.institution_name,
+            institution_email: request.institution_email,
+            institution_code: institutionCode,
+            login_email: request.institution_email,
+            temp_password: tempPassword,
+            portal_url: portalUrl,
+            contact_person: request.contact_person,
+            first_login_instructions: 'Please log in using the credentials above. You will be prompted to change your password on first login.',
+            password_change_reminder: 'For security, please change your temporary password after your first login.',
+          }),
+        });
+      } catch (emailErr) {
+        console.error('[Email] Failed to send approval email:', emailErr);
+      }
+
+      // Step 6: Create audit log
+      await createAuditLog(
+        'Institution Approved',
+        request.institution_name,
+        id,
+        `Code: ${institutionCode} | Approved by: ${adminUser?.email || 'Super Admin'}`
+      );
+
+      // Step 7: Create notification
+      await supabaseAdmin.from(NOTIFICATIONS_TABLE).insert({
+        title: 'Institution Approved',
+        message: `${request.institution_name} has been approved and activated on the platform. Code: ${institutionCode}`,
+        type: 'success',
+        read: false,
+      });
+
+      // Optimistic UI update
+      setInstitutionRequests((prev) =>
+        prev.map((r) => (r.id === id ? { ...r, status: 'active', institution_code: institutionCode } : r))
+      );
+
+      return {
+        institution_name: request.institution_name,
+        institution_code: institutionCode,
+        login_email: request.institution_email,
+        temp_password: tempPassword,
+        approved_at: approvedAt,
+      };
+    } catch (err) {
+      console.error('[Approve] Unexpected error:', err);
+      return null;
     }
-
-    // Create audit log
-    await createAuditLog('Institution Approved', request.institution_name, id, `Code: ${institutionCode}`);
-
-    // Create notification
-    await supabaseAdmin.from(NOTIFICATIONS_TABLE).insert({
-      title: 'Institution Approved',
-      message: `${request.institution_name} has been approved and is now active on the platform. Code: ${institutionCode}`,
-      type: 'success',
-      read: false,
-    });
-
-    // Optimistic UI update
-    setInstitutionRequests((prev) =>
-      prev.map((r) => (r.id === id ? { ...r, status: 'active', institution_code: institutionCode } : r))
-    );
   };
 
   // ---------------------------------------------------------------
@@ -417,7 +497,6 @@ export function useSupabaseData(): UseSupabaseDataReturn {
       return;
     }
 
-    // Send rejection email
     try {
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
       const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -449,6 +528,27 @@ export function useSupabaseData(): UseSupabaseDataReturn {
     setInstitutionRequests((prev) =>
       prev.map((r) => (r.id === id ? { ...r, status: 'rejected', rejection_reason: reason } : r))
     );
+  };
+
+  const sendChangesEmailNotification = async (institutionName: string, institutionEmail: string, notes: string) => {
+    try {
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+      await fetch(`${supabaseUrl}/functions/v1/send-rejection-email`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${supabaseAnonKey}`,
+        },
+        body: JSON.stringify({
+          institution_name: institutionName,
+          institution_email: institutionEmail,
+          rejection_reason: `Changes requested: ${notes}. Please resubmit your registration with the requested changes.`,
+        }),
+      });
+    } catch (emailErr) {
+      console.error('[Email] Failed to send changes-requested email:', emailErr);
+    }
   };
 
   // ---------------------------------------------------------------
@@ -499,6 +599,8 @@ export function useSupabaseData(): UseSupabaseDataReturn {
       console.error('[Supabase] Request changes error:', updateErr.message);
       return;
     }
+
+    await sendChangesEmailNotification(request.institution_name, request.institution_email, notes);
 
     await createAuditLog('Changes Requested', request.institution_name, id, notes);
 
