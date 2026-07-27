@@ -36,28 +36,37 @@ export interface InstitutionRequest {
 export interface SupabaseInstitution {
   id: string;
   name: string;
-  code?: string;
-  students_count?: number;
-  vendors_count?: number;
-  daily_orders_count?: number;
-  monthly_revenue?: number;
-  status: 'active' | 'pending_approval' | 'suspended' | 'disabled';
-  contact_person?: string;
-  email?: string;
-  phone?: string;
-  joined_date?: string;
-  plan?: 'Basic' | 'Pro' | 'Enterprise';
-  logo_url?: string;
-  type?: string;
-  created_at?: string;
-  last_login?: string;
+  institution_type?: string;
   campus?: string;
   city?: string;
   state?: string;
   country?: string;
+  contact_person?: string;
+  institution_email?: string;
+  role?: string;
   institution_website?: string;
   student_population?: number;
-  food_courts_count?: number;
+  food_courts?: number;
+  vendors?: number;
+  message?: string;
+  phone?: string;
+  email?: string;
+  institution_code?: string;
+  generated_email?: string;
+  generated_password?: string;
+  approved_by?: string;
+  approved_at?: string;
+  status: 'active' | 'pending_approval' | 'suspended' | 'disabled';
+  logo_url?: string;
+  type?: string;
+  plan?: 'Basic' | 'Pro' | 'Enterprise';
+  joined_date?: string;
+  students_count?: number;
+  daily_orders_count?: number;
+  monthly_revenue?: number;
+  created_at?: string;
+  last_login?: string;
+  address?: string;
 }
 
 export interface AuditLog {
@@ -354,7 +363,7 @@ export function useSupabaseData(): UseSupabaseDataReturn {
       supabaseAdmin
         .from(INSTITUTIONS_TABLE)
         .select('id')
-        .eq('code', cleanedCode)
+        .eq('institution_code', cleanedCode)
         .maybeSingle(),
     ]);
 
@@ -499,22 +508,27 @@ export function useSupabaseData(): UseSupabaseDataReturn {
     // Step 8: Move institution to Institution Directory
     const institutionRecord = {
       name: request.institution_name,
-      code: institutionCode,
-      email: generatedEmail,
-      contact_person: request.contact_person,
-      phone: request.phone_number,
-      status: 'active',
-      plan: request.plan || 'Basic',
-      joined_date: approvedAt.split('T')[0],
-      students_count: parseInt(request.student_population || '0', 10) || 0,
-      vendors_count: parseInt(request.vendors_count || '0', 10) || 0,
-      type: 'Institution',
+      institution_type: request.institution_type || null,
       campus: request.campus || null,
       city: request.city || null,
       state: request.state || null,
       country: request.country || null,
+      contact_person: request.contact_person || null,
+      institution_email: request.institution_email || null,
+      role: request.role || null,
       institution_website: request.institution_website || null,
-      food_courts_count: parseInt(request.food_courts_count || '0', 10) || 0,
+      student_population: parseInt(request.student_population || '0', 10) || 0,
+      food_courts: parseInt(request.food_courts_count || '0', 10) || 0,
+      vendors: parseInt(request.vendors_count || '0', 10) || 0,
+      message: request.message || null,
+      phone: request.phone_number || null,
+      email: generatedEmail,
+      institution_code: institutionCode,
+      generated_email: generatedEmail,
+      generated_password: tempPassword,
+      approved_by: approvedBy,
+      approved_at: approvedAt,
+      status: 'active',
     };
 
     const { data: instData, error: instError } = await supabaseAdmin
@@ -669,7 +683,7 @@ export function useSupabaseData(): UseSupabaseDataReturn {
     await supabaseAdmin.from(INSTITUTIONS_TABLE).update({ status: 'disabled' }).eq('id', id);
 
     // Also update the original request status
-    const request = institutionRequests.find((r) => r.institution_code === inst?.code);
+    const request = institutionRequests.find((r) => r.institution_code === inst?.institution_code);
     if (request) {
       await supabaseAdmin.from(REQUESTS_TABLE).update({ status: 'disabled' }).eq('id', request.id);
     }
@@ -686,7 +700,7 @@ export function useSupabaseData(): UseSupabaseDataReturn {
       prev.map((i) => (i.id === id ? { ...i, status: 'disabled' } : i))
     );
     setInstitutionRequests((prev) =>
-      prev.map((r) => (r.institution_code === inst?.code ? { ...r, status: 'disabled' as const } : r))
+      prev.map((r) => (r.institution_code === inst?.institution_code ? { ...r, status: 'disabled' as const } : r))
     );
   };
 
@@ -856,7 +870,7 @@ export function useSupabaseData(): UseSupabaseDataReturn {
       if (
         inst.name?.toLowerCase().includes(q) ||
         inst.email?.toLowerCase().includes(q) ||
-        inst.code?.toLowerCase().includes(q) ||
+        inst.institution_code?.toLowerCase().includes(q) ||
         inst.contact_person?.toLowerCase().includes(q) ||
         inst.phone?.toLowerCase().includes(q)
       ) {
@@ -864,7 +878,7 @@ export function useSupabaseData(): UseSupabaseDataReturn {
           type: 'institution',
           id: inst.id,
           name: inst.name,
-          subtitle: `${inst.code || 'N/A'} • ${inst.email || 'N/A'}`,
+          subtitle: `${inst.institution_code || 'N/A'} • ${inst.email || 'N/A'}`,
           status: inst.status,
         });
       }

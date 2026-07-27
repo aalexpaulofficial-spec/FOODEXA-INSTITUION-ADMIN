@@ -203,12 +203,12 @@ export interface LXQuestion {
 export interface Institution {
   id: string;
   name: string;
-  code: string;
+  institution_code: string;
   studentsCount: number;
   vendorsCount: number;
   dailyOrdersCount: number;
   monthlyRevenue: number;
-  status: 'active' | 'pending_approval' | 'suspended';
+  status: 'active' | 'pending_approval' | 'suspended' | 'disabled';
   contactPerson: string;
   email: string;
   phone: string;
@@ -217,7 +217,22 @@ export interface Institution {
   logoUrl?: string;
   lastActivity?: string;
   renewalDate?: string;
-  type?: 'University' | 'College' | 'Institute' | 'Healthcare';
+  type?: string;
+  campus?: string;
+  city?: string;
+  state?: string;
+  country?: string;
+  institutionEmail?: string;
+  role?: string;
+  institutionWebsite?: string;
+  studentPopulation?: number;
+  foodCourts?: number;
+  vendors?: number;
+  message?: string;
+  generatedEmail?: string;
+  generatedPassword?: string;
+  approvedBy?: string;
+  approvedAt?: string;
 }
 
 export interface AuditLog {

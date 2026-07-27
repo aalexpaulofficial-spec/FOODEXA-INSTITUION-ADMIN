@@ -114,7 +114,7 @@ export const InstitutionRequestsPage: React.FC = () => {
   const handleDisable = async () => {
     if (!disableConfirm) return;
     const req = disableConfirm;
-    const inst = approvedInstitutions.find((i) => i.code === req.institution_code);
+    const inst = approvedInstitutions.find((i) => i.institution_code === req.institution_code);
     if (inst) {
       await disableInstitution(inst.id);
     }

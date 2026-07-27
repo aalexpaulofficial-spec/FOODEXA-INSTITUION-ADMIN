@@ -213,7 +213,7 @@ export const SuperAdminView: React.FC = () => {
     const matchesSearch =
       i.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       i.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      i.code?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      i.institution_code?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       i.contact_person?.toLowerCase().includes(searchTerm.toLowerCase());
     return matchesSearch;
   });
@@ -697,7 +697,7 @@ export const SuperAdminView: React.FC = () => {
                       <div>
                         <p className="text-sm font-bold text-white">{inst.name}</p>
                         <p className="text-xs text-slate-400">{inst.email}</p>
-                        {inst.code && <p className="text-[10px] text-amber-400 font-mono">{inst.code}</p>}
+                        {inst.institution_code && <p className="text-[10px] text-amber-400 font-mono">{inst.institution_code}</p>}
                       </div>
                     </div>
                     <StatusBadge status={inst.status} />
@@ -707,7 +707,7 @@ export const SuperAdminView: React.FC = () => {
                     <span className="flex items-center gap-1"><CreditCard className="w-3 h-3" /> {inst.plan || 'Basic'} Plan</span>
                     <span className="flex items-center gap-1"><Calendar className="w-3 h-3" /> {inst.joined_date || '—'}</span>
                     <span className="flex items-center gap-1"><Users className="w-3 h-3" /> {inst.students_count || 0} students</span>
-                    <span className="flex items-center gap-1"><Store className="w-3 h-3" /> {inst.vendors_count || 0} vendors</span>
+                    <span className="flex items-center gap-1"><Store className="w-3 h-3" /> {inst.vendors || 0} vendors</span>
                   </div>
                   <div className="flex gap-2 flex-wrap">
                     <button onClick={() => { setEditModal(inst); setEditForm(inst); }}

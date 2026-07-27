@@ -79,7 +79,42 @@ export function useInstitutionData(institutionId: string | null): InstitutionDat
         supabase.from('audit_logs').select('*').eq('institution_id', institutionId),
       ]);
 
-      if (instData) setInstitution(instData as Institution);
+      if (instData) {
+        const d = instData as any;
+        setInstitution({
+          id: d.id,
+          name: d.name,
+          institution_code: d.institution_code || '',
+          studentsCount: d.students_count || d.student_population || 0,
+          vendorsCount: d.vendors || 0,
+          dailyOrdersCount: d.daily_orders_count || 0,
+          monthlyRevenue: d.monthly_revenue || 0,
+          status: d.status || 'active',
+          contactPerson: d.contact_person || '',
+          email: d.email || d.institution_email || '',
+          phone: d.phone || '',
+          joinedDate: d.joined_date || d.created_at || '',
+          plan: d.plan || 'Basic',
+          logoUrl: d.logo_url || '',
+          lastActivity: d.last_login || '',
+          type: d.type || d.institution_type || '',
+          campus: d.campus || '',
+          city: d.city || '',
+          state: d.state || '',
+          country: d.country || '',
+          institutionEmail: d.institution_email || '',
+          role: d.role || '',
+          institutionWebsite: d.institution_website || '',
+          studentPopulation: d.student_population || 0,
+          foodCourts: d.food_courts || 0,
+          vendors: d.vendors || 0,
+          message: d.message || '',
+          generatedEmail: d.generated_email || '',
+          generatedPassword: d.generated_password || '',
+          approvedBy: d.approved_by || '',
+          approvedAt: d.approved_at || '',
+        } as Institution);
+      }
       if (studentsData) setStudents(studentsData as Student[]);
       if (vendorsData) setVendors(vendorsData as Vendor[]);
       if (countersData) setCounters(countersData as Counter[]);
