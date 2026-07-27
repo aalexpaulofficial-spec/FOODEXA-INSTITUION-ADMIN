@@ -15,7 +15,7 @@ export const GlobalAnalyticsPage: React.FC = () => {
   const pendingRequests = institutionRequests.filter((r) => r.status === 'pending');
 
   const statusData = [
-    { name: 'Active', value: institutionRequests.filter((r) => r.status === 'active').length, color: '#10B981' },
+    { name: 'Approved', value: institutionRequests.filter((r) => r.status === 'approved').length, color: '#10B981' },
     { name: 'Pending', value: institutionRequests.filter((r) => r.status === 'pending').length, color: '#F59E0B' },
     { name: 'Rejected', value: institutionRequests.filter((r) => r.status === 'rejected').length, color: '#EF4444' },
     { name: 'Suspended', value: institutionRequests.filter((r) => r.status === 'suspended').length, color: '#6B7280' },

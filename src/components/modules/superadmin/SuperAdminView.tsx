@@ -30,6 +30,7 @@ const InstitutionLogo: React.FC<{ name: string; className?: string }> = ({
 const StatusBadge: React.FC<{ status: string }> = ({ status }) => {
   const map: Record<string, { color: string; label: string }> = {
     pending: { color: 'bg-amber-500/10 text-amber-400 border-amber-500/30', label: 'Pending' },
+    approved: { color: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30', label: 'Approved' },
     active: { color: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30', label: 'Active' },
     rejected: { color: 'bg-red-500/10 text-red-400 border-red-500/30', label: 'Rejected' },
     suspended: { color: 'bg-slate-500/10 text-slate-400 border-slate-500/30', label: 'Suspended' },
@@ -77,24 +78,30 @@ const downloadRequestPDF = (req: InstitutionRequest) => {
     '================================',
     '',
     `Institution Name: ${req.institution_name}`,
-    `Email: ${req.institution_email}`,
-    `Contact Person: ${req.contact_person}`,
-    `Phone: ${req.phone_number || 'N/A'}`,
-    `Website: ${req.institution_website || 'N/A'}`,
+    `Campus: ${req.campus || 'N/A'}`,
     `City: ${req.city || 'N/A'}`,
     `State: ${req.state || 'N/A'}`,
     `Country: ${req.country || 'N/A'}`,
-    `Campus: ${req.campus || 'N/A'}`,
+    `Email: ${req.institution_email}`,
+    `Contact Person: ${req.contact_person}`,
+    `Role: ${req.role || 'N/A'}`,
+    `Phone: ${req.phone_number || 'N/A'}`,
+    `Website: ${req.institution_website || 'N/A'}`,
     `Student Population: ${req.student_population || 'N/A'}`,
     `Food Courts: ${req.food_courts_count || 'N/A'}`,
     `Vendors: ${req.vendors_count || 'N/A'}`,
+    `Message: ${req.message || 'None'}`,
     `Plan: ${req.plan || 'Basic'}`,
     `Status: ${req.status}`,
     `Submitted: ${new Date(req.created_at).toLocaleString()}`,
-    `Message: ${req.message || 'None'}`,
+    req.updated_at ? `Updated: ${new Date(req.updated_at).toLocaleString()}` : '',
+    req.institution_code ? `Institution Code: ${req.institution_code}` : '',
+    req.generated_email ? `Generated Email: ${req.generated_email}` : '',
+    req.generated_password ? `Generated Password: ${req.generated_password}` : '',
+    req.approved_by ? `Approved By: ${req.approved_by}` : '',
+    req.approved_at ? `Approved At: ${new Date(req.approved_at).toLocaleString()}` : '',
     req.rejection_reason ? `Rejection Reason: ${req.rejection_reason}` : '',
     req.admin_notes ? `Admin Notes: ${req.admin_notes}` : '',
-    req.institution_code ? `Institution Code: ${req.institution_code}` : '',
   ].filter(Boolean).join('\n');
 
   const blob = new Blob([lines], { type: 'text/plain' });
@@ -124,7 +131,7 @@ export const SuperAdminView: React.FC = () => {
   >('approvals');
 
   const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'active' | 'rejected' | 'suspended' | 'changes_requested'>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'approved' | 'active' | 'rejected' | 'suspended' | 'changes_requested'>('all');
   const [globalSearchTerm, setGlobalSearchTerm] = useState('');
   const [globalSearchResults, setGlobalSearchResults] = useState<any[]>([]);
   const [showGlobalSearch, setShowGlobalSearch] = useState(false);
@@ -192,7 +199,9 @@ export const SuperAdminView: React.FC = () => {
       r.institution_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       r.institution_email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       r.contact_person?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      r.institution_code?.toLowerCase().includes(searchTerm.toLowerCase());
+      r.institution_code?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      r.campus?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      r.city?.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = statusFilter === 'all' || r.status === statusFilter;
     return matchesSearch && matchesStatus;
   });
@@ -535,7 +544,8 @@ export const SuperAdminView: React.FC = () => {
               className="bg-slate-900 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none">
               <option value="all">All Status</option>
               <option value="pending">Pending</option>
-              <option value="active">Approved</option>
+              <option value="approved">Approved</option>
+              <option value="active">Active</option>
               <option value="rejected">Rejected</option>
               <option value="suspended">Suspended</option>
               <option value="changes_requested">Changes Requested</option>
@@ -715,7 +725,7 @@ export const SuperAdminView: React.FC = () => {
               <div className="text-xs text-slate-400 uppercase font-bold tracking-wider flex items-center gap-2">
                 <CheckCircle2 className="w-4 h-4 text-emerald-400" /> Approved
               </div>
-              <div className="text-3xl font-black text-emerald-400">{institutionRequests.filter((r) => r.status === 'active').length}</div>
+              <div className="text-3xl font-black text-emerald-400">{institutionRequests.filter((r) => r.status === 'approved').length}</div>
               <p className="text-[11px] text-slate-500">Active on platform</p>
             </div>
             <div className="p-5 rounded-2xl bg-[#0C0C0E] border border-slate-800 space-y-2">
@@ -766,11 +776,11 @@ export const SuperAdminView: React.FC = () => {
               <BarChart2 className="w-4 h-4 text-amber-400" /> Institution Status Breakdown
             </h3>
             <div className="space-y-3">
-              {(['active', 'pending', 'rejected', 'suspended', 'changes_requested'] as const).map((status) => {
+              {(['approved', 'pending', 'rejected', 'suspended', 'changes_requested'] as const).map((status) => {
                 const count = institutionRequests.filter((r) => r.status === status).length;
                 const pct = institutionRequests.length > 0 ? (count / institutionRequests.length) * 100 : 0;
                 const colors: Record<string, string> = {
-                  active: 'bg-emerald-500', pending: 'bg-amber-500', rejected: 'bg-red-500',
+                  approved: 'bg-emerald-500', pending: 'bg-amber-500', rejected: 'bg-red-500',
                   suspended: 'bg-slate-500', changes_requested: 'bg-blue-500',
                 };
                 return (
@@ -976,33 +986,41 @@ export const SuperAdminView: React.FC = () => {
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3 text-xs text-slate-300">
-              <div><span className="text-slate-500 block">Email</span>{selectedRequest.institution_email}</div>
-              <div><span className="text-slate-500 block">Contact</span>{selectedRequest.contact_person}</div>
-              <div><span className="text-slate-500 block">Phone</span>{selectedRequest.phone_number || '—'}</div>
-              <div><span className="text-slate-500 block">Website</span>
+              <div><span className="text-slate-500 block">Institution Name</span>{selectedRequest.institution_name}</div>
+              <div><span className="text-slate-500 block">Campus</span>{selectedRequest.campus || '—'}</div>
+              <div><span className="text-slate-500 block">City</span>{selectedRequest.city || '—'}</div>
+              <div><span className="text-slate-500 block">State</span>{selectedRequest.state || '—'}</div>
+              <div><span className="text-slate-500 block">Country</span>{selectedRequest.country || '—'}</div>
+              <div><span className="text-slate-500 block">Institution Email</span>{selectedRequest.institution_email}</div>
+              <div><span className="text-slate-500 block">Contact Person</span>{selectedRequest.contact_person}</div>
+              <div><span className="text-slate-500 block">Role</span>{selectedRequest.role || '—'}</div>
+              <div><span className="text-slate-500 block">Phone Number</span>{selectedRequest.phone_number || '—'}</div>
+              <div><span className="text-slate-500 block">Institution Website</span>
                 {selectedRequest.institution_website
                   ? <a href={selectedRequest.institution_website} target="_blank" rel="noreferrer" className="text-indigo-400 underline">{selectedRequest.institution_website}</a>
                   : '—'}
               </div>
-              <div><span className="text-slate-500 block">City</span>{selectedRequest.city || '—'}</div>
-              <div><span className="text-slate-500 block">State</span>{selectedRequest.state || '—'}</div>
-              <div><span className="text-slate-500 block">Country</span>{selectedRequest.country || '—'}</div>
-              <div><span className="text-slate-500 block">Campus</span>{selectedRequest.campus || '—'}</div>
-              <div><span className="text-slate-500 block">Students</span>{selectedRequest.student_population || '—'}</div>
+              <div><span className="text-slate-500 block">Student Population</span>{selectedRequest.student_population || '—'}</div>
               <div><span className="text-slate-500 block">Food Courts</span>{selectedRequest.food_courts_count || '—'}</div>
               <div><span className="text-slate-500 block">Vendors</span>{selectedRequest.vendors_count || '—'}</div>
-              <div><span className="text-slate-500 block">Plan</span>{selectedRequest.plan || 'Basic'}</div>
-              <div><span className="text-slate-500 block">Submitted</span>{new Date(selectedRequest.created_at).toLocaleString()}</div>
+              <div><span className="text-slate-500 block">Message</span>{selectedRequest.message || '—'}</div>
+              <div><span className="text-slate-500 block">Status</span><StatusBadge status={selectedRequest.status} /></div>
               {selectedRequest.institution_code && <div><span className="text-slate-500 block">Institution Code</span><span className="text-amber-400 font-mono">{selectedRequest.institution_code}</span></div>}
+              {selectedRequest.generated_email && <div><span className="text-slate-500 block">Generated Email</span><span className="text-indigo-400 font-mono">{selectedRequest.generated_email}</span></div>}
+              {selectedRequest.generated_password && <div><span className="text-slate-500 block">Generated Password</span><span className="text-indigo-400 font-mono">{selectedRequest.generated_password}</span></div>}
+              {selectedRequest.approved_by && <div><span className="text-slate-500 block">Approved By</span>{selectedRequest.approved_by}</div>}
+              {selectedRequest.approved_at && <div><span className="text-slate-500 block">Approved At</span>{new Date(selectedRequest.approved_at).toLocaleString()}</div>}
+              <div><span className="text-slate-500 block">Created At</span>{new Date(selectedRequest.created_at).toLocaleString()}</div>
+              {selectedRequest.updated_at && <div><span className="text-slate-500 block">Updated At</span>{new Date(selectedRequest.updated_at).toLocaleString()}</div>}
             </div>
-            {selectedRequest.message && (
-              <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-300 italic">
-                {selectedRequest.message}
-              </div>
-            )}
             {selectedRequest.rejection_reason && (
               <div className="p-3 rounded-xl bg-red-500/5 border border-red-500/20 text-xs text-red-400">
                 <strong>Rejection Reason:</strong> {selectedRequest.rejection_reason}
+              </div>
+            )}
+            {selectedRequest.admin_notes && (
+              <div className="p-3 rounded-xl bg-blue-500/5 border border-blue-500/20 text-xs text-blue-400">
+                <strong>Admin Notes:</strong> {selectedRequest.admin_notes}
               </div>
             )}
             <div className="flex gap-3 pt-2">

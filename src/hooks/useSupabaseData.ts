@@ -22,11 +22,15 @@ export interface InstitutionRequest {
   message?: string;
   status: 'pending' | 'approved' | 'active' | 'rejected' | 'suspended' | 'changes_requested' | 'disabled';
   created_at: string;
+  updated_at?: string;
   plan?: 'Basic' | 'Pro' | 'Enterprise';
   rejection_reason?: string;
   admin_notes?: string;
   institution_code?: string;
-  temp_password?: string;
+  generated_email?: string;
+  generated_password?: string;
+  approved_at?: string;
+  approved_by?: string;
 }
 
 export interface SupabaseInstitution {
@@ -88,8 +92,8 @@ export interface GlobalSearchResult {
 export interface ApprovalResult {
   institution_name: string;
   institution_code: string;
-  login_email: string;
-  temp_password: string;
+  generated_email: string;
+  generated_password: string;
   approved_at: string;
 }
 
@@ -338,6 +342,10 @@ export function useSupabaseData(): UseSupabaseDataReturn {
 
     const approvedAt = new Date().toISOString();
 
+    // Get current admin user for approved_by
+    const { data: { user: adminUser } } = await supabase.auth.getUser();
+    const approvedBy = adminUser?.email || 'Super Admin';
+
     // Step 2: Update status from pending → approved
     const { error: statusError } = await supabaseAdmin
       .from(REQUESTS_TABLE)
@@ -354,12 +362,18 @@ export function useSupabaseData(): UseSupabaseDataReturn {
     // Step 4: Generate temporary password
     const tempPassword = generateTempPassword();
 
-    // Step 5: Save the Institution Code and temporary password into existing columns
+    // The login email is the institution's submitted email
+    const generatedEmail = request.institution_email;
+
+    // Step 5: Save Institution Code, generated email, generated password, approved_at, approved_by
     const { error: saveError } = await supabaseAdmin
       .from(REQUESTS_TABLE)
       .update({
         institution_code: institutionCode,
-        temp_password: tempPassword,
+        generated_email: generatedEmail,
+        generated_password: tempPassword,
+        approved_at: approvedAt,
+        approved_by: approvedBy,
       })
       .eq('id', id);
     if (saveError) {
@@ -368,10 +382,8 @@ export function useSupabaseData(): UseSupabaseDataReturn {
     }
 
     // Step 6: Create Institution Admin authentication account
-    const { data: { user: adminUser } } = await supabase.auth.getUser();
-
     const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
-      email: request.institution_email,
+      email: generatedEmail,
       password: tempPassword,
       email_confirm: true,
       user_metadata: {
@@ -399,9 +411,9 @@ export function useSupabaseData(): UseSupabaseDataReturn {
         },
         body: JSON.stringify({
           institution_name: request.institution_name,
-          institution_email: request.institution_email,
+          institution_email: generatedEmail,
           institution_code: institutionCode,
-          login_email: request.institution_email,
+          login_email: generatedEmail,
           temp_password: tempPassword,
           portal_url: portalUrl,
           contact_person: request.contact_person,
@@ -421,7 +433,7 @@ export function useSupabaseData(): UseSupabaseDataReturn {
     const institutionRecord = {
       name: request.institution_name,
       code: institutionCode,
-      email: request.institution_email,
+      email: generatedEmail,
       contact_person: request.contact_person,
       phone: request.phone_number,
       status: 'active',
@@ -466,7 +478,7 @@ export function useSupabaseData(): UseSupabaseDataReturn {
       'Institution Approved',
       request.institution_name,
       id,
-      `Code: ${institutionCode} | Approved by: ${adminUser?.email || 'Super Admin'}`
+      `Code: ${institutionCode} | Approved by: ${approvedBy}`
     );
 
     // Create notification
@@ -483,14 +495,22 @@ export function useSupabaseData(): UseSupabaseDataReturn {
 
     // Step 9: Refresh UI immediately
     setInstitutionRequests((prev) =>
-      prev.map((r) => (r.id === id ? { ...r, status: 'approved', institution_code: institutionCode } : r))
+      prev.map((r) => (r.id === id ? {
+        ...r,
+        status: 'approved',
+        institution_code: institutionCode,
+        generated_email: generatedEmail,
+        generated_password: tempPassword,
+        approved_at: approvedAt,
+        approved_by: approvedBy,
+      } : r))
     );
 
     return {
       institution_name: request.institution_name,
       institution_code: institutionCode,
-      login_email: request.institution_email,
-      temp_password: tempPassword,
+      generated_email: generatedEmail,
+      generated_password: tempPassword,
       approved_at: approvedAt,
     };
   };

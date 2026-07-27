@@ -3,7 +3,7 @@ import {
   Search, Building2, Building, Users, Phone, Globe, Layers, Tag, CheckCircle2, XCircle, MessageSquare,
   Eye, Download, Loader2, Clock, MapPin, Calendar, CreditCard, Edit3, Trash2, Store, TrendingUp,
   DollarSign, Activity, BarChart2, Globe2, CheckCircle, X, Send, Copy, FileText, History,
-  Check, AlarmClock, RefreshCw, Plus, Sparkles, Ban, ExternalLink
+  Check, AlarmClock, RefreshCw, Plus, Sparkles, Ban
 } from 'lucide-react';
 import { useSuperAdminData } from './components/SuperAdminDataProvider';
 import { InstitutionLogo, StatusBadge, SkeletonCard, Modal, downloadRequestPDF } from './components/SuperAdminShared';
@@ -19,7 +19,7 @@ export const InstitutionRequestsPage: React.FC = () => {
   } = useSuperAdminData();
 
   const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'active' | 'rejected' | 'suspended' | 'changes_requested' | 'disabled'>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'approved' | 'active' | 'rejected' | 'suspended' | 'changes_requested' | 'disabled'>('all');
   const [selectedRequest, setSelectedRequest] = useState<any>(null);
   const [rejectModal, setRejectModal] = useState<any>(null);
   const [rejectReason, setRejectReason] = useState('');
@@ -44,7 +44,9 @@ export const InstitutionRequestsPage: React.FC = () => {
       r.institution_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       r.institution_email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       r.contact_person?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      r.institution_code?.toLowerCase().includes(searchTerm.toLowerCase());
+      r.institution_code?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      r.campus?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      r.city?.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = statusFilter === 'all' || r.status === statusFilter;
     return matchesSearch && matchesStatus;
   });
@@ -99,13 +101,45 @@ export const InstitutionRequestsPage: React.FC = () => {
 
   const handleCopyCredentials = () => {
     if (!approvalResult) return;
-    const text = `Institution: ${approvalResult.institution_name}\nCode: ${approvalResult.institution_code}\nEmail: ${approvalResult.login_email}\nPassword: ${approvalResult.temp_password}`;
+    const text = `Institution: ${approvalResult.institution_name}\nCode: ${approvalResult.institution_code}\nEmail: ${approvalResult.generated_email}\nPassword: ${approvalResult.generated_password}`;
     navigator.clipboard.writeText(text);
     addToast('Credentials copied to clipboard');
   };
 
-  const handleOpenInstitution = () => {
-    window.open('https://foodexa-institution-platform.vercel.app', '_blank');
+  const handleSendEmailAgain = async () => {
+    if (!approvalResult) return;
+    try {
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+      const response = await fetch(`${supabaseUrl}/functions/v1/approve-institution`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${supabaseAnonKey}`,
+        },
+        body: JSON.stringify({
+          institution_name: approvalResult.institution_name,
+          institution_email: approvalResult.generated_email,
+          institution_code: approvalResult.institution_code,
+          login_email: approvalResult.generated_email,
+          temp_password: approvalResult.generated_password,
+          portal_url: 'https://foodexa-institution-platform.vercel.app',
+          contact_person: '',
+          first_login_instructions: 'Please log in using the credentials above. You will be prompted to change your password on first login.',
+          password_change_reminder: 'For security, please change your temporary password after your first login.',
+        }),
+      });
+      if (response.ok) {
+        addToast('Email sent successfully');
+      } else {
+        const body = await response.text();
+        console.error('[Email] Resend failed:', response.status, body);
+        addToast('Failed to send email. Check console for details.', 'error');
+      }
+    } catch (err) {
+      console.error('[Email] Resend error:', err);
+      addToast('Failed to send email.', 'error');
+    }
   };
 
   return (
@@ -156,7 +190,7 @@ export const InstitutionRequestsPage: React.FC = () => {
             <span>Approved</span>
             <CheckCircle2 className="w-4 h-4 text-emerald-400" />
           </div>
-          <div className="text-2xl font-black text-emerald-400 font-mono">{institutionRequests.filter((r) => r.status === 'active').length}</div>
+          <div className="text-2xl font-black text-emerald-400 font-mono">{institutionRequests.filter((r) => r.status === 'approved').length}</div>
           <div className="text-[11px] text-emerald-400 font-medium">Active on platform</div>
         </div>
         <div className="p-4 rounded-2xl bg-[#0C0C0E] border border-slate-800 shadow-xl space-y-1.5">
@@ -196,7 +230,8 @@ export const InstitutionRequestsPage: React.FC = () => {
             className="bg-slate-900 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none">
             <option value="all">All Status</option>
             <option value="pending">Pending</option>
-            <option value="active">Approved</option>
+            <option value="approved">Approved</option>
+            <option value="active">Active</option>
             <option value="rejected">Rejected</option>
             <option value="suspended">Suspended</option>
             <option value="disabled">Disabled</option>
@@ -290,7 +325,7 @@ export const InstitutionRequestsPage: React.FC = () => {
                       className="px-3 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 text-xs font-semibold transition-all flex items-center gap-1.5">
                       <Edit3 className="w-3.5 h-3.5" /> Edit
                     </button>
-                    {req.status === 'active' && (
+                    {(req.status === 'active' || req.status === 'approved') && (
                       <button onClick={() => setDisableConfirm(req)}
                         className="px-3 py-2 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-400 text-xs font-semibold transition-all flex items-center gap-1.5">
                         <Ban className="w-3.5 h-3.5" /> Disable
@@ -320,6 +355,10 @@ export const InstitutionRequestsPage: React.FC = () => {
             </div>
             <div className="grid grid-cols-2 gap-3 text-xs text-slate-300">
               <div><span className="text-slate-500 block">Institution Name</span>{selectedRequest.institution_name}</div>
+              <div><span className="text-slate-500 block">Campus</span>{selectedRequest.campus || '—'}</div>
+              <div><span className="text-slate-500 block">City</span>{selectedRequest.city || '—'}</div>
+              <div><span className="text-slate-500 block">State</span>{selectedRequest.state || '—'}</div>
+              <div><span className="text-slate-500 block">Country</span>{selectedRequest.country || '—'}</div>
               <div><span className="text-slate-500 block">Institution Email</span>{selectedRequest.institution_email}</div>
               <div><span className="text-slate-500 block">Contact Person</span>{selectedRequest.contact_person}</div>
               <div><span className="text-slate-500 block">Role</span>{selectedRequest.role || '—'}</div>
@@ -329,25 +368,27 @@ export const InstitutionRequestsPage: React.FC = () => {
                   ? <a href={selectedRequest.institution_website} target="_blank" rel="noreferrer" className="text-indigo-400 underline">{selectedRequest.institution_website}</a>
                   : '—'}
               </div>
-              <div><span className="text-slate-500 block">Campus</span>{selectedRequest.campus || '—'}</div>
-              <div><span className="text-slate-500 block">City</span>{selectedRequest.city || '—'}</div>
-              <div><span className="text-slate-500 block">State</span>{selectedRequest.state || '—'}</div>
-              <div><span className="text-slate-500 block">Country</span>{selectedRequest.country || '—'}</div>
               <div><span className="text-slate-500 block">Student Population</span>{selectedRequest.student_population || '—'}</div>
               <div><span className="text-slate-500 block">Food Courts</span>{selectedRequest.food_courts_count || '—'}</div>
               <div><span className="text-slate-500 block">Vendors</span>{selectedRequest.vendors_count || '—'}</div>
+              <div><span className="text-slate-500 block">Message</span>{selectedRequest.message || '—'}</div>
               <div><span className="text-slate-500 block">Status</span><StatusBadge status={selectedRequest.status} /></div>
-              <div><span className="text-slate-500 block">Created Date</span>{new Date(selectedRequest.created_at).toLocaleString()}</div>
               {selectedRequest.institution_code && <div><span className="text-slate-500 block">Institution Code</span><span className="text-amber-400 font-mono">{selectedRequest.institution_code}</span></div>}
+              {selectedRequest.generated_email && <div><span className="text-slate-500 block">Generated Email</span><span className="text-indigo-400 font-mono">{selectedRequest.generated_email}</span></div>}
+              {selectedRequest.generated_password && <div><span className="text-slate-500 block">Generated Password</span><span className="text-indigo-400 font-mono">{selectedRequest.generated_password}</span></div>}
+              {selectedRequest.approved_by && <div><span className="text-slate-500 block">Approved By</span>{selectedRequest.approved_by}</div>}
+              {selectedRequest.approved_at && <div><span className="text-slate-500 block">Approved At</span>{new Date(selectedRequest.approved_at).toLocaleString()}</div>}
+              <div><span className="text-slate-500 block">Created At</span>{new Date(selectedRequest.created_at).toLocaleString()}</div>
+              {selectedRequest.updated_at && <div><span className="text-slate-500 block">Updated At</span>{new Date(selectedRequest.updated_at).toLocaleString()}</div>}
             </div>
-            {selectedRequest.message && (
-              <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-300 italic">
-                {selectedRequest.message}
-              </div>
-            )}
             {selectedRequest.rejection_reason && (
               <div className="p-3 rounded-xl bg-red-500/5 border border-red-500/20 text-xs text-red-400">
                 <strong>Rejection Reason:</strong> {selectedRequest.rejection_reason}
+              </div>
+            )}
+            {selectedRequest.admin_notes && (
+              <div className="p-3 rounded-xl bg-blue-500/5 border border-blue-500/20 text-xs text-blue-400">
+                <strong>Admin Notes:</strong> {selectedRequest.admin_notes}
               </div>
             )}
             <div className="flex gap-3 pt-2">
@@ -468,7 +509,7 @@ export const InstitutionRequestsPage: React.FC = () => {
 
             <div className="bg-slate-950 rounded-2xl border border-slate-800 p-4 space-y-2.5 text-left">
               <div className="flex items-center justify-between">
-                <span className="text-[11px] text-slate-500 font-semibold uppercase tracking-wider">Institution</span>
+                <span className="text-[11px] text-slate-500 font-semibold uppercase tracking-wider">Institution Name</span>
                 <span className="text-xs text-white font-bold">{approvalResult.institution_name}</span>
               </div>
               <div className="h-px bg-slate-800/60" />
@@ -479,12 +520,17 @@ export const InstitutionRequestsPage: React.FC = () => {
               <div className="h-px bg-slate-800/60" />
               <div className="flex items-center justify-between">
                 <span className="text-[11px] text-slate-500 font-semibold uppercase tracking-wider">Login Email</span>
-                <span className="text-xs text-white font-mono">{approvalResult.login_email}</span>
+                <span className="text-xs text-white font-mono">{approvalResult.generated_email}</span>
               </div>
               <div className="h-px bg-slate-800/60" />
               <div className="flex items-center justify-between">
                 <span className="text-[11px] text-slate-500 font-semibold uppercase tracking-wider">Temporary Password</span>
-                <span className="text-xs text-indigo-400 font-mono font-bold">{approvalResult.temp_password}</span>
+                <span className="text-xs text-indigo-400 font-mono font-bold">{approvalResult.generated_password}</span>
+              </div>
+              <div className="h-px bg-slate-800/60" />
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] text-slate-500 font-semibold uppercase tracking-wider">Institution Portal URL</span>
+                <span className="text-xs text-indigo-400 font-mono">https://foodexa-institution-platform.vercel.app</span>
               </div>
               <div className="h-px bg-slate-800/60" />
               <div className="flex items-center justify-between">
@@ -503,9 +549,9 @@ export const InstitutionRequestsPage: React.FC = () => {
                 className="flex-1 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-extrabold flex items-center justify-center gap-2 transition-all">
                 <Copy className="w-4 h-4" /> Copy Credentials
               </button>
-              <button onClick={handleOpenInstitution}
-                className="flex-1 py-2.5 rounded-xl bg-indigo-500/20 hover:bg-indigo-500/30 border border-indigo-500/30 text-indigo-400 text-xs font-bold flex items-center justify-center gap-2 transition-all">
-                <ExternalLink className="w-4 h-4" /> Open Institution
+              <button onClick={handleSendEmailAgain}
+                className="flex-1 py-2.5 rounded-xl bg-blue-500/20 hover:bg-blue-500/30 border border-blue-500/30 text-blue-400 text-xs font-bold flex items-center justify-center gap-2 transition-all">
+                <Send className="w-4 h-4" /> Send Email Again
               </button>
               <button onClick={() => setApprovalResult(null)}
                 className="px-4 py-2.5 rounded-xl bg-slate-900 border border-slate-800 text-slate-300 text-xs font-bold hover:bg-slate-800 transition-all">
