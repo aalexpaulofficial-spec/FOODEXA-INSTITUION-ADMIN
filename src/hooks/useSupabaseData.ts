@@ -165,9 +165,16 @@ export function useSupabaseData(): UseSupabaseDataReturn {
   const createAuditLog = useCallback(async (action: string, target: string, targetId?: string, details?: string) => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
+      const userId = user?.id;
+      if (!userId) return;
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+      if (!uuidRegex.test(userId)) {
+        console.error(`[AuditLog] Invalid user_id UUID: "${userId}"`);
+        return;
+      }
       await supabaseAdmin.from(AUDIT_LOGS_TABLE).insert({
-        user_id: user?.id || 'system',
-        user_name: user?.email || 'System',
+        user_id: userId,
+        user_name: user?.email || 'Unknown',
         action,
         target,
         target_id: targetId || null,
@@ -315,37 +322,18 @@ export function useSupabaseData(): UseSupabaseDataReturn {
   };
 
   // ---------------------------------------------------------------
-  // Generate institution code
+  // Generate institution code (local only - no DB queries)
   // Format: First 6 letters (uppercase, no spaces/special) + Year(last 2) + Random 4-digit
+  // Uniqueness is validated during save in ensureInstitutionCodeAvailable
   // ---------------------------------------------------------------
   const generateInstitutionCode = async (name: string): Promise<string> => {
     const prefix = name.replace(/[^a-zA-Z]/g, '').toUpperCase().slice(0, 6);
     if (!prefix) return `INST${new Date().getFullYear().toString().slice(-2)}${String(Math.floor(1000 + Math.random() * 9000))}`;
 
     const year = new Date().getFullYear().toString().slice(-2);
+    const random = String(Math.floor(1000 + Math.random() * 9000));
 
-    for (let attempt = 0; attempt < 20; attempt++) {
-      const random = String(Math.floor(1000 + Math.random() * 9000));
-      const code = `${prefix}${year}${random}`;
-
-      const [reqRes, instRes] = await Promise.all([
-        supabaseAdmin.from(REQUESTS_TABLE).select('id').eq('institution_code', code).maybeSingle(),
-        supabaseAdmin.from(INSTITUTIONS_TABLE).select('id').eq('code', code).maybeSingle(),
-      ]);
-
-      if (reqRes.error) {
-        console.error(reqRes.error);
-        throw reqRes.error;
-      }
-      if (instRes.error) {
-        console.error(instRes.error);
-        throw instRes.error;
-      }
-
-      if (!reqRes.data && !instRes.data) return code;
-    }
-
-    return `${prefix}${year}${String(Math.floor(1000 + Math.random() * 9000))}`;
+    return `${prefix}${year}${random}`;
   };
 
   const ensureInstitutionCodeAvailable = async (code: string, requestId: string) => {
@@ -426,6 +414,12 @@ export function useSupabaseData(): UseSupabaseDataReturn {
       throw err;
     }
     const approvedBy = adminUser.id;
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(approvedBy)) {
+      const err = new Error(`Invalid Super Admin UUID for approved_by: "${approvedBy}". Email addresses must not be stored in UUID columns. Use the authenticated user's UUID.`);
+      console.error(err);
+      throw err;
+    }
 
     // Step 2: Update status from pending → approved
     const institutionCode = (credentials?.institution_code || await generateInstitutionCode(request.institution_name)).trim().toUpperCase();
@@ -609,8 +603,8 @@ export function useSupabaseData(): UseSupabaseDataReturn {
       .eq('id', id);
 
     if (updateErr) {
-      console.error('[Supabase] Reject error:', updateErr.message);
-      return;
+      console.error(updateErr);
+      throw updateErr;
     }
 
     try {
@@ -712,8 +706,8 @@ export function useSupabaseData(): UseSupabaseDataReturn {
       .eq('id', id);
 
     if (updateErr) {
-      console.error('[Supabase] Request changes error:', updateErr.message);
-      return;
+      console.error(updateErr);
+      throw updateErr;
     }
 
     await sendChangesEmailNotification(request.institution_name, request.institution_email, notes);
@@ -741,8 +735,8 @@ export function useSupabaseData(): UseSupabaseDataReturn {
 
     const { error } = await supabaseAdmin.from(REQUESTS_TABLE).update(updates).eq('id', id);
     if (error) {
-      console.error('[Supabase] Edit request error:', error.message);
-      return;
+      console.error(error);
+      throw error;
     }
 
     await createAuditLog('Request Edited', request.institution_name, id, JSON.stringify(updates));
@@ -816,8 +810,8 @@ export function useSupabaseData(): UseSupabaseDataReturn {
   const updateInstitution = async (id: string, updates: Partial<SupabaseInstitution>) => {
     const { error } = await supabaseAdmin.from(INSTITUTIONS_TABLE).update(updates).eq('id', id);
     if (error) {
-      console.error('[Supabase] Update error:', error.message);
-      return;
+      console.error(error);
+      throw error;
     }
 
     const inst = approvedInstitutions.find((i) => i.id === id);
