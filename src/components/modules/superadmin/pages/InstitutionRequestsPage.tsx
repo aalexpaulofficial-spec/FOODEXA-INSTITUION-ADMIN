@@ -206,11 +206,15 @@ export const InstitutionRequestsPage: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 text-[11px] text-slate-400">
+                <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3 text-[11px] text-slate-400">
                   <span className="flex items-center gap-1"><Users className="w-3 h-3" /> {req.contact_person}</span>
+                  {req.role && <span className="flex items-center gap-1"><Tag className="w-3 h-3" /> {req.role}</span>}
                   <span className="flex items-center gap-1"><Phone className="w-3 h-3" /> {req.phone_number || '—'}</span>
+                  <span className="flex items-center gap-1"><MapPin className="w-3 h-3" /> {req.campus || '—'}</span>
                   <span className="flex items-center gap-1"><Layers className="w-3 h-3" /> {req.student_population || '—'} students</span>
-                  <span className="flex items-center gap-1"><Tag className="w-3 h-3" /> {req.plan || 'Basic'} Plan</span>
+                  <span className="flex items-center gap-1"><Store className="w-3 h-3" /> {req.food_courts_count || '—'} courts</span>
+                  <span className="flex items-center gap-1"><Building2 className="w-3 h-3" /> {req.vendors_count || '—'} vendors</span>
+                  <span className="flex items-center gap-1"><Globe className="w-3 h-3" /> {req.city || '—'}{req.state ? `, ${req.state}` : ''}</span>
                 </div>
 
                 {req.rejection_reason && (
@@ -287,23 +291,25 @@ export const InstitutionRequestsPage: React.FC = () => {
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3 text-xs text-slate-300">
-              <div><span className="text-slate-500 block">Email</span>{selectedRequest.institution_email}</div>
-              <div><span className="text-slate-500 block">Contact</span>{selectedRequest.contact_person}</div>
-              <div><span className="text-slate-500 block">Phone</span>{selectedRequest.phone_number || '—'}</div>
-              <div><span className="text-slate-500 block">Website</span>
+              <div><span className="text-slate-500 block">Institution Name</span>{selectedRequest.institution_name}</div>
+              <div><span className="text-slate-500 block">Institution Email</span>{selectedRequest.institution_email}</div>
+              <div><span className="text-slate-500 block">Contact Person</span>{selectedRequest.contact_person}</div>
+              <div><span className="text-slate-500 block">Role</span>{selectedRequest.role || '—'}</div>
+              <div><span className="text-slate-500 block">Phone Number</span>{selectedRequest.phone_number || '—'}</div>
+              <div><span className="text-slate-500 block">Institution Website</span>
                 {selectedRequest.institution_website
                   ? <a href={selectedRequest.institution_website} target="_blank" rel="noreferrer" className="text-indigo-400 underline">{selectedRequest.institution_website}</a>
                   : '—'}
               </div>
+              <div><span className="text-slate-500 block">Campus</span>{selectedRequest.campus || '—'}</div>
               <div><span className="text-slate-500 block">City</span>{selectedRequest.city || '—'}</div>
               <div><span className="text-slate-500 block">State</span>{selectedRequest.state || '—'}</div>
               <div><span className="text-slate-500 block">Country</span>{selectedRequest.country || '—'}</div>
-              <div><span className="text-slate-500 block">Campus</span>{selectedRequest.campus || '—'}</div>
-              <div><span className="text-slate-500 block">Students</span>{selectedRequest.student_population || '—'}</div>
+              <div><span className="text-slate-500 block">Student Population</span>{selectedRequest.student_population || '—'}</div>
               <div><span className="text-slate-500 block">Food Courts</span>{selectedRequest.food_courts_count || '—'}</div>
               <div><span className="text-slate-500 block">Vendors</span>{selectedRequest.vendors_count || '—'}</div>
-              <div><span className="text-slate-500 block">Plan</span>{selectedRequest.plan || 'Basic'}</div>
-              <div><span className="text-slate-500 block">Submitted</span>{new Date(selectedRequest.created_at).toLocaleString()}</div>
+              <div><span className="text-slate-500 block">Status</span><StatusBadge status={selectedRequest.status} /></div>
+              <div><span className="text-slate-500 block">Created Date</span>{new Date(selectedRequest.created_at).toLocaleString()}</div>
               {selectedRequest.institution_code && <div><span className="text-slate-500 block">Institution Code</span><span className="text-amber-400 font-mono">{selectedRequest.institution_code}</span></div>}
             </div>
             {selectedRequest.message && (
@@ -381,12 +387,6 @@ export const InstitutionRequestsPage: React.FC = () => {
           <div className="space-y-3">
             <input type="text" value={editForm.institution_name || ''} onChange={(e) => setEditForm({ ...editForm, institution_name: e.target.value })}
               className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-amber-500/50" placeholder="Institution Name" />
-            <input type="email" value={editForm.institution_email || ''} onChange={(e) => setEditForm({ ...editForm, institution_email: e.target.value })}
-              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-amber-500/50" placeholder="Email" />
-            <input type="text" value={editForm.contact_person || ''} onChange={(e) => setEditForm({ ...editForm, contact_person: e.target.value })}
-              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-amber-500/50" placeholder="Contact Person" />
-            <input type="tel" value={editForm.phone_number || ''} onChange={(e) => setEditForm({ ...editForm, phone_number: e.target.value })}
-              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-amber-500/50" placeholder="Phone" />
             <input type="text" value={editForm.campus || ''} onChange={(e) => setEditForm({ ...editForm, campus: e.target.value })}
               className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-amber-500/50" placeholder="Campus" />
             <input type="text" value={editForm.city || ''} onChange={(e) => setEditForm({ ...editForm, city: e.target.value })}
@@ -395,6 +395,24 @@ export const InstitutionRequestsPage: React.FC = () => {
               className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-amber-500/50" placeholder="State" />
             <input type="text" value={editForm.country || ''} onChange={(e) => setEditForm({ ...editForm, country: e.target.value })}
               className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-amber-500/50" placeholder="Country" />
+            <input type="email" value={editForm.institution_email || ''} onChange={(e) => setEditForm({ ...editForm, institution_email: e.target.value })}
+              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-amber-500/50" placeholder="Institution Email" />
+            <input type="text" value={editForm.contact_person || ''} onChange={(e) => setEditForm({ ...editForm, contact_person: e.target.value })}
+              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-amber-500/50" placeholder="Contact Person" />
+            <input type="text" value={editForm.role || ''} onChange={(e) => setEditForm({ ...editForm, role: e.target.value })}
+              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-amber-500/50" placeholder="Role" />
+            <input type="tel" value={editForm.phone_number || ''} onChange={(e) => setEditForm({ ...editForm, phone_number: e.target.value })}
+              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-amber-500/50" placeholder="Phone Number" />
+            <input type="url" value={editForm.institution_website || ''} onChange={(e) => setEditForm({ ...editForm, institution_website: e.target.value })}
+              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-amber-500/50" placeholder="Institution Website" />
+            <input type="number" value={editForm.student_population || ''} onChange={(e) => setEditForm({ ...editForm, student_population: e.target.value })}
+              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-amber-500/50" placeholder="Student Population" />
+            <input type="number" value={editForm.food_courts_count || ''} onChange={(e) => setEditForm({ ...editForm, food_courts_count: e.target.value })}
+              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-amber-500/50" placeholder="Food Courts" />
+            <input type="number" value={editForm.vendors_count || ''} onChange={(e) => setEditForm({ ...editForm, vendors_count: e.target.value })}
+              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-amber-500/50" placeholder="Vendors" />
+            <textarea value={editForm.message || ''} onChange={(e) => setEditForm({ ...editForm, message: e.target.value })}
+              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-amber-500/50 resize-none" placeholder="Message" rows={3} />
             <select value={editForm.plan || 'Basic'} onChange={(e) => setEditForm({ ...editForm, plan: e.target.value as 'Basic' | 'Pro' | 'Enterprise' })}
               className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none">
               <option value="Basic">Basic</option>
