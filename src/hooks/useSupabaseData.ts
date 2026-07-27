@@ -104,6 +104,8 @@ export interface ApprovalResult {
   generated_email: string;
   generated_password: string;
   approved_at: string;
+  email_already_existed: boolean;
+  email_sent: boolean;
 }
 
 export interface ApprovalCredentials {
@@ -114,6 +116,8 @@ export interface ApprovalCredentials {
 
 export interface ApprovalDraft extends ApprovalCredentials {
   request: InstitutionRequest;
+  email_already_exists: boolean;
+  existing_user_id?: string;
 }
 
 interface UseSupabaseDataReturn {
@@ -386,15 +390,39 @@ export function useSupabaseData(): UseSupabaseDataReturn {
     const request = institutionRequests.find((r) => r.id === id);
     if (!request) {
       const err = new Error('Institution request not found.');
-      console.error(err);
+      console.error('[prepareApproval]', err);
       throw err;
+    }
+
+    const email = request.institution_email;
+    let emailAlreadyExists = false;
+    let existingUserId: string | undefined;
+
+    try {
+      const { data: allUsers, error: listError } = await supabaseAdmin.auth.admin.listUsers();
+
+      if (listError) {
+        console.error('[prepareApproval] Failed to list auth users:', listError);
+      } else {
+        const users = (allUsers?.users || []) as Array<{ id: string; email?: string }>;
+        const match = users.find((u) => u.email === email);
+        if (match) {
+          emailAlreadyExists = true;
+          existingUserId = match.id;
+          console.log(`[prepareApproval] Email "${email}" already exists with user ID: ${existingUserId}`);
+        }
+      }
+    } catch (checkErr) {
+      console.error('[prepareApproval] Error checking existing email:', checkErr);
     }
 
     return {
       request,
       institution_code: await generateInstitutionCode(request.institution_name),
-      generated_email: request.institution_email,
+      generated_email: email,
       generated_password: generateTempPassword(),
+      email_already_exists: emailAlreadyExists,
+      existing_user_id: existingUserId,
     };
   };
 
@@ -406,38 +434,87 @@ export function useSupabaseData(): UseSupabaseDataReturn {
     const request = institutionRequests.find((r) => r.id === id);
     if (!request) {
       const err = new Error('Institution request not found.');
-      console.error(err);
+      console.error('[approveRequest]', err);
       throw err;
     }
 
     const approvedAt = new Date().toISOString();
 
+    // Step 2: Get the authenticated Super Admin
     const { data: { user: adminUser }, error: userError } = await supabase.auth.getUser();
     if (userError) {
-      console.error(userError);
+      console.error('[approveRequest] Failed to get admin user:', userError);
       throw userError;
     }
     if (!adminUser?.id) {
       const err = new Error('Authenticated Super Admin user id was not found.');
-      console.error(err);
+      console.error('[approveRequest]', err);
       throw err;
     }
     const approvedBy = adminUser.id;
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
     if (!uuidRegex.test(approvedBy)) {
       const err = new Error(`Invalid Super Admin UUID for approved_by: "${approvedBy}". Email addresses must not be stored in UUID columns. Use the authenticated user's UUID.`);
-      console.error(err);
+      console.error('[approveRequest]', err);
       throw err;
     }
 
-    // Step 2: Update status from pending → approved
+    // Step 3: Generate credentials
     const institutionCode = (credentials?.institution_code || await generateInstitutionCode(request.institution_name)).trim().toUpperCase();
     const tempPassword = credentials?.generated_password || generateTempPassword();
     const generatedEmail = credentials?.generated_email || request.institution_email;
 
+    // Step 4: Validate institution code availability
     await ensureInstitutionCodeAvailable(institutionCode, id);
 
-    // Step 5: Save Institution Code, generated email, generated password, approved_at, approved_by
+    // Step 5: Check if Institution Admin email already exists in auth
+    let emailAlreadyExisted = false;
+    let existingUserId: string | null = null;
+
+    try {
+      const { data: allUsers, error: listError } = await supabaseAdmin.auth.admin.listUsers();
+
+      if (listError) {
+        console.error('[approveRequest] Failed to list auth users:', listError);
+      } else {
+        const users = (allUsers?.users || []) as Array<{ id: string; email?: string }>;
+        const match = users.find((u) => u.email === generatedEmail);
+        if (match) {
+          emailAlreadyExisted = true;
+          existingUserId = match.id;
+          console.log(`[approveRequest] Email "${generatedEmail}" already exists with user ID: ${existingUserId}. Skipping auth user creation.`);
+        }
+      }
+    } catch (checkErr) {
+      console.error('[approveRequest] Error checking existing email:', checkErr);
+    }
+
+    // Step 6: Create Institution Admin auth account (only if email does NOT exist)
+    let authUserId: string;
+
+    if (emailAlreadyExisted && existingUserId) {
+      authUserId = existingUserId;
+      console.log(`[approveRequest] Using existing auth user: ${existingUserId}`);
+    } else {
+      const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
+        email: generatedEmail,
+        password: tempPassword,
+        email_confirm: true,
+        user_metadata: {
+          role: 'institution_admin',
+          institution_name: request.institution_name,
+        },
+      });
+      if (authError || !authData.user) {
+        const err = authError || new Error('Auth user creation returned no user.');
+        console.error('[approveRequest] Failed to create auth user:', err);
+        throw err;
+      }
+      authUserId = authData.user.id;
+      console.log(`[approveRequest] Created new auth user: ${authUserId}`);
+    }
+
+    // Step 7: Update institution_requests — save code, email, password, status → approved
     const { error: saveError } = await supabaseAdmin
       .from(REQUESTS_TABLE)
       .update({
@@ -450,65 +527,13 @@ export function useSupabaseData(): UseSupabaseDataReturn {
       })
       .eq('id', id);
     if (saveError) {
-      console.error(saveError);
+      console.error('[approveRequest] Failed to update institution_requests:', saveError);
       throw saveError;
     }
 
-    // Step 6: Create Institution Admin authentication account
-    const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
-      email: generatedEmail,
-      password: tempPassword,
-      email_confirm: true,
-      user_metadata: {
-        role: 'institution_admin',
-        institution_name: request.institution_name,
-      },
-    });
-    if (authError || !authData.user) {
-      const err = authError || new Error('Auth user creation returned no user.');
-      console.error(err);
-      throw err;
-    }
-
-    // Step 7: Send onboarding email
-    try {
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-      const portalUrl = 'https://foodexa-institution-platform.vercel.app';
-
-      const emailResponse = await fetch(`${supabaseUrl}/functions/v1/approve-institution`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${supabaseAnonKey}`,
-        },
-        body: JSON.stringify({
-          institution_name: request.institution_name,
-          institution_email: generatedEmail,
-          institution_code: institutionCode,
-          login_email: generatedEmail,
-          temp_password: tempPassword,
-          portal_url: portalUrl,
-          contact_person: request.contact_person,
-          first_login_instructions: 'Please log in using the credentials above. You will be prompted to change your password on first login.',
-          password_change_reminder: 'For security, please change your temporary password after your first login.',
-        }),
-      });
-      if (!emailResponse.ok) {
-        const emailBody = await emailResponse.text();
-        const err = new Error(`Approval email failed: ${emailResponse.status} ${emailBody}`);
-        console.error(err);
-        throw err;
-      }
-    } catch (emailErr) {
-      console.error('[Email] Failed to send approval email:', emailErr);
-      throw emailErr;
-    }
-
-    // Step 8: Move institution to Institution Directory
+    // Step 8: Insert into institutions table
     const institutionRecord = {
       name: request.institution_name,
-      institution_type: request.institution_type || null,
       campus: request.campus || null,
       city: request.city || null,
       state: request.state || null,
@@ -537,32 +562,42 @@ export function useSupabaseData(): UseSupabaseDataReturn {
       .select('id')
       .single();
     if (instError) {
-      console.error(instError);
+      console.error('[approveRequest] Failed to insert into institutions:', instError);
       throw instError;
     }
 
-    // Create user profile
-    const { error: profileError } = await supabaseAdmin
-      .from('user_profiles')
-      .insert({
-        id: authData.user.id,
-        role: 'institution_admin',
-        institution_id: instData.id,
-      });
-    if (profileError) {
-      console.error(profileError);
-      throw profileError;
+    // Step 9: Create or update user profile
+    if (emailAlreadyExisted) {
+      const { error: profileError } = await supabaseAdmin
+        .from('user_profiles')
+        .update({ institution_id: instData.id })
+        .eq('id', authUserId);
+      if (profileError) {
+        console.error('[approveRequest] Failed to update existing user profile:', profileError);
+      }
+    } else {
+      const { error: profileError } = await supabaseAdmin
+        .from('user_profiles')
+        .insert({
+          id: authUserId,
+          role: 'institution_admin',
+          institution_id: instData.id,
+        });
+      if (profileError) {
+        console.error('[approveRequest] Failed to create user profile:', profileError);
+        throw profileError;
+      }
     }
 
-    // Create audit log
+    // Step 10: Audit log
     await createAuditLog(
       'Institution Approved',
       request.institution_name,
       id,
-      `Code: ${institutionCode} | Approved by: ${approvedBy}`
+      `Code: ${institutionCode} | Approved by: ${approvedBy}${emailAlreadyExisted ? ' | Email already existed' : ''}`
     );
 
-    // Create notification
+    // Step 11: Notification
     const { error: notifError } = await supabaseAdmin.from(NOTIFICATIONS_TABLE).insert({
       title: 'Institution Approved',
       message: `${request.institution_name} has been approved and activated on the platform. Code: ${institutionCode}`,
@@ -570,11 +605,10 @@ export function useSupabaseData(): UseSupabaseDataReturn {
       read: false,
     });
     if (notifError) {
-      console.error(notifError);
-      throw notifError;
+      console.error('[approveRequest] Failed to create notification:', notifError);
     }
 
-    // Step 9: Refresh UI immediately
+    // Step 12: Refresh UI immediately
     setInstitutionRequests((prev) =>
       prev.map((r) => (r.id === id ? {
         ...r,
@@ -592,12 +626,57 @@ export function useSupabaseData(): UseSupabaseDataReturn {
     ]);
     await fetchAll();
 
+    // Step 13: Send onboarding email (non-blocking — approval already succeeded)
+    let emailSent = false;
+    try {
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+      const portalUrl = 'https://foodexa-institution-platform.vercel.app';
+
+      const emailResponse = await fetch(`${supabaseUrl}/functions/v1/approve-institution`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${supabaseAnonKey}`,
+        },
+        body: JSON.stringify({
+          institution_name: request.institution_name,
+          institution_email: generatedEmail,
+          institution_code: institutionCode,
+          login_email: generatedEmail,
+          temp_password: tempPassword,
+          portal_url: portalUrl,
+          contact_person: request.contact_person,
+          first_login_instructions: 'Please log in using the credentials above. You will be prompted to change your password on first login.',
+          password_change_reminder: 'For security, please change your temporary password after your first login.',
+        }),
+      });
+
+      if (emailResponse.ok) {
+        emailSent = true;
+        console.log('[approveRequest] Onboarding email sent successfully.');
+      } else if (emailResponse.status === 404) {
+        console.warn('[approveRequest] approve-institution Edge Function is not deployed (404). Email not sent. Deploy the function via `supabase functions deploy approve-institution` to enable email.');
+      } else {
+        const emailBody = await emailResponse.text();
+        console.error(`[approveRequest] Email send failed (HTTP ${emailResponse.status}):`, emailBody);
+      }
+    } catch (emailErr: any) {
+      if (emailErr?.message?.includes('Failed to fetch') || emailErr?.name === 'TypeError') {
+        console.warn('[approveRequest] approve-institution Edge Function is not available. Email not sent. Deploy the function via `supabase functions deploy approve-institution` to enable email.');
+      } else {
+        console.error('[approveRequest] Email send error:', emailErr);
+      }
+    }
+
     return {
       institution_name: request.institution_name,
       institution_code: institutionCode,
       generated_email: generatedEmail,
       generated_password: tempPassword,
       approved_at: approvedAt,
+      email_already_existed: emailAlreadyExisted,
+      email_sent: emailSent,
     };
   };
 
@@ -624,7 +703,7 @@ export function useSupabaseData(): UseSupabaseDataReturn {
     try {
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
       const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-      await fetch(`${supabaseUrl}/functions/v1/send-rejection-email`, {
+      const emailResponse = await fetch(`${supabaseUrl}/functions/v1/send-rejection-email`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -636,8 +715,18 @@ export function useSupabaseData(): UseSupabaseDataReturn {
           rejection_reason: reason || 'No specific reason provided.',
         }),
       });
-    } catch (emailErr) {
-      console.error('[Email] Failed to send rejection email:', emailErr);
+      if (!emailResponse.ok && emailResponse.status === 404) {
+        console.warn('[rejectRequest] send-rejection-email Edge Function is not deployed (404). Email not sent.');
+      } else if (!emailResponse.ok) {
+        const body = await emailResponse.text();
+        console.error(`[rejectRequest] Rejection email failed (HTTP ${emailResponse.status}):`, body);
+      }
+    } catch (emailErr: any) {
+      if (emailErr?.message?.includes('Failed to fetch') || emailErr?.name === 'TypeError') {
+        console.warn('[rejectRequest] send-rejection-email Edge Function is not available. Email not sent.');
+      } else {
+        console.error('[rejectRequest] Failed to send rejection email:', emailErr);
+      }
     }
 
     await createAuditLog('Institution Rejected', request.institution_name, id, reason || 'No reason provided');
@@ -658,7 +747,7 @@ export function useSupabaseData(): UseSupabaseDataReturn {
     try {
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
       const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-      await fetch(`${supabaseUrl}/functions/v1/send-rejection-email`, {
+      const emailResponse = await fetch(`${supabaseUrl}/functions/v1/send-rejection-email`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -670,8 +759,18 @@ export function useSupabaseData(): UseSupabaseDataReturn {
           rejection_reason: `Changes requested: ${notes}. Please resubmit your registration with the requested changes.`,
         }),
       });
-    } catch (emailErr) {
-      console.error('[Email] Failed to send changes-requested email:', emailErr);
+      if (!emailResponse.ok && emailResponse.status === 404) {
+        console.warn('[sendChangesEmailNotification] send-rejection-email Edge Function is not deployed (404). Email not sent.');
+      } else if (!emailResponse.ok) {
+        const body = await emailResponse.text();
+        console.error(`[sendChangesEmailNotification] Changes email failed (HTTP ${emailResponse.status}):`, body);
+      }
+    } catch (emailErr: any) {
+      if (emailErr?.message?.includes('Failed to fetch') || emailErr?.name === 'TypeError') {
+        console.warn('[sendChangesEmailNotification] send-rejection-email Edge Function is not available. Email not sent.');
+      } else {
+        console.error('[sendChangesEmailNotification] Failed to send changes-requested email:', emailErr);
+      }
     }
   };
 

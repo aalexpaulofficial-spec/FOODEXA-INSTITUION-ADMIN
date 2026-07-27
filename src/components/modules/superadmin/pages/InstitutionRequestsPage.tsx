@@ -154,14 +154,22 @@ export const InstitutionRequestsPage: React.FC = () => {
       });
       if (response.ok) {
         addToast('Email sent successfully');
+      } else if (response.status === 404) {
+        console.warn('[Email] approve-institution Edge Function is not deployed. Deploy it via `supabase functions deploy approve-institution`.');
+        addToast('Email function not deployed. Deploy approve-institution Edge Function first.', 'error');
       } else {
         const body = await response.text();
         console.error('[Email] Resend failed:', response.status, body);
+        addToast(`Failed to send email (HTTP ${response.status}). Check console for details.`, 'error');
+      }
+    } catch (err: any) {
+      if (err?.message?.includes('Failed to fetch') || err?.name === 'TypeError') {
+        console.warn('[Email] approve-institution Edge Function is not available. Deploy it via `supabase functions deploy approve-institution`.');
+        addToast('Email function not available. Deploy approve-institution Edge Function first.', 'error');
+      } else {
+        console.error('[Email] Resend error:', err);
         addToast('Failed to send email. Check console for details.', 'error');
       }
-    } catch (err) {
-      console.error('[Email] Resend error:', err);
-      addToast('Failed to send email.', 'error');
     }
   };
 
@@ -543,6 +551,21 @@ export const InstitutionRequestsPage: React.FC = () => {
               </div>
             </div>
 
+            {approvalDraft.email_already_exists && (
+              <div className="p-4 rounded-2xl bg-amber-500/5 border border-amber-500/30">
+                <div className="flex items-start gap-3">
+                  <AlarmClock className="w-5 h-5 text-amber-400 mt-0.5" />
+                  <div>
+                    <h3 className="text-sm font-black text-amber-400">Email Already Exists</h3>
+                    <p className="text-xs text-slate-400 mt-1">
+                      The Institution Admin email <strong className="text-white">{approvalDraft.generated_email}</strong> already has an existing auth account (ID: {approvalDraft.existing_user_id}).
+                      No new auth user will be created. The existing account will be assigned to this institution.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               <div className="space-y-3">
                 <h4 className="text-xs font-black text-slate-300 uppercase tracking-wider">Institution Details</h4>
@@ -661,7 +684,13 @@ export const InstitutionRequestsPage: React.FC = () => {
               <div className="h-px bg-slate-800/60" />
               <div className="flex items-center justify-between">
                 <span className="text-[11px] text-slate-500 font-semibold uppercase tracking-wider">Email Status</span>
-                <span className="text-xs text-emerald-400 font-bold flex items-center gap-1"><CheckCircle className="w-3 h-3" /> Sent Successfully</span>
+                {approvalResult.email_already_existed ? (
+                  <span className="text-xs text-amber-400 font-bold flex items-center gap-1"><AlarmClock className="w-3 h-3" /> Existing Account Used</span>
+                ) : approvalResult.email_sent ? (
+                  <span className="text-xs text-emerald-400 font-bold flex items-center gap-1"><CheckCircle className="w-3 h-3" /> Sent Successfully</span>
+                ) : (
+                  <span className="text-xs text-orange-400 font-bold flex items-center gap-1"><XCircle className="w-3 h-3" /> Not Sent (Function not deployed)</span>
+                )}
               </div>
             </div>
 
