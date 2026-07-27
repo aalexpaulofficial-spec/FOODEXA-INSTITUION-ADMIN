@@ -11,9 +11,9 @@ import { ApprovalDraft, ApprovalResult } from '../../../../hooks/useSupabaseData
 
 export const InstitutionRequestsPage: React.FC = () => {
   const {
-    institutionRequests, approvedInstitutions, loading, totalStudents, totalOrders, totalVendors,
+    institutionRequests, approvedInstitutions, loading, error, adminAccessOk, totalStudents, totalOrders, totalVendors,
     totalRevenue, unreadCount, auditLogs, notifications, isRealtime,
-    prepareApproval, approveRequest, rejectRequest, requestChanges, disableInstitution, suspendInstitution, activateInstitution,
+    prepareApproval, approveRequest, rejectRequest, requestChanges, disableInstitution, enableInstitution, suspendInstitution, activateInstitution,
     deleteInstitution, updateInstitution, editRequest, createAuditLog, markNotificationRead,
     markAllNotificationsRead, globalSearch, refresh,
   } = useSuperAdminData();
@@ -60,8 +60,7 @@ export const InstitutionRequestsPage: React.FC = () => {
       setApprovalDraft(draft);
       setApprovalInstitutionCode(draft.institution_code);
     } catch (err: any) {
-      console.error(err);
-      addToast(err.message || 'Approval failed.', 'error');
+      addToast(err.message || 'Failed to prepare approval. Check console for details.', 'error');
     } finally {
       setApprovingId(null);
     }
@@ -81,8 +80,7 @@ export const InstitutionRequestsPage: React.FC = () => {
       setApprovalInstitutionCode('');
       addToast(`Approved: ${result.institution_name}`);
     } catch (err: any) {
-      console.error(err);
-      addToast(err.message || 'Approval failed.', 'error');
+      addToast(err.message || 'Approval failed. Check console for details.', 'error');
     } finally {
       setApprovingId(null);
     }
@@ -90,36 +88,70 @@ export const InstitutionRequestsPage: React.FC = () => {
 
   const handleReject = async () => {
     if (!rejectModal) return;
-    await rejectRequest(rejectModal.id, rejectReason);
-    addToast(`Rejected: ${rejectModal.institution_name}`, 'error');
-    setRejectModal(null);
-    setRejectReason('');
+    setActionLoading('reject');
+    try {
+      await rejectRequest(rejectModal.id, rejectReason);
+      addToast(`Rejected: ${rejectModal.institution_name}`, 'error');
+      setRejectModal(null);
+      setRejectReason('');
+    } catch (err: any) {
+      addToast(err.message || 'Failed to reject request.', 'error');
+    } finally {
+      setActionLoading(null);
+    }
   };
 
   const handleRequestChanges = async () => {
     if (!changesModal || !changesNotes) return;
-    await requestChanges(changesModal.id, changesNotes);
-    addToast(`Changes requested for ${changesModal.institution_name}`, 'info');
-    setChangesModal(null);
-    setChangesNotes('');
+    setActionLoading('changes');
+    try {
+      await requestChanges(changesModal.id, changesNotes);
+      addToast(`Changes requested for ${changesModal.institution_name}`, 'info');
+      setChangesModal(null);
+      setChangesNotes('');
+    } catch (err: any) {
+      addToast(err.message || 'Failed to request changes.', 'error');
+    } finally {
+      setActionLoading(null);
+    }
   };
 
   const handleEdit = async () => {
     if (!editModal) return;
-    await editRequest(editModal.id, editForm);
-    addToast(`Updated: ${editModal.institution_name}`);
-    setEditModal(null);
+    setActionLoading('edit');
+    try {
+      await editRequest(editModal.id, editForm);
+      addToast(`Updated: ${editModal.institution_name}`);
+      setEditModal(null);
+    } catch (err: any) {
+      addToast(err.message || 'Failed to update request.', 'error');
+    } finally {
+      setActionLoading(null);
+    }
   };
+
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
 
   const handleDisable = async () => {
     if (!disableConfirm) return;
-    const req = disableConfirm;
-    const inst = approvedInstitutions.find((i) => i.institution_code === req.institution_code);
-    if (inst) {
-      await disableInstitution(inst.id);
+    setActionLoading('disable');
+    try {
+      const req = disableConfirm;
+      const inst = approvedInstitutions.find((i) => i.institution_code === req.institution_code);
+      if (inst) {
+        await disableInstitution(inst.id);
+      } else {
+        addToast('Institution not found in directory. Refresh and try again.', 'error');
+        setDisableConfirm(null);
+        return;
+      }
+      addToast(`Disabled: ${req.institution_name}`, 'info');
+      setDisableConfirm(null);
+    } catch (err: any) {
+      addToast(err.message || 'Failed to disable institution.', 'error');
+    } finally {
+      setActionLoading(null);
     }
-    addToast(`Disabled: ${req.institution_name}`, 'info');
-    setDisableConfirm(null);
   };
 
   const handleCopyCredentials = () => {
@@ -187,6 +219,17 @@ export const InstitutionRequestsPage: React.FC = () => {
           </div>
         ))}
       </div>
+
+      {!adminAccessOk && error && (
+        <div className="p-4 rounded-2xl bg-red-950/50 border border-red-500/40 text-red-400 text-xs space-y-2">
+          <p className="font-bold text-sm">Supabase Admin Access Error</p>
+          <p>{error}</p>
+          <p className="text-red-300/70">All database operations will fail until this is fixed. Check your VITE_SUPABASE_SERVICE_ROLE_KEY environment variable.</p>
+          <button onClick={refresh} className="px-3 py-1.5 rounded-lg bg-red-500/20 border border-red-500/40 text-red-300 text-xs font-bold">
+            Retry Connection
+          </button>
+        </div>
+      )}
 
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-slate-800/80 pb-5">
         <div>

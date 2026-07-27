@@ -6,6 +6,7 @@ export interface SuperAdminContextType {
   approvedInstitutions: SupabaseInstitution[];
   loading: boolean;
   error: string | null;
+  adminAccessOk: boolean;
   isRealtime: boolean;
   totalStudents: number;
   totalOrders: number;
@@ -19,6 +20,7 @@ export interface SuperAdminContextType {
   rejectRequest: (id: string, reason?: string) => Promise<void>;
   requestChanges: (id: string, notes: string) => Promise<void>;
   disableInstitution: (id: string) => Promise<void>;
+  enableInstitution: (id: string) => Promise<void>;
   suspendInstitution: (id: string) => Promise<void>;
   activateInstitution: (id: string) => Promise<void>;
   deleteInstitution: (id: string) => Promise<void>;

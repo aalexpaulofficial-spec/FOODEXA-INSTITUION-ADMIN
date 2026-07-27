@@ -10,8 +10,8 @@ import { supabase } from '../../../../lib/supabaseClient';
 
 export const InstitutionDirectoryPage: React.FC = () => {
   const {
-    approvedInstitutions, loading, isRealtime,
-    suspendInstitution, activateInstitution, disableInstitution, deleteInstitution, updateInstitution, createAuditLog,
+    approvedInstitutions, loading, error, adminAccessOk, isRealtime,
+    suspendInstitution, activateInstitution, disableInstitution, enableInstitution, deleteInstitution, updateInstitution, createAuditLog,
     refresh,
   } = useSuperAdminData();
 
@@ -52,21 +52,56 @@ export const InstitutionDirectoryPage: React.FC = () => {
     setDeleteConfirm(null);
   };
 
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
+
   const handleSuspend = async (id: string, name: string) => {
-    await suspendInstitution(id);
-    addToast(`Suspended: ${name}`, 'info');
+    setActionLoading(`suspend-${id}`);
+    try {
+      await suspendInstitution(id);
+      addToast(`Suspended: ${name}`, 'info');
+    } catch (err: any) {
+      addToast(err.message || 'Failed to suspend institution.', 'info');
+    } finally {
+      setActionLoading(null);
+    }
   };
 
   const handleDisable = async () => {
     if (!disableConfirm) return;
-    await disableInstitution(disableConfirm.id);
-    addToast(`Disabled: ${disableConfirm.name}`, 'info');
-    setDisableConfirm(null);
+    setActionLoading('disable');
+    try {
+      await disableInstitution(disableConfirm.id);
+      addToast(`Disabled: ${disableConfirm.name}`, 'info');
+      setDisableConfirm(null);
+    } catch (err: any) {
+      addToast(err.message || 'Failed to disable institution.', 'error');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleEnable = async (id: string, name: string) => {
+    setActionLoading(`enable-${id}`);
+    try {
+      await enableInstitution(id);
+      addToast(`Enabled: ${name}`);
+    } catch (err: any) {
+      addToast(err.message || 'Failed to enable institution.', 'error');
+    } finally {
+      setActionLoading(null);
+    }
   };
 
   const handleActivate = async (id: string, name: string) => {
-    await activateInstitution(id);
-    addToast(`Activated: ${name}`);
+    setActionLoading(`activate-${id}`);
+    try {
+      await activateInstitution(id);
+      addToast(`Activated: ${name}`);
+    } catch (err: any) {
+      addToast(err.message || 'Failed to activate institution.', 'error');
+    } finally {
+      setActionLoading(null);
+    }
   };
 
   const openDashboard = (inst: any) => {
@@ -87,6 +122,16 @@ export const InstitutionDirectoryPage: React.FC = () => {
           </div>
         ))}
       </div>
+
+      {!adminAccessOk && error && (
+        <div className="p-4 rounded-2xl bg-red-950/50 border border-red-500/40 text-red-400 text-xs space-y-2">
+          <p className="font-bold text-sm">Supabase Admin Access Error</p>
+          <p>{error}</p>
+          <button onClick={refresh} className="px-3 py-1.5 rounded-lg bg-red-500/20 border border-red-500/40 text-red-300 text-xs font-bold">
+            Retry Connection
+          </button>
+        </div>
+      )}
 
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-slate-800/80 pb-5">
         <div>
@@ -195,25 +240,42 @@ export const InstitutionDirectoryPage: React.FC = () => {
                 </button>
                 {inst.status === 'active' ? (
                   <>
-                    <button onClick={() => handleSuspend(inst.id, inst.name)}
-                      className="px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-800 text-slate-400 hover:text-amber-400 text-[11px] font-semibold transition-all">
-                      Suspend
+                    <button onClick={() => handleSuspend(inst.id, inst.name)} disabled={actionLoading === `suspend-${inst.id}`}
+                      className="px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-800 text-slate-400 hover:text-amber-400 text-[11px] font-semibold transition-all disabled:opacity-50">
+                      {actionLoading === `suspend-${inst.id}` ? '...' : 'Suspend'}
                     </button>
                     <button onClick={() => setDisableConfirm(inst)}
                       className="px-3 py-1.5 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-400 hover:bg-amber-500/20 text-[11px] font-semibold transition-all flex items-center gap-1">
                       <Ban className="w-3 h-3" /> Disable
                     </button>
+                    <button onClick={() => setDeleteConfirm(inst)}
+                      className="px-3 py-1.5 rounded-lg bg-red-500/5 border border-red-500/20 text-red-400 hover:bg-red-500/10 text-[11px] font-semibold transition-all flex items-center gap-1">
+                      <Trash2 className="w-3 h-3" /> Delete
+                    </button>
                   </>
-                ) : inst.status === 'suspended' || inst.status === 'disabled' ? (
-                  <button onClick={() => handleActivate(inst.id, inst.name)}
-                    className="px-3 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-[11px] font-semibold transition-all">
-                    Reactivate
-                  </button>
+                ) : inst.status === 'suspended' ? (
+                  <>
+                    <button onClick={() => handleActivate(inst.id, inst.name)} disabled={actionLoading === `activate-${inst.id}`}
+                      className="px-3 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-[11px] font-semibold transition-all disabled:opacity-50">
+                      {actionLoading === `activate-${inst.id}` ? '...' : 'Reactivate'}
+                    </button>
+                    <button onClick={() => setDeleteConfirm(inst)}
+                      className="px-3 py-1.5 rounded-lg bg-red-500/5 border border-red-500/20 text-red-400 hover:bg-red-500/10 text-[11px] font-semibold transition-all flex items-center gap-1">
+                      <Trash2 className="w-3 h-3" /> Delete
+                    </button>
+                  </>
+                ) : inst.status === 'disabled' ? (
+                  <>
+                    <button onClick={() => handleEnable(inst.id, inst.name)} disabled={actionLoading === `enable-${inst.id}`}
+                      className="px-3 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-[11px] font-semibold transition-all disabled:opacity-50">
+                      {actionLoading === `enable-${inst.id}` ? '...' : 'Enable'}
+                    </button>
+                    <button onClick={() => setDeleteConfirm(inst)}
+                      className="px-3 py-1.5 rounded-lg bg-red-500/5 border border-red-500/20 text-red-400 hover:bg-red-500/10 text-[11px] font-semibold transition-all flex items-center gap-1">
+                      <Trash2 className="w-3 h-3" /> Delete
+                    </button>
+                  </>
                 ) : null}
-                <button onClick={() => setDeleteConfirm(inst)}
-                  className="px-3 py-1.5 rounded-lg bg-red-500/5 border border-red-500/20 text-red-400 hover:bg-red-500/10 text-[11px] font-semibold transition-all flex items-center gap-1">
-                  <Trash2 className="w-3 h-3" /> Delete
-                </button>
                 <button onClick={() => openDashboard(inst)}
                   className="px-3 py-1.5 rounded-lg bg-indigo-500/10 border border-indigo-500/30 text-indigo-400 hover:bg-indigo-500/20 text-[11px] font-semibold transition-all flex items-center gap-1">
                   <ExternalLink className="w-3 h-3" /> Open Dashboard
