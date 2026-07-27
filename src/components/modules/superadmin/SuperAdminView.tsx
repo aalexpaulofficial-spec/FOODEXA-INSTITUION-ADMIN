@@ -1046,7 +1046,7 @@ export const SuperAdminView: React.FC = () => {
                   />
                 </label>
                 <div><span className="text-slate-500 block text-[11px] uppercase font-semibold">Institution Login Email</span><span className="text-sm text-white font-mono break-all">{approvalDraft.generated_email}</span></div>
-                <div><span className="text-slate-500 block text-[11px] uppercase font-semibold">Temporary Password</span><span className="text-sm text-indigo-400 font-mono font-bold break-all">{approvalDraft.generated_password}</span></div>
+                <div><span className="text-slate-500 block text-[11px] uppercase font-semibold">Generated Password</span><span className="text-sm text-indigo-400 font-mono font-bold break-all">{approvalDraft.generated_password}</span></div>
               </div>
             </div>
             <div className="flex gap-3 pt-2">

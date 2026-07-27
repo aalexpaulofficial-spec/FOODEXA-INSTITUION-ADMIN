@@ -652,7 +652,7 @@ export const InstitutionRequestsPage: React.FC = () => {
                     <span className="text-sm text-white font-mono break-all">{approvalDraft.generated_email}</span>
                   </div>
                   <div>
-                    <span className="text-[11px] text-slate-500 font-semibold uppercase tracking-wider block">Temporary Password</span>
+                    <span className="text-[11px] text-slate-500 font-semibold uppercase tracking-wider block">Generated Password</span>
                     <span className="text-sm text-indigo-400 font-mono font-bold break-all">{approvalDraft.generated_password}</span>
                   </div>
                 </div>
@@ -711,7 +711,7 @@ export const InstitutionRequestsPage: React.FC = () => {
               </div>
               <div className="h-px bg-slate-800/60" />
               <div className="flex items-center justify-between">
-                <span className="text-[11px] text-slate-500 font-semibold uppercase tracking-wider">Temporary Password</span>
+                <span className="text-[11px] text-slate-500 font-semibold uppercase tracking-wider">Generated Password</span>
                 <span className="text-xs text-indigo-400 font-mono font-bold">{approvalResult.generated_password}</span>
               </div>
               <div className="h-px bg-slate-800/60" />

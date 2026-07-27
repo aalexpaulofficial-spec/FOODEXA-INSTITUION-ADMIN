@@ -372,31 +372,33 @@ export function useSupabaseData(): UseSupabaseDataReturn {
   }, [fetchAll]);
 
   // ---------------------------------------------------------------
-  // Generate secure temporary password (10-12 chars)
+  // Generate secure random password (14-16 chars, crypto-safe)
   // ---------------------------------------------------------------
-  const generateTempPassword = (): string => {
+  const generatePassword = (): string => {
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*';
-    const length = 10 + Math.floor(Math.random() * 3);
+    const length = 14 + Math.floor(Math.random() * 3);
+    const array = new Uint32Array(length);
+    crypto.getRandomValues(array);
     let password = '';
     for (let i = 0; i < length; i++) {
-      password += chars.charAt(Math.floor(Math.random() * chars.length));
+      password += chars.charAt(array[i] % chars.length);
     }
     return password;
   };
 
   // ---------------------------------------------------------------
   // Generate institution code (local only - no DB queries)
-  // Format: First 6 letters (uppercase, no spaces/special) + Year(last 2) + Random 4-digit
+  // Format: First 8 letters of InstitutionName (uppercase, no spaces/special) + 6 random digits
+  // Example: CHRIST583621, YAWEH264263, PENIEL874215
   // Uniqueness is validated during save in ensureInstitutionCodeAvailable
   // ---------------------------------------------------------------
   const generateInstitutionCode = async (name: string): Promise<string> => {
-    const prefix = name.replace(/[^a-zA-Z]/g, '').toUpperCase().slice(0, 6);
-    if (!prefix) return `INST${new Date().getFullYear().toString().slice(-2)}${String(Math.floor(1000 + Math.random() * 9000))}`;
+    const prefix = name.replace(/[^a-zA-Z]/g, '').toUpperCase().slice(0, 8);
+    if (!prefix) return `INST${String(100000 + Math.floor(Math.random() * 900000))}`;
 
-    const year = new Date().getFullYear().toString().slice(-2);
-    const random = String(Math.floor(1000 + Math.random() * 9000));
+    const random = String(100000 + Math.floor(Math.random() * 900000));
 
-    return `${prefix}${year}${random}`;
+    return `${prefix}${random}`;
   };
 
   const ensureInstitutionCodeAvailable = async (code: string, requestId: string) => {
@@ -470,7 +472,7 @@ export function useSupabaseData(): UseSupabaseDataReturn {
       request,
       institution_code: await generateInstitutionCode(request.institution_name),
       generated_email: email,
-      generated_password: generateTempPassword(),
+      generated_password: generatePassword(),
       email_already_exists: emailAlreadyExists,
       existing_user_id: existingUserId,
     };
@@ -504,7 +506,7 @@ export function useSupabaseData(): UseSupabaseDataReturn {
 
     // Generate credentials
     const institutionCode = (credentials?.institution_code || await generateInstitutionCode(request.institution_name)).trim().toUpperCase();
-    const tempPassword = credentials?.generated_password || generateTempPassword();
+    const password = credentials?.generated_password || generatePassword();
     const generatedEmail = credentials?.generated_email || request.institution_email;
 
     // Validate institution code availability
@@ -540,7 +542,7 @@ export function useSupabaseData(): UseSupabaseDataReturn {
     } else {
       const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
         email: generatedEmail,
-        password: tempPassword,
+password: password,
         email_confirm: true,
         user_metadata: {
           role: 'institution_admin',
@@ -556,6 +558,7 @@ export function useSupabaseData(): UseSupabaseDataReturn {
     // Step 2: Insert into institutions table
     const institutionRecord = {
       name: request.institution_name,
+      institution_type: request.role || 'University',
       campus: request.campus || null,
       city: request.city || null,
       state: request.state || null,
@@ -572,7 +575,7 @@ export function useSupabaseData(): UseSupabaseDataReturn {
       email: generatedEmail,
       institution_code: institutionCode,
       generated_email: generatedEmail,
-      generated_password: tempPassword,
+      generated_password: password,
       approved_by: approvedBy,
       approved_at: approvedAt,
       status: 'active',
@@ -605,7 +608,7 @@ export function useSupabaseData(): UseSupabaseDataReturn {
         status: 'approved',
         institution_code: institutionCode,
         generated_email: generatedEmail,
-        generated_password: tempPassword,
+generated_password: password,
         approved_at: approvedAt,
         approved_by: approvedBy,
       })
@@ -677,11 +680,11 @@ export function useSupabaseData(): UseSupabaseDataReturn {
           institution_email: generatedEmail,
           institution_code: institutionCode,
           login_email: generatedEmail,
-          temp_password: tempPassword,
+          password: password,
           portal_url: portalUrl,
           contact_person: request.contact_person,
           first_login_instructions: 'Please log in using the credentials above. You will be prompted to change your password on first login.',
-          password_change_reminder: 'For security, please change your temporary password after your first login.',
+          password_change_reminder: 'For security, please change your generated password after your first login.',
         }),
       });
 
@@ -705,7 +708,7 @@ export function useSupabaseData(): UseSupabaseDataReturn {
       institution_name: request.institution_name,
       institution_code: institutionCode,
       generated_email: generatedEmail,
-      generated_password: tempPassword,
+      generated_password: password,
       approved_at: approvedAt,
       email_already_existed: emailAlreadyExisted,
       email_sent: emailSent,

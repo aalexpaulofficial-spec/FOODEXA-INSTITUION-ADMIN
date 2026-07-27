@@ -17,7 +17,7 @@ serve(async (req: Request) => {
       institution_email,
       institution_code,
       login_email,
-      temp_password,
+      password,
       portal_url,
       contact_person,
       first_login_instructions,
@@ -96,8 +96,8 @@ serve(async (req: Request) => {
                       </tr>
                       <tr>
                         <td style="padding:8px 0;border-top:1px solid #1E1E24;">
-                          <span style="color:#64748B;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;">Temporary Password</span><br/>
-                          <span style="color:#818CF8;font-size:14px;font-weight:700;font-family:monospace;">${temp_password}</span>
+                          <span style="color:#64748B;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;">Generated Password</span><br/>
+                          <span style="color:#818CF8;font-size:14px;font-weight:700;font-family:monospace;">${password}</span>
                         </td>
                       </tr>
                       <tr>
@@ -115,7 +115,7 @@ serve(async (req: Request) => {
                 ${first_login_instructions || "Please log in using the credentials above. You will be prompted to change your password on first login."}
               </p>
               <p style="color:#F59E0B;font-size:13px;font-weight:600;margin:0 0 24px;">
-                ${password_change_reminder || "For security, please change your temporary password after your first login."}
+                ${password_change_reminder || "For security, please change your generated password after your first login."}
               </p>
 
               <table width="100%" cellpadding="0" cellspacing="0">
