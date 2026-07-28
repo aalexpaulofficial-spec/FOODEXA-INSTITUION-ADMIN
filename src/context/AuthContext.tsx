@@ -59,6 +59,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const dbRole = profile.role as UserRole;
 
+    if (dbRole === 'super_admin') {
+      setState({
+        user,
+        role: 'super_admin',
+        institutionId: null,
+        loading: false,
+        error: null,
+      });
+      return;
+    }
+
     if (dbRole !== 'institution_admin') {
       setState({ user: null, role: null, institutionId: null, loading: false, error: 'You do not have permission to access the Institution Dashboard.' });
       await supabase.auth.signOut();
