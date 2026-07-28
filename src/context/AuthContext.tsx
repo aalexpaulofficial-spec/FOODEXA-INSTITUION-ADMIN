@@ -38,58 +38,59 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     error: null,
   });
 
-  const fetchProfile = useCallback(async (userId: string) => {
-    const { data } = await supabase
-      .from('user_profiles')
-      .select('role, institution_id')
-      .eq('id', userId)
-      .single();
-    return data;
-  }, []);
-
   const syncAuth = useCallback(async (user: User | null) => {
     if (!user) {
       setState({ user: null, role: null, institutionId: null, loading: false, error: null });
       return;
     }
-    const profile = await fetchProfile(user.id);
-    const dbRole = profile?.role as UserRole;
-    
-    // Read preference from login screen
-    const storedPref = localStorage.getItem('foodexa_role_preference') as UserRole | null;
-    
-    // Fallback logic if user_profiles doesn't exist or has no role
-    let finalRole: UserRole = dbRole;
-    if (!finalRole) {
-      if (storedPref === 'super_admin') {
-        finalRole = 'super_admin';
-      } else {
-        finalRole = 'institution_admin';
-      }
+
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('role, institution_id')
+      .eq('user_id', user.id)
+      .limit(1)
+      .single();
+
+    if (profileError || !profile) {
+      setState({ user: null, role: null, institutionId: null, loading: false, error: 'Your profile was not found. Please contact FOODEXA Support.' });
+      await supabase.auth.signOut();
+      return;
     }
 
-    // Check if institution is disabled
-    if (finalRole === 'institution_admin' && profile?.institution_id) {
-      const { data: inst } = await supabase
-        .from('institutions')
-        .select('status')
-        .eq('id', profile.institution_id)
-        .single();
-      if (inst?.status === 'disabled') {
-        setState({ user: null, role: null, institutionId: null, loading: false, error: 'Your institution account has been disabled. Please contact support.' });
-        await supabase.auth.signOut();
-        return;
-      }
+    const dbRole = profile.role as UserRole;
+
+    if (dbRole !== 'institution_admin') {
+      setState({ user: null, role: null, institutionId: null, loading: false, error: 'You do not have permission to access the Institution Dashboard.' });
+      await supabase.auth.signOut();
+      return;
+    }
+
+    if (!profile.institution_id) {
+      setState({ user: null, role: null, institutionId: null, loading: false, error: 'No institution has been assigned to your account.' });
+      await supabase.auth.signOut();
+      return;
+    }
+
+    const { data: institution, error: instError } = await supabase
+      .from('institutions')
+      .select('id')
+      .eq('id', profile.institution_id)
+      .single();
+
+    if (instError || !institution) {
+      setState({ user: null, role: null, institutionId: null, loading: false, error: 'The linked institution could not be found.' });
+      await supabase.auth.signOut();
+      return;
     }
 
     setState({
       user,
-      role: finalRole,
-      institutionId: profile?.institution_id || null,
+      role: 'institution_admin',
+      institutionId: profile.institution_id,
       loading: false,
       error: null,
     });
-  }, [fetchProfile]);
+  }, []);
 
   const verifySession = useCallback(async () => {
     try {

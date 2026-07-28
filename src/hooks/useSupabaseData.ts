@@ -620,17 +620,17 @@ generated_password: password,
     // Step 4: Create or update user profile
     if (emailAlreadyExisted) {
       const { error: profileError } = await supabaseAdmin
-        .from('user_profiles')
+        .from('profiles')
         .update({ institution_id: instData.id })
-        .eq('id', authUserId);
+        .eq('user_id', authUserId);
       if (profileError) {
         console.error('[approveRequest] Failed to update existing user profile:', profileError);
       }
     } else {
       const { error: profileError } = await supabaseAdmin
-        .from('user_profiles')
+        .from('profiles')
         .insert({
-          id: authUserId,
+          user_id: authUserId,
           role: 'institution_admin',
           institution_id: instData.id,
         });
