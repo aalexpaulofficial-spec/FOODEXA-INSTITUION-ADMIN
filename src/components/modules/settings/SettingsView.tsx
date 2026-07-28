@@ -7,9 +7,10 @@ import { useAuth } from '../../../context/AuthContext';
 interface SettingsViewProps {
   currentInstitution: Institution;
   auditLogs: AuditLog[];
+  onUpdateInstitution: (updates: Partial<Institution>) => Promise<void>;
 }
 
-export const SettingsView: React.FC<SettingsViewProps> = ({ currentInstitution, auditLogs }) => {
+export const SettingsView: React.FC<SettingsViewProps> = ({ currentInstitution, auditLogs, onUpdateInstitution }) => {
   const { user } = useAuth();
   const [instName, setInstName] = useState(currentInstitution.name);
   const [email, setEmail] = useState(currentInstitution.email);
@@ -21,15 +22,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentInstitution, 
     e.preventDefault();
     if (!currentInstitution?.id) return;
     try {
-      const { error } = await supabase
-        .from('institutions')
-        .update({
-          name: instName,
-          email: email,
-          phone: phone,
-        })
-        .eq('id', currentInstitution.id);
-      if (error) throw error;
+      await onUpdateInstitution({
+        name: instName,
+        email: email,
+        phone: phone,
+      });
       setSaveSuccessMsg(true);
       setTimeout(() => setSaveSuccessMsg(false), 2500);
     } catch (err) {

@@ -30,6 +30,7 @@ interface CanteenManagementProps {
   onUpdateCounter?: (counterId: string, updates: Partial<Counter>) => Promise<void>;
   onDeleteCounter?: (counterId: string) => Promise<void>;
   onToggleCounterAvailability?: (counterId: string) => Promise<void>;
+  onDeleteVendor?: (vendorId: string) => Promise<void>;
 }
 
 const CATEGORY_OPTIONS = [
@@ -64,6 +65,7 @@ export const CanteenManagement: React.FC<CanteenManagementProps> = ({
   const [editingCounter, setEditingCounter] = useState<Counter | null>(null);
   const [counterError, setCounterError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [deleteVendorConfirm, setDeleteVendorConfirm] = useState<string | null>(null);
 
   const [newCounterCode, setNewCounterCode] = useState('');
   const [newCounterName, setNewCounterName] = useState('');
@@ -176,7 +178,12 @@ export const CanteenManagement: React.FC<CanteenManagementProps> = ({
     resetForm();
   };
 
-  const handleDeleteCounterConfirm = async (counterId: string) => {
+  const handleDeleteVendor = async (vendorId: string) => {
+    if (onDeleteVendor) { await onDeleteVendor(vendorId); }
+    setDeleteVendorConfirm(null);
+  };
+
+  const handleDeleteCounterConfirm = async
     if (onDeleteCounter) {
       await onDeleteCounter(counterId);
     }
@@ -606,6 +613,15 @@ export const CanteenManagement: React.FC<CanteenManagementProps> = ({
                   >
                     Approve
                   </button>
+                  {vendor.status !== 'pending' && (
+                    <button
+                      onClick={() => setDeleteVendorConfirm(vendor.id)}
+                      className="px-3 py-2 rounded-xl bg-red-500/10 hover:bg-red-500/30 text-red-400 border border-red-500/30 text-xs font-bold transition-colors flex items-center space-x-1"
+                    >
+                      <Trash2 className='w-3.5 h-3.5' />
+                      <span>Delete</span>
+                    </button>
+                  )}
                 )}
               </div>
             </div>
@@ -697,6 +713,21 @@ export const CanteenManagement: React.FC<CanteenManagementProps> = ({
             </div>
           </div>
         </div>
+      {deleteVendorConfirm && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="w-full max-w-sm bg-[#0C0C0E] border border-zinc-800 rounded-3xl p-6 space-y-4">
+            <div className="flex items-center space-x-2 text-red-400">
+              <AlertCircle className="w-5 h-5" />
+              <h3 className="font-bold text-white text-base">Delete Vendor</h3>
+            </div>
+            <p className="text-xs text-zinc-400">Are you sure you want to permanently delete this vendor? This action cannot be undone.</p>
+            <div className="flex justify-end space-x-3">
+              <button onClick={() => setDeleteVendorConfirm(null)} className="px-4 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-bold text-xs">Cancel</button>
+              <button onClick={() => handleDeleteVendor(deleteVendorConfirm)} className="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold text-xs">Delete</button>
+            </div>
+          </div>
+        </div>
+      )}
       )}
     </div>
   );

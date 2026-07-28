@@ -73,7 +73,7 @@ export function App() {
     updateKitchenStatus, updateOrderStatus,
     addMenuItem, updateMenuItem, deleteMenuItem, toggleMenuAvailability,
     addMenuCategory, updateMenuCategory, deleteMenuCategory,
-    toggleStaffPermission, addAnnouncement,
+    toggleStaffPermission, deleteStudent, addStaff, updateStaff, deleteStaff, deleteAnnouncement, deleteVendor, updateInstitution, addAnnouncement,
   } = useInstitutionData(institutionId);
 
   if (authLoading) {
@@ -167,7 +167,6 @@ export function App() {
                     {currentTab === 'dashboard' && (
                       <HomeDashboard
                         currentInstitution={institution || { id: '', name: 'Your Institution', institution_code: '', studentsCount: 0, vendorsCount: 0, dailyOrdersCount: 0, monthlyRevenue: 0, status: 'active', contactPerson: '', email: '', phone: '', joinedDate: '', plan: 'Basic' }}
-                        orders={orders}
                         vendors={vendors}
                         onNavigate={setCurrentTab}
                         onOpenQRScanner={() => setIsQRScannerOpen(true)}
@@ -178,6 +177,7 @@ export function App() {
                       <StudentManagement
                         students={students}
                         orders={orders}
+                        onDeleteStudent={deleteStudent}
                         onUpdateStudentStatus={updateStudentStatus}
                       />
                     )}
@@ -194,6 +194,7 @@ export function App() {
                         onUpdateCounter={updateCounter}
                         onDeleteCounter={deleteCounter}
                         onToggleCounterAvailability={toggleCounterAvailability}
+                        onDeleteVendor={deleteVendor}
                       />
                     )}
 
@@ -207,7 +208,7 @@ export function App() {
 
                     {currentTab === 'orders' && (
                       <OrderManagement
-                        orders={orders}
+        isOpen={isQRScannerOpen}
                         currentInstitution={institution}
                         onUpdateOrderStatus={handleUpdateOrderStatus}
                         onOpenQRScanner={() => setIsQRScannerOpen(true)}
@@ -230,33 +231,33 @@ export function App() {
                       />
                     )}
 
-                    {currentTab === 'analytics' && <AnalyticsView orders={orders} />}
+        isOpen={isQRScannerOpen}
 
                     {currentTab === 'reports' && <ReportsView />}
 
                     {currentTab === 'campus' && <CampusManagement campusBlocks={campusBlocks} />}
 
                     {currentTab === 'staff' && (
-                      <StaffManagement staff={staff} onTogglePermission={toggleStaffPermission} />
+                      <StaffManagement staff={staff} onTogglePermission={toggleStaffPermission} onAddStaff={addStaff} onUpdateStaff={updateStaff} onDeleteStaff={deleteStaff} />
                     )}
 
                     {currentTab === 'notifications' && (
                       <NotificationsView
                         announcements={announcements}
                         onAddAnnouncement={addAnnouncement}
+                        onDeleteAnnouncement={deleteAnnouncement}
                       />
-                    )}
 
                     {currentTab === 'ai_center' && (
                       <AICenterView
-                        currentInstitution={institution || { id: '', name: 'Your Institution', institution_code: '', studentsCount: 0, vendorsCount: 0, dailyOrdersCount: 0, monthlyRevenue: 0, status: 'active', contactPerson: '', email: '', phone: '', joinedDate: '', plan: 'Basic' }}
-                        menuItems={menuItems}
-                        orders={orders}
-                      />
+                          currentInstitution={institution || { id: '', name: 'Your Institution', institution_code: '', studentsCount: 0, vendorsCount: 0, dailyOrdersCount: 0, monthlyRevenue: 0, status: 'active', contactPerson: '', email: '', phone: '', joinedDate: '', plan: 'Basic' }}
+                          menuItems={menuItems}
+                          orders={orders}
+                        />
                     )}
 
                     {currentTab === 'settings' && (
-                      <SettingsView currentInstitution={institution || { id: '', name: 'Your Institution', institution_code: '', studentsCount: 0, vendorsCount: 0, dailyOrdersCount: 0, monthlyRevenue: 0, status: 'active', contactPerson: '', email: '', phone: '', joinedDate: '', plan: 'Basic' }} auditLogs={auditLogs} />
+                      <SettingsView currentInstitution={institution || { id: '', name: 'Your Institution', institution_code: '', studentsCount: 0, vendorsCount: 0, dailyOrdersCount: 0, monthlyRevenue: 0, status: 'active', contactPerson: '', email: '', phone: '', joinedDate: '', plan: 'Basic' }} auditLogs={auditLogs} onUpdateInstitution={updateInstitution} />
                     )}
                   </>
                 )}
@@ -269,8 +270,6 @@ export function App() {
       <QRPickupScannerModal
         isOpen={isQRScannerOpen}
         onClose={() => setIsQRScannerOpen(false)}
-        orders={orders}
-        onCompleteOrder={(orderId) => handleUpdateOrderStatus(orderId, 'completed')}
       />
 
       <AISmartSearchModal

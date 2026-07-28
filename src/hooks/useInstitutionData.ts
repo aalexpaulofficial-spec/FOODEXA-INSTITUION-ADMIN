@@ -3,9 +3,6 @@ import { supabase } from '../lib/supabaseClient';
 import {
   Institution, Student, Vendor, Order, MenuItem, KitchenQueueItem,
   CampusBlock, StaffMember, Announcement, AuditLog, Counter,
-  OrderStatus, MenuCategory
-} from '../types';
-
 interface InstitutionData {
   institution: Institution | null;
   students: Student[];
@@ -24,9 +21,11 @@ interface InstitutionData {
   error: string | null;
   refresh: () => void;
   updateStudentStatus: (studentId: string, status: 'active' | 'suspended') => Promise<void>;
+  deleteStudent: (studentId: string) => Promise<void>;
   approveVendor: (vendorId: string) => Promise<void>;
   rejectVendor: (vendorId: string) => Promise<void>;
   suspendVendor: (vendorId: string) => Promise<void>;
+  deleteVendor: (vendorId: string) => Promise<void>;
   addCounter: (counter: Counter) => Promise<string | null>;
   updateCounter: (counterId: string, updates: Partial<Counter>) => Promise<void>;
   deleteCounter: (counterId: string) => Promise<void>;
@@ -41,9 +40,15 @@ interface InstitutionData {
   updateMenuCategory: (catId: string, updates: Partial<MenuCategory>) => Promise<void>;
   deleteMenuCategory: (catId: string) => Promise<void>;
   toggleStaffPermission: (staffId: string, permKey: string) => Promise<void>;
+  addStaff: (staff: Partial<StaffMember>) => Promise<string | null>;
+  updateStaff: (staffId: string, updates: Partial<StaffMember>) => Promise<void>;
+  deleteStaff: (staffId: string) => Promise<void>;
+  deleteAnnouncement: (announcementId: string) => Promise<void>;
+  updateInstitution: (updates: Partial<Institution>) => Promise<void>;
   addAnnouncement: (ann: Announcement) => Promise<void>;
   uploadImage: (file: File, path: string) => Promise<string | null>;
 }
+
 
 function mapDbCounterToCounter(db: any): Counter {
   return {
@@ -448,11 +453,12 @@ export function useInstitutionData(institutionId: string | null): InstitutionDat
   };
 
   const updateKitchenStatus = async (itemId: string, status: OrderStatus) => {
-    const { error } = await supabase.from('orders').update({ status }).eq('id', itemId);
+    const kqItem = kitchenQueue.find(item => item.id === itemId || item.orderId === itemId);
+    const realOrderId = kqItem?.orderId || itemId;
+    const { error } = await supabase.from('orders').update({ status }).eq('id', realOrderId);
     if (error) console.error('[updateKitchenStatus] Error:', error);
-    setKitchenQueue(prev => prev.map(item => item.orderId === itemId ? { ...item, status } : item));
-    setOrders(prev => prev.map(o => o.id === itemId ? { ...o, status } : o));
-  };
+    setKitchenQueue(prev => prev.map(item => (item.id === itemId || item.orderId === itemId) ? { ...item, status } : item));
+    setOrders(prev => prev.map(o => o.id === realOrderId ? { ...o, status } : o));
 
   const updateOrderStatus = async (orderId: string, status: OrderStatus) => {
     const { error } = await supabase.from('orders').update({ status }).eq('id', orderId);
@@ -575,6 +581,112 @@ export function useInstitutionData(institutionId: string | null): InstitutionDat
   const toggleStaffPermission = async (staffId: string, permKey: string) => {
     const s = staff.find(s => s.id === staffId);
     if (!s) return;
+
+  const deleteStudent = async (studentId: string) => {
+    const { error } = await supabase.from('profiles').delete().eq('id', studentId).eq('institution_id', institutionId);
+    if (error) {
+      console.error('[deleteStudent] Error:', error);
+      setError(`Failed to delete student: ${error.message}`);
+      return;
+    }
+    setStudents(prev => prev.filter(s => s.id !== studentId));
+  };
+
+  const deleteVendor = async (vendorId: string) => {
+    const { error } = await supabase.from('canteens').delete().eq('id', vendorId);
+    if (error) {
+      console.error('[deleteVendor] Error:', error);
+      setError(`Failed to delete vendor: ${error.message}`);
+      return;
+    }
+    setVendors(prev => prev.filter(v => v.id !== vendorId));
+  };
+
+  const addStaff = async (staffData: Partial<StaffMember>): Promise<string | null> => {
+    const { data, error } = await supabase.from('profiles').insert({
+      institution_id: institutionId,
+      role: 'staff',
+      full_name: staffData.name || '',
+      email: staffData.email || '',
+      status: staffData.status || 'active',
+    }).select().single();
+    if (error) {
+      console.error('[addStaff] Error:', error);
+      setError(`Failed to add staff: ${error.message}`);
+      return null;
+    }
+    if (data) {
+      const newStaff: StaffMember = {
+        id: data.id,
+        name: data.full_name || data.email || '',
+        email: data.email || '',
+        role: 'Kitchen Manager',
+        department: '',
+        assignedCampusBlock: '',
+        status: data.status || 'active',
+        lastActive: '',
+        permissions: { menuEdit: false, orderManage: false, vendorApprove: false, analyticsView: false, staffManage: false },
+      };
+      setStaff(prev => [...prev, newStaff]);
+      return data.id;
+    }
+    return null;
+  };
+
+  const updateStaff = async (staffId: string, updates: Partial<StaffMember>) => {
+    const dbUpdates: any = {};
+    if (updates.name !== undefined) dbUpdates.full_name = updates.name;
+    if (updates.email !== undefined) dbUpdates.email = updates.email;
+    if (updates.status !== undefined) dbUpdates.status = updates.status;
+    const { error } = await supabase.from('profiles').update(dbUpdates).eq('id', staffId);
+    if (error) {
+      console.error('[updateStaff] Error:', error);
+      setError(`Failed to update staff: ${error.message}`);
+      return;
+    }
+    setStaff(prev => prev.map(s => s.id === staffId ? { ...s, ...updates } : s));
+  };
+
+  const deleteStaff = async (staffId: string) => {
+    const { error } = await supabase.from('profiles').delete().eq('id', staffId);
+    if (error) {
+      console.error('[deleteStaff] Error:', error);
+      setError(`Failed to delete staff: ${error.message}`);
+      return;
+    }
+    setStaff(prev => prev.filter(s => s.id !== staffId));
+  };
+
+  const deleteAnnouncement = async (announcementId: string) => {
+    const { error } = await supabase.from('notifications').delete().eq('id', announcementId);
+    if (error) {
+      console.error('[deleteAnnouncement] Error:', error);
+      setError(`Failed to delete announcement: ${error.message}`);
+      return;
+    }
+    setAnnouncements(prev => prev.filter(a => a.id !== announcementId));
+  };
+
+  const updateInstitution = async (updates: Partial<Institution>) => {
+    if (!institutionId) return;
+    const dbUpdates: any = {};
+    if (updates.name !== undefined) dbUpdates.name = updates.name;
+    if (updates.email !== undefined) dbUpdates.email = updates.email;
+    if (updates.phone !== undefined) dbUpdates.phone = updates.phone;
+    if (updates.campus !== undefined) dbUpdates.campus = updates.campus;
+    if (updates.city !== undefined) dbUpdates.city = updates.city;
+    if (updates.state !== undefined) dbUpdates.state = updates.state;
+    if (updates.country !== undefined) dbUpdates.country = updates.country;
+    if (updates.contactPerson !== undefined) dbUpdates.contact_person = updates.contactPerson;
+    const { error } = await supabase.from('institutions').update(dbUpdates).eq('id', institutionId);
+    if (error) {
+      console.error('[updateInstitution] Error:', error);
+      setError(`Failed to update institution: ${error.message}`);
+      return;
+    }
+    setInstitution(prev => prev ? { ...prev, ...updates } : prev);
+  };
+
     const newPerms = { ...s.permissions, [permKey]: !s.permissions[permKey as keyof typeof s.permissions] };
     const { error } = await supabase.from('profiles').update({ permissions: newPerms }).eq('id', staffId);
     if (error) console.error('[toggleStaffPermission] Error:', error);
@@ -597,6 +709,6 @@ export function useInstitutionData(institutionId: string | null): InstitutionDat
     updateKitchenStatus, updateOrderStatus,
     addMenuItem, updateMenuItem, deleteMenuItem, toggleMenuAvailability,
     addMenuCategory, updateMenuCategory, deleteMenuCategory,
-    toggleStaffPermission, addAnnouncement, uploadImage,
+    toggleStaffPermission, deleteStudent, addStaff, updateStaff, deleteStaff, deleteAnnouncement, deleteVendor, updateInstitution,
   };
 }

@@ -6,11 +6,13 @@ import { useAuth } from '../../../context/AuthContext';
 interface NotificationsViewProps {
   announcements: Announcement[];
   onAddAnnouncement: (announcement: Announcement) => void;
+  onDeleteAnnouncement?: (announcementId: string) => Promise<void>;
 }
 
 export const NotificationsView: React.FC<NotificationsViewProps> = ({
   announcements,
-  onAddAnnouncement
+  onAddAnnouncement,
+  onDeleteAnnouncement
 }) => {
   const { user } = useAuth();
   const [showDraftModal, setShowDraftModal] = useState(false);
@@ -70,7 +72,12 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({
               <p className="text-xs text-slate-300 leading-relaxed">{ann.content}</p>
               <div className="pt-2 border-t border-slate-800/60 flex items-center justify-between text-[11px] text-slate-500">
                 <span>Author: <strong className="text-slate-300">{ann.author}</strong></span>
-                <span>Audience: <strong className="text-cyan-400">{ann.targetAudience}</strong></span>
+                <span className="flex items-center space-x-2">
+                  <span>Audience: <strong className="text-cyan-400">{ann.targetAudience}</strong></span>
+                  {onDeleteAnnouncement && (
+                    <button onClick={() => { if (window.confirm('Delete this announcement?')) onDeleteAnnouncement(ann.id); }} className="text-red-400 hover:text-red-300 text-xs ml-2">Delete</button>
+                  )}
+                </span>
               </div>
             </div>
           ))

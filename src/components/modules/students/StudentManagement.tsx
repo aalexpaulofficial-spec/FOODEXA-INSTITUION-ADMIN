@@ -19,12 +19,14 @@ interface StudentManagementProps {
   students: Student[];
   orders: Order[];
   onUpdateStudentStatus: (studentId: string, status: 'active' | 'suspended') => void;
+  onDeleteStudent?: (studentId: string) => Promise<void>;
 }
 
 export const StudentManagement: React.FC<StudentManagementProps> = ({
   students,
   orders,
-  onUpdateStudentStatus
+  onUpdateStudentStatus,
+  onDeleteStudent
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedDept, setSelectedDept] = useState('all');
@@ -182,7 +184,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                       {student.status}
                     </span>
                   </td>
-                  <td className="px-4 py-3.5 text-right">
+                  <td className="px-4 py-3.5 text-right space-x-1">
                     <button
                       onClick={() => setActiveStudentDrawer(student)}
                       className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold border border-slate-700 transition-colors inline-flex items-center space-x-1"
@@ -190,6 +192,14 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                       <span>Profile</span>
                       <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
                     </button>
+                    {onDeleteStudent && (
+                      <button
+                        onClick={() => { if (window.confirm('Delete this student? This action cannot be undone.')) onDeleteStudent(student.id); }}
+                        className="px-3 py-1.5 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 text-xs font-semibold border border-red-500/30 transition-colors"
+                      >
+                        Delete
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))}
