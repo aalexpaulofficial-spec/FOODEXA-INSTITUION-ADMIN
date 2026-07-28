@@ -358,7 +358,7 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
                   <span className="text-slate-200">
                     {item.quantity}x {item.name}
                   </span>
-                  <span className="font-mono text-emerald-400 font-bold">${(item.quantity * item.price).toFixed(2)}</span>
+                   <span className="font-mono text-emerald-400 font-bold">₹{(item.quantity * item.price).toFixed(2)}</span>
                 </div>
               ))}
             </div>

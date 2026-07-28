@@ -19,6 +19,7 @@ export interface Student {
   qrCode: string;
   lxInteractionsCount: number;
   dietaryPreference: string[];
+  userRole?: string;
 }
 
 export interface Vendor {

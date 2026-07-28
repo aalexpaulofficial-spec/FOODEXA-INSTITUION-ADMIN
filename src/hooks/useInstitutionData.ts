@@ -99,25 +99,23 @@ export function useInstitutionData(institutionId: string | null): InstitutionDat
       const [
         { data: instData },
         { data: studentsData },
-        { data: vendorsData },
+        { data: canteensData },
         { data: countersData },
         { data: ordersData },
         { data: menuItemsData },
-        { data: campusData },
         { data: staffData },
-        { data: announcementsData },
+        { data: notificationsData },
         { data: auditLogsData },
         { data: profilesData },
       ] = await Promise.all([
         supabase.from('institutions').select('*').eq('id', institutionId).single(),
-        supabase.from('students').select('*').eq('institution_id', institutionId),
-        supabase.from('vendors').select('*').eq('institution_id', institutionId),
+        supabase.from('profiles').select('*').eq('institution_id', institutionId).eq('role', 'student'),
+        supabase.from('canteens').select('*').eq('institution_id', institutionId),
         supabase.from('counters').select('*').eq('institution_id', institutionId),
         supabase.from('orders').select('*').eq('institution_id', institutionId),
         supabase.from('menu_items').select('*').eq('institution_id', institutionId),
-        supabase.from('campus_blocks').select('*').eq('institution_id', institutionId),
-        supabase.from('staff').select('*').eq('institution_id', institutionId),
-        supabase.from('announcements').select('*').eq('institution_id', institutionId),
+        supabase.from('profiles').select('*').eq('institution_id', institutionId).neq('role', 'student').neq('role', 'super_admin'),
+        supabase.from('notifications').select('*').eq('institution_id', institutionId),
         supabase.from('audit_logs').select('*').eq('institution_id', institutionId),
         supabase.from('profiles').select('*'),
       ]);
@@ -159,7 +157,7 @@ export function useInstitutionData(institutionId: string | null): InstitutionDat
         } as Institution);
       }
       if (studentsData) setStudents(studentsData as Student[]);
-      if (vendorsData) setVendors(vendorsData as Vendor[]);
+      if (canteensData) setVendors(canteensData as Vendor[]);
       if (countersData) setCounters(countersData as Counter[]);
       if (profilesData) setProfiles(profilesData as any);
       if (ordersData) {
@@ -168,9 +166,22 @@ export function useInstitutionData(institutionId: string | null): InstitutionDat
         setKitchenQueue(enrichKitchenQueueWithProfile(ordersData as any[], (profilesData as any[]) || []));
       }
       if (menuItemsData) setMenuItems(menuItemsData as MenuItem[]);
-      if (campusData) setCampusBlocks(campusData as CampusBlock[]);
+      if (instData) {
+        const d = instData as any;
+        const campus = d.campus || '';
+        setCampusBlocks(campus ? [{
+          id: institutionId + '-campus',
+          name: campus,
+          code: campus.toUpperCase().replace(/\s+/g, '-'),
+          departmentsCount: 0,
+          totalStudents: d.student_population || 0,
+          canteensCount: (canteensData as any[])?.length || 0,
+          operatingHours: '08:00 AM - 09:00 PM',
+          foodCourts: [],
+        }] : []);
+      }
       if (staffData) setStaff(staffData as StaffMember[]);
-      if (announcementsData) setAnnouncements(announcementsData as Announcement[]);
+      if (notificationsData) setAnnouncements(notificationsData as Announcement[]);
       if (auditLogsData) setAuditLogs(auditLogsData as AuditLog[]);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Unknown error');
@@ -187,35 +198,34 @@ export function useInstitutionData(institutionId: string | null): InstitutionDat
     if (!institutionId) return;
     const channel = supabase
       .channel(`inst_data_${institutionId}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'students', filter: `institution_id=eq.${institutionId}` }, () => fetchAll())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'vendors', filter: `institution_id=eq.${institutionId}` }, () => fetchAll())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles', filter: `institution_id=eq.${institutionId}` }, () => fetchAll())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'canteens', filter: `institution_id=eq.${institutionId}` }, () => fetchAll())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'orders', filter: `institution_id=eq.${institutionId}` }, () => fetchAll())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'menu_items', filter: `institution_id=eq.${institutionId}` }, () => fetchAll())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'announcements', filter: `institution_id=eq.${institutionId}` }, () => fetchAll())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'notifications', filter: `institution_id=eq.${institutionId}` }, () => fetchAll())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'counters', filter: `institution_id=eq.${institutionId}` }, () => fetchAll())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'staff', filter: `institution_id=eq.${institutionId}` }, () => fetchAll())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles', filter: `institution_id=eq.${institutionId}` }, () => fetchAll())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'audit_logs', filter: `institution_id=eq.${institutionId}` }, () => fetchAll())
       .subscribe();
     return () => { supabase.removeChannel(channel); };
   }, [institutionId, fetchAll]);
 
   const updateStudentStatus = async (studentId: string, status: 'active' | 'suspended') => {
-    await supabase.from('students').update({ status }).eq('id', studentId);
+    await supabase.from('profiles').update({ status }).eq('id', studentId);
     setStudents(prev => prev.map(s => s.id === studentId ? { ...s, status } : s));
   };
 
   const approveVendor = async (vendorId: string) => {
-    await supabase.from('vendors').update({ status: 'approved' }).eq('id', vendorId);
+    await supabase.from('canteens').update({ status: 'approved' }).eq('id', vendorId);
     setVendors(prev => prev.map(v => v.id === vendorId ? { ...v, status: 'approved' } : v));
   };
 
   const rejectVendor = async (vendorId: string) => {
-    await supabase.from('vendors').update({ status: 'rejected' }).eq('id', vendorId);
+    await supabase.from('canteens').update({ status: 'rejected' }).eq('id', vendorId);
     setVendors(prev => prev.map(v => v.id === vendorId ? { ...v, status: 'rejected' } : v));
   };
 
   const suspendVendor = async (vendorId: string) => {
-    await supabase.from('vendors').update({ status: 'suspended' }).eq('id', vendorId);
+    await supabase.from('canteens').update({ status: 'suspended' }).eq('id', vendorId);
     setVendors(prev => prev.map(v => v.id === vendorId ? { ...v, status: 'suspended' } : v));
   };
 
@@ -258,12 +268,12 @@ export function useInstitutionData(institutionId: string | null): InstitutionDat
     const s = staff.find(s => s.id === staffId);
     if (!s) return;
     const newPerms = { ...s.permissions, [permKey]: !s.permissions[permKey as keyof typeof s.permissions] };
-    await supabase.from('staff').update({ permissions: newPerms }).eq('id', staffId);
+    await supabase.from('profiles').update({ permissions: newPerms }).eq('id', staffId);
     setStaff(prev => prev.map(s => s.id === staffId ? { ...s, permissions: newPerms } : s));
   };
 
   const addAnnouncement = async (ann: Announcement) => {
-    const { data } = await supabase.from('announcements').insert({ ...ann, institution_id: institutionId }).select().single();
+    const { data } = await supabase.from('notifications').insert({ ...ann, institution_id: institutionId }).select().single();
     if (data) setAnnouncements(prev => [data as Announcement, ...prev]);
   };
 

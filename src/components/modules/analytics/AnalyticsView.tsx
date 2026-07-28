@@ -59,7 +59,7 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({ orders = [], stude
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="p-5 rounded-2xl bg-slate-900/80 border border-slate-800 shadow-xl space-y-2">
           <div className="text-xs text-slate-400 uppercase font-semibold">Total Revenue</div>
-          <div className="text-2xl font-black text-white font-mono">${totalRevenue.toFixed(2)}</div>
+           <div className="text-2xl font-black text-white font-mono">₹{totalRevenue.toFixed(2)}</div>
           <div className="text-[11px] text-emerald-400 font-mono">{totalMeals} Total Meals</div>
         </div>
         <div className="p-5 rounded-2xl bg-slate-900/80 border border-slate-800 shadow-xl space-y-2">

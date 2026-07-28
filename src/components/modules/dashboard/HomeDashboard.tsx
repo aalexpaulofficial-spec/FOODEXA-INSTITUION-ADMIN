@@ -94,7 +94,7 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
         <div className="bg-[#0C0C0E] border border-zinc-800/50 p-5 rounded-2xl">
           <p className="text-[10px] uppercase font-bold text-zinc-500 tracking-wider mb-2">Total Revenue</p>
           <div className="flex items-end gap-3">
-            <span className="text-2xl font-bold font-mono text-white">${totalRevenue.toFixed(2)}</span>
+            <span className="text-2xl font-bold font-mono text-white">₹{totalRevenue.toFixed(2)}</span>
           </div>
           <div className="w-full h-1 bg-zinc-800 rounded-full mt-4 overflow-hidden">
             <div className="w-[75%] h-full bg-emerald-500" />

@@ -526,11 +526,11 @@ export const MenuManagement: React.FC<MenuManagementProps> = ({
                     </div>
                     <div className="text-right pl-3 shrink-0">
                       <span className="text-lg font-black text-emerald-400 font-mono">
-                        ${item.price.toFixed(2)}
+                        ₹{item.price.toFixed(2)}
                       </span>
                       {item.discountPrice && (
                         <span className="block text-[10px] text-zinc-500 line-through font-mono">
-                          ${item.discountPrice.toFixed(2)}
+                          ₹{item.discountPrice.toFixed(2)}
                         </span>
                       )}
                     </div>

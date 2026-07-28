@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
-import { Settings, Shield, Building, Lock, CheckCircle2, Key, History } from 'lucide-react';
+import { Settings as SettingsIcon, Shield, Building, Lock, CheckCircle2, Key, History } from 'lucide-react';
 import { Institution, AuditLog } from '../../../types';
+import { supabase } from '../../../lib/supabaseClient';
+import { useAuth } from '../../../context/AuthContext';
 
 interface SettingsViewProps {
   currentInstitution: Institution;
@@ -8,16 +10,31 @@ interface SettingsViewProps {
 }
 
 export const SettingsView: React.FC<SettingsViewProps> = ({ currentInstitution, auditLogs }) => {
+  const { user } = useAuth();
   const [instName, setInstName] = useState(currentInstitution.name);
   const [email, setEmail] = useState(currentInstitution.email);
   const [phone, setPhone] = useState(currentInstitution.phone);
   const [tfaEnabled, setTfaEnabled] = useState(true);
   const [saveSuccessMsg, setSaveSuccessMsg] = useState(false);
 
-  const handleSave = (e: React.FormEvent) => {
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSaveSuccessMsg(true);
-    setTimeout(() => setSaveSuccessMsg(false), 2500);
+    if (!currentInstitution?.id) return;
+    try {
+      const { error } = await supabase
+        .from('institutions')
+        .update({
+          name: instName,
+          email: email,
+          phone: phone,
+        })
+        .eq('id', currentInstitution.id);
+      if (error) throw error;
+      setSaveSuccessMsg(true);
+      setTimeout(() => setSaveSuccessMsg(false), 2500);
+    } catch (err) {
+      console.error('[Settings] Save error:', err);
+    }
   };
 
   return (

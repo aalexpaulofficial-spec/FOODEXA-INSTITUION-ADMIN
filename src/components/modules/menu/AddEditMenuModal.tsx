@@ -459,9 +459,9 @@ export const AddEditMenuModal: React.FC<AddEditMenuModalProps> = ({
                       <p className="text-xs text-zinc-400 mt-0.5 leading-relaxed">{description || 'No description entered yet.'}</p>
                     </div>
                     <div className="text-right pl-3">
-                      <span className="text-lg font-black text-emerald-400 font-mono">${parseFloat(price || '0').toFixed(2)}</span>
+                      <span className="text-lg font-black text-emerald-400 font-mono">₹{parseFloat(price || '0').toFixed(2)}</span>
                       {discountPrice && (
-                        <span className="block text-[11px] text-zinc-500 line-through font-mono">${parseFloat(discountPrice).toFixed(2)}</span>
+                        <span className="block text-[11px] text-zinc-500 line-through font-mono">₹{parseFloat(discountPrice).toFixed(2)}</span>
                       )}
                     </div>
                   </div>
@@ -489,7 +489,7 @@ export const AddEditMenuModal: React.FC<AddEditMenuModalProps> = ({
                   )}
 
                   <button className="w-full py-3 rounded-xl bg-indigo-600 font-bold text-xs text-white shadow-lg shadow-indigo-600/30 mt-3">
-                    Add to Student Order Cart (${parseFloat(price || '0').toFixed(2)})
+                    Add to Student Order Cart (₹{parseFloat(price || '0').toFixed(2)})
                   </button>
                 </div>
               </div>

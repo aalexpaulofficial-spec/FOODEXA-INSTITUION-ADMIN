@@ -163,7 +163,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                   </td>
                   <td className="px-4 py-3.5 text-slate-400">{student.campusBlock}</td>
                   <td className="px-4 py-3.5 font-mono text-emerald-400 font-bold">
-                    ${student.walletBalance.toFixed(2)}
+                    ₹{student.walletBalance.toFixed(2)}
                   </td>
                   <td className="px-4 py-3.5">
                     <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded bg-cyan-500/10 text-cyan-300 text-[11px] font-mono border border-cyan-500/20">
@@ -260,7 +260,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
               <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800">
                 <div className="text-[10px] text-slate-500 uppercase font-semibold">Meal Wallet Balance</div>
                 <div className="text-lg font-black text-emerald-400 font-mono mt-1">
-                  ${activeStudentDrawer.walletBalance.toFixed(2)}
+                     ₹{activeStudentDrawer.walletBalance.toFixed(2)}
                 </div>
               </div>
               <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800">

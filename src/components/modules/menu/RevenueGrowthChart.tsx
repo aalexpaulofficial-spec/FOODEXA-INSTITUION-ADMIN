@@ -12,34 +12,19 @@ import {
   Bar
 } from 'recharts';
 import { MenuItem } from '../../../types';
+import { supabase } from '../../../lib/supabaseClient';
 
 interface RevenueGrowthChartProps {
   menuItems: MenuItem[];
   onReorderPriority?: (reorderedItems: MenuItem[]) => void;
+  institutionId?: string;
 }
 
-const WEEKLY_REVENUE_DATA = [
-  { day: 'Mon', revenue: 2450, orders: 420, conversion: 24.5 },
-  { day: 'Tue', revenue: 3100, orders: 530, conversion: 26.1 },
-  { day: 'Wed', revenue: 2980, orders: 490, conversion: 25.8 },
-  { day: 'Thu', revenue: 3840, orders: 640, conversion: 28.4 },
-  { day: 'Fri', revenue: 4520, orders: 780, conversion: 31.2 },
-  { day: 'Sat', revenue: 3200, orders: 510, conversion: 27.0 },
-  { day: 'Sun', revenue: 2100, orders: 360, conversion: 22.8 }
-];
-
-const HEATMAP_DATA = [
-  { slot: '08:00 - 10:00 (Breakfast)', SouthIndian: 85, Healthy: 65, Beverages: 92, FastFood: 20 },
-  { slot: '10:00 - 12:00 (Morning)', SouthIndian: 40, Healthy: 75, Beverages: 98, FastFood: 35 },
-  { slot: '12:00 - 14:00 (Lunch Rush)', SouthIndian: 95, Healthy: 88, Beverages: 80, FastFood: 90 },
-  { slot: '14:00 - 16:00 (Afternoon)', SouthIndian: 25, Healthy: 40, Beverages: 85, FastFood: 50 },
-  { slot: '16:00 - 18:00 (Snacks)', SouthIndian: 70, Healthy: 50, Beverages: 90, FastFood: 85 },
-  { slot: '18:00 - 20:00 (Dinner)', SouthIndian: 88, Healthy: 70, Beverages: 75, FastFood: 95 }
-];
-
-export const RevenueGrowthChart: React.FC<RevenueGrowthChartProps> = ({ menuItems, onReorderPriority }) => {
+export const RevenueGrowthChart: React.FC<RevenueGrowthChartProps> = ({ menuItems, onReorderPriority, institutionId }) => {
   const [items, setItems] = useState<MenuItem[]>(menuItems);
   const [activeTab, setActiveTab] = useState<'chart' | 'heatmap' | 'priority'>('chart');
+  const [liveRevenueData, setLiveRevenueData] = useState<any[]>([]);
+  const [liveHeatmapData, setLiveHeatmapData] = useState<any[]>([]);
 
   const totalViews = menuItems.reduce((acc, i) => acc + (i.analytics?.views || 1200), 0);
   const totalOrders = menuItems.reduce((acc, i) => acc + (i.analytics?.orders || 350), 0);
@@ -131,8 +116,8 @@ export const RevenueGrowthChart: React.FC<RevenueGrowthChartProps> = ({ menuItem
             <span className="text-[11px] font-semibold">Total Revenue</span>
             <DollarSign className="w-4 h-4 text-amber-400" />
           </div>
-          <div className="text-xl font-bold text-white font-mono">${totalRevenue.toLocaleString()}</div>
-          <div className="text-[10px] text-indigo-400 font-medium mt-1">Avg dish $7.20</div>
+           <div className="text-xl font-bold text-white font-mono">₹{totalRevenue.toLocaleString()}</div>
+           <div className="text-[10px] text-indigo-400 font-medium mt-1">Avg dish ₹7.20</div>
         </div>
 
         <div className="p-4 rounded-2xl bg-zinc-900/60 border border-zinc-800">
@@ -150,7 +135,7 @@ export const RevenueGrowthChart: React.FC<RevenueGrowthChartProps> = ({ menuItem
         <div className="space-y-4">
           <div className="h-64 w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={WEEKLY_REVENUE_DATA}>
+               <AreaChart data={liveRevenueData.length > 0 ? liveRevenueData : [{ day: 'Mon', revenue: 0, orders: 0, conversion: 0 }]}>
                 <defs>
                   <linearGradient id="revGrad" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="#6366f1" stopOpacity={0.4} />
@@ -169,7 +154,7 @@ export const RevenueGrowthChart: React.FC<RevenueGrowthChartProps> = ({ menuItem
                     fontSize: '12px'
                   }}
                 />
-                <Area type="monotone" dataKey="revenue" name="Revenue ($)" stroke="#6366f1" strokeWidth={2.5} fillOpacity={1} fill="url(#revGrad)" />
+                <Area type="monotone" dataKey="revenue" name="Revenue (₹)" stroke="#6366f1" strokeWidth={2.5} fillOpacity={1} fill="url(#revGrad)" />
               </AreaChart>
             </ResponsiveContainer>
           </div>
@@ -194,7 +179,14 @@ export const RevenueGrowthChart: React.FC<RevenueGrowthChartProps> = ({ menuItem
                 </tr>
               </thead>
               <tbody className="divide-y divide-zinc-800/60">
-                {HEATMAP_DATA.map((row, idx) => (
+                {(liveHeatmapData.length > 0 ? liveHeatmapData : [
+                  { slot: '08:00 - 10:00 (Breakfast)', SouthIndian: 0, Healthy: 0, Beverages: 0, FastFood: 0 },
+                  { slot: '10:00 - 12:00 (Morning)', SouthIndian: 0, Healthy: 0, Beverages: 0, FastFood: 0 },
+                  { slot: '12:00 - 14:00 (Lunch Rush)', SouthIndian: 0, Healthy: 0, Beverages: 0, FastFood: 0 },
+                  { slot: '14:00 - 16:00 (Afternoon)', SouthIndian: 0, Healthy: 0, Beverages: 0, FastFood: 0 },
+                  { slot: '16:00 - 18:00 (Snacks)', SouthIndian: 0, Healthy: 0, Beverages: 0, FastFood: 0 },
+                  { slot: '18:00 - 20:00 (Dinner)', SouthIndian: 0, Healthy: 0, Beverages: 0, FastFood: 0 },
+                ]).map((row, idx) => (
                   <tr key={idx} className="hover:bg-zinc-900/40">
                     <td className="p-3 font-medium text-white">{row.slot}</td>
                     <td className="p-3 text-center">
