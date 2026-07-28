@@ -77,7 +77,7 @@ export const QRPickupScannerModal: React.FC<QRPickupScannerModalProps> = ({
             <QrCode className="w-12 h-12 text-amber-400 animate-pulse" />
             <div className="absolute inset-0 bg-gradient-to-b from-amber-500/0 via-amber-500/20 to-amber-500/0 animate-scan" />
           </div>
-          <span className="text-[11px] text-slate-500 mt-2 font-mono">Simulated Laser Scanner Ready</span>
+           <span className="text-[11px] text-slate-500 mt-2 font-mono">QR Scanner Ready</span>
         </div>
 
         {/* Manual Pickup Code Input */}
@@ -95,8 +95,8 @@ export const QRPickupScannerModal: React.FC<QRPickupScannerModalProps> = ({
                   handleVerify(e.target.value);
                 }
               }}
-              placeholder="e.g. 8012 or 9103"
-              className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-slate-100 text-sm font-mono tracking-widest placeholder-slate-600 focus:outline-none focus:border-amber-500"
+               placeholder="Enter order pickup code"
+               className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-slate-100 text-sm font-mono tracking-widest placeholder-slate-600 focus:outline-none focus:border-amber-500"
             />
             <button
               onClick={() => handleVerify(scannedCode)}
@@ -107,10 +107,10 @@ export const QRPickupScannerModal: React.FC<QRPickupScannerModalProps> = ({
           </div>
         </div>
 
-        {/* Quick Demo Pickups */}
+        {/* Quick Pickup Codes */}
         <div className="mb-4">
           <span className="text-[10px] text-slate-500 font-semibold uppercase block mb-1.5">
-            Test Quick Scan Codes:
+            Quick Pickup Codes:
           </span>
           <div className="flex flex-wrap gap-1.5">
             {orders.map((o) => (
@@ -144,7 +144,7 @@ export const QRPickupScannerModal: React.FC<QRPickupScannerModalProps> = ({
             <div className="grid grid-cols-2 gap-2 p-2 rounded-lg bg-slate-950/80 border border-slate-800 text-[11px]">
               <div>
                 <span className="text-slate-500 block text-[9px] uppercase font-bold">Pickup Counter</span>
-                <span className="font-bold text-amber-400 font-mono">{matchedOrder.pickupCounter || 'Counter B'}</span>
+                 <span className="font-bold text-amber-400 font-mono">{matchedOrder.pickupCounter || ''}</span>
               </div>
               <div>
                 <span className="text-slate-500 block text-[9px] uppercase font-bold">Pickup Number</span>

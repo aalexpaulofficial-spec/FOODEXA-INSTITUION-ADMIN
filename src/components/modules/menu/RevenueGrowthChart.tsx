@@ -26,9 +26,9 @@ export const RevenueGrowthChart: React.FC<RevenueGrowthChartProps> = ({ menuItem
   const [liveRevenueData, setLiveRevenueData] = useState<any[]>([]);
   const [liveHeatmapData, setLiveHeatmapData] = useState<any[]>([]);
 
-  const totalViews = menuItems.reduce((acc, i) => acc + (i.analytics?.views || 1200), 0);
-  const totalOrders = menuItems.reduce((acc, i) => acc + (i.analytics?.orders || 350), 0);
-  const totalRevenue = menuItems.reduce((acc, i) => acc + (i.analytics?.revenue || i.price * 100), 0);
+  const totalViews = menuItems.reduce((acc, i) => acc + (i.analytics?.views || 0), 0);
+  const totalOrders = menuItems.reduce((acc, i) => acc + (i.analytics?.orders || 0), 0);
+  const totalRevenue = menuItems.reduce((acc, i) => acc + (i.analytics?.revenue || 0), 0);
 
   const movePriority = (index: number, direction: 'up' | 'down') => {
     const newItems = [...items];
@@ -99,7 +99,7 @@ export const RevenueGrowthChart: React.FC<RevenueGrowthChartProps> = ({ menuItem
             <Eye className="w-4 h-4 text-indigo-400" />
           </div>
           <div className="text-xl font-bold text-white font-mono">{totalViews.toLocaleString()}</div>
-          <div className="text-[10px] text-emerald-400 font-medium mt-1">+18.4% vs last week</div>
+           <div className="text-[10px] text-emerald-400 font-medium mt-1">Live from menu analytics</div>
         </div>
 
         <div className="p-4 rounded-2xl bg-zinc-900/60 border border-zinc-800">
@@ -108,7 +108,7 @@ export const RevenueGrowthChart: React.FC<RevenueGrowthChartProps> = ({ menuItem
             <ShoppingBag className="w-4 h-4 text-emerald-400" />
           </div>
           <div className="text-xl font-bold text-white font-mono">{totalOrders.toLocaleString()}</div>
-          <div className="text-[10px] text-emerald-400 font-medium mt-1">+24.1% conversion rate</div>
+          <div className="text-[10px] text-emerald-400 font-medium mt-1">Live from orders</div>
         </div>
 
         <div className="p-4 rounded-2xl bg-zinc-900/60 border border-zinc-800">
@@ -117,7 +117,11 @@ export const RevenueGrowthChart: React.FC<RevenueGrowthChartProps> = ({ menuItem
             <DollarSign className="w-4 h-4 text-amber-400" />
           </div>
            <div className="text-xl font-bold text-white font-mono">₹{totalRevenue.toLocaleString()}</div>
-           <div className="text-[10px] text-indigo-400 font-medium mt-1">Avg dish ₹7.20</div>
+           {totalRevenue > 0 && (
+            <div className="text-[10px] text-indigo-400 font-medium mt-1">
+              Avg per item ₹{(totalRevenue / (totalOrders || 1)).toFixed(2)}
+            </div>
+          )}
         </div>
 
         <div className="p-4 rounded-2xl bg-zinc-900/60 border border-zinc-800">
@@ -125,8 +129,12 @@ export const RevenueGrowthChart: React.FC<RevenueGrowthChartProps> = ({ menuItem
             <span className="text-[11px] font-semibold">Trending Score</span>
             <Flame className="w-4 h-4 text-orange-400" />
           </div>
-          <div className="text-xl font-bold text-white font-mono">96 / 100</div>
-          <div className="text-[10px] text-orange-400 font-medium mt-1">High Student Demand</div>
+          <div className="text-xl font-bold text-white font-mono">
+            {Math.min(100, Math.max(0, totalOrders > 0 ? Math.round((totalOrders / (totalOrders + 1)) * 100) : 0))} / 100
+          </div>
+          <div className="text-[10px] text-orange-400 font-medium mt-1">
+            {totalOrders > 0 ? 'Active Demand' : 'No orders yet'}
+          </div>
         </div>
       </div>
 

@@ -144,7 +144,7 @@ export const StudentDashboardSyncModal: React.FC<StudentDashboardSyncModalProps>
                       Pickup Counter
                     </span>
                     <span className="text-sm font-black text-amber-400 font-mono mt-0.5 block">
-                      {activeStudentOrder.pickupCounter || 'Counter B'}
+                       {activeStudentOrder.pickupCounter || ''}
                     </span>
                   </div>
 
@@ -174,7 +174,7 @@ export const StudentDashboardSyncModal: React.FC<StudentDashboardSyncModalProps>
                     {activeStudentOrder.pickupCode}
                   </div>
                   <span className="text-[10px] text-slate-600 font-medium">
-                    Show this QR at {activeStudentOrder.pickupCounter || 'Counter B'} for verification
+                    Show this QR at {activeStudentOrder.pickupCounter || ''} for verification
                   </span>
                 </div>
 
@@ -241,9 +241,9 @@ export const StudentDashboardSyncModal: React.FC<StudentDashboardSyncModalProps>
             <div className="p-8 text-center text-slate-500 space-y-2">
               <ShoppingBag className="w-8 h-8 mx-auto opacity-40 text-slate-400" />
               <p className="text-slate-300 font-semibold">No active student orders</p>
-              <p className="text-[11px] text-slate-500">
-                Switch to Menu tab to simulate placing a new student order via Razorpay demo mode.
-              </p>
+               <p className="text-[11px] text-slate-500">
+                 Browse the student menu to place a new order.
+               </p>
             </div>
           )}
 
@@ -283,7 +283,7 @@ export const StudentDashboardSyncModal: React.FC<StudentDashboardSyncModalProps>
                         <div className="text-[10px] text-slate-400 flex items-center space-x-2">
                           <span className="text-amber-400">{item.category}</span>
                           <span>&bull;</span>
-                          <span>{item.counterNumber || 'Counter B'}</span>
+                           <span>{item.counterNumber || ''}</span>
                         </div>
                       </div>
                     </div>

@@ -60,7 +60,7 @@ export function App() {
     } else if (role === 'institution_admin' && superAdminTabs.includes(currentTab)) {
       setCurrentTab('dashboard');
     }
-  }, [role, currentTab, institutionTabs, superAdminTabs]);
+  }, [role, institutionTabs, superAdminTabs]);
 
   const institutionId = role === 'institution_admin' ? authInstId : null;
   const {
@@ -69,7 +69,7 @@ export function App() {
     loading: dataLoading,
     refresh,
     updateStudentStatus, approveVendor, rejectVendor, suspendVendor,
-    addCounter, updateCounter, deleteCounter, toggleCounterAvailability,
+    addCounter, updateCounter, deleteCounter, archiveCounter, restoreCounter, updateCounterStatus, toggleCounterAvailability,
     updateKitchenStatus, updateOrderStatus,
     addMenuItem, updateMenuItem, deleteMenuItem, toggleMenuAvailability,
     addMenuCategory, updateMenuCategory, deleteMenuCategory,
@@ -117,7 +117,7 @@ export function App() {
       <Header
         currentPortal={currentPortal}
         onPortalChange={() => {}}
-        currentInstitution={institution || { id: '', name: 'Unknown Institution', institution_code: '', studentsCount: 0, vendorsCount: 0, dailyOrdersCount: 0, monthlyRevenue: 0, status: 'active', contactPerson: '', email: '', phone: '', joinedDate: '', plan: 'Basic' }}
+        currentInstitution={institution || { id: authInstId || '', name: 'Loading...', institution_code: '', studentsCount: 0, vendorsCount: 0, dailyOrdersCount: 0, monthlyRevenue: 0, status: 'active', contactPerson: '', email: '', phone: '', joinedDate: '', plan: 'Basic' }}
         onInstitutionSelect={() => {}}
         onOpenAISearch={() => setIsAISearchOpen(true)}
         onOpenQRScanner={() => setIsQRScannerOpen(true)}
@@ -166,7 +166,7 @@ export function App() {
                   <>
                     {currentTab === 'dashboard' && (
                       <HomeDashboard
-                        currentInstitution={institution || { id: '', name: 'Your Institution', institution_code: '', studentsCount: 0, vendorsCount: 0, dailyOrdersCount: 0, monthlyRevenue: 0, status: 'active', contactPerson: '', email: '', phone: '', joinedDate: '', plan: 'Basic' }}
+                        currentInstitution={institution || { id: authInstId || '', name: 'Your Institution', institution_code: '', studentsCount: 0, vendorsCount: 0, dailyOrdersCount: 0, monthlyRevenue: 0, status: 'active', contactPerson: '', email: '', phone: '', joinedDate: '', plan: 'Basic' }}
                         vendors={vendors}
                         onNavigate={setCurrentTab}
                         onOpenQRScanner={() => setIsQRScannerOpen(true)}
@@ -193,6 +193,9 @@ export function App() {
                         onAddCounter={addCounter}
                         onUpdateCounter={updateCounter}
                         onDeleteCounter={deleteCounter}
+                        onArchiveCounter={archiveCounter}
+                        onRestoreCounter={restoreCounter}
+                        onUpdateCounterStatus={updateCounterStatus}
                         onToggleCounterAvailability={toggleCounterAvailability}
                         onDeleteVendor={deleteVendor}
                       />
@@ -208,7 +211,6 @@ export function App() {
 
                     {currentTab === 'orders' && (
                       <OrderManagement
-        isOpen={isQRScannerOpen}
                         currentInstitution={institution}
                         onUpdateOrderStatus={handleUpdateOrderStatus}
                         onOpenQRScanner={() => setIsQRScannerOpen(true)}
@@ -231,8 +233,6 @@ export function App() {
                       />
                     )}
 
-        isOpen={isQRScannerOpen}
-
                     {currentTab === 'reports' && <ReportsView />}
 
                     {currentTab === 'campus' && <CampusManagement campusBlocks={campusBlocks} />}
@@ -247,17 +247,18 @@ export function App() {
                         onAddAnnouncement={addAnnouncement}
                         onDeleteAnnouncement={deleteAnnouncement}
                       />
+                    )}
 
                     {currentTab === 'ai_center' && (
                       <AICenterView
-                          currentInstitution={institution || { id: '', name: 'Your Institution', institution_code: '', studentsCount: 0, vendorsCount: 0, dailyOrdersCount: 0, monthlyRevenue: 0, status: 'active', contactPerson: '', email: '', phone: '', joinedDate: '', plan: 'Basic' }}
+                          currentInstitution={institution || { id: authInstId || '', name: 'Your Institution', institution_code: '', studentsCount: 0, vendorsCount: 0, dailyOrdersCount: 0, monthlyRevenue: 0, status: 'active', contactPerson: '', email: '', phone: '', joinedDate: '', plan: 'Basic' }}
                           menuItems={menuItems}
                           orders={orders}
                         />
                     )}
 
                     {currentTab === 'settings' && (
-                      <SettingsView currentInstitution={institution || { id: '', name: 'Your Institution', institution_code: '', studentsCount: 0, vendorsCount: 0, dailyOrdersCount: 0, monthlyRevenue: 0, status: 'active', contactPerson: '', email: '', phone: '', joinedDate: '', plan: 'Basic' }} auditLogs={auditLogs} onUpdateInstitution={updateInstitution} />
+                      <SettingsView currentInstitution={institution || { id: authInstId || '', name: 'Your Institution', institution_code: '', studentsCount: 0, vendorsCount: 0, dailyOrdersCount: 0, monthlyRevenue: 0, status: 'active', contactPerson: '', email: '', phone: '', joinedDate: '', plan: 'Basic' }} auditLogs={auditLogs} onUpdateInstitution={updateInstitution} />
                     )}
                   </>
                 )}

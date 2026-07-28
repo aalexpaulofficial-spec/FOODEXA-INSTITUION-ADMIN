@@ -1,11 +1,37 @@
-import React, { useState, useEffect } from 'react';
-import { FileText, Download, Sparkles, Users, ShoppingBag, TrendingUp, Clock } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { FileText, Download, Sparkles, Users, ShoppingBag, TrendingUp, Calendar } from 'lucide-react';
 import { supabase } from '../../../lib/supabaseClient';
 import { useAuth } from '../../../context/AuthContext';
+
+type Period = 'daily' | 'weekly' | 'monthly';
+
+function getDateRange(period: Period) {
+  const now = new Date();
+  const start = new Date();
+  if (period === 'daily') {
+    start.setHours(0, 0, 0, 0);
+  } else if (period === 'weekly') {
+    const day = now.getDay();
+    const diff = now.getDate() - day + (day === 0 ? -6 : 1);
+    start.setDate(diff);
+    start.setHours(0, 0, 0, 0);
+  } else if (period === 'monthly') {
+    start.setDate(1);
+    start.setHours(0, 0, 0, 0);
+  }
+  return { start, end: now };
+}
+
+function formatDateRange(period: Period) {
+  const { start, end } = getDateRange(period);
+  const opts: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric', year: 'numeric' };
+  return `${start.toLocaleDateString('en-US', opts)} - ${end.toLocaleDateString('en-US', opts)}`;
+}
 
 export const ReportsView: React.FC = () => {
   const { user, institutionId } = useAuth();
   const [downloadSuccessMsg, setDownloadSuccessMsg] = useState<string | null>(null);
+  const [period, setPeriod] = useState<Period>('daily');
   const [reportData, setReportData] = useState<{
     totalOrders: number;
     totalRevenue: number;
@@ -15,7 +41,7 @@ export const ReportsView: React.FC = () => {
     readyOrders: number;
     completedOrders: number;
     cancelledOrders: number;
-    dailyRevenue: number;
+    periodRevenue: number;
     topMenuItems: { name: string; orders: number; revenue: number }[];
     studentActivity: { name: string; orders: number }[];
     orderStatusBreakdown: { status: string; count: number }[];
@@ -47,27 +73,29 @@ export const ReportsView: React.FC = () => {
 
         if (menuItemsErr) throw menuItemsErr;
 
+        const { start, end } = getDateRange(period);
+
+        const periodOrders = orders?.filter(o => {
+          const t = new Date(o.orderTime).getTime();
+          return t >= start.getTime() && t <= end.getTime();
+        }) || [];
+
         const totalOrders = orders?.length || 0;
         const totalRevenue = orders?.reduce((sum, o) => sum + (o.totalAmount || 0), 0) || 0;
         const totalStudents = profiles?.length || 0;
-        const pendingOrders = orders?.filter(o => o.status === 'pending').length || 0;
-        const preparingOrders = orders?.filter(o => o.status === 'preparing').length || 0;
-        const readyOrders = orders?.filter(o => o.status === 'ready').length || 0;
-        const completedOrders = orders?.filter(o => o.status === 'completed').length || 0;
-        const cancelledOrders = orders?.filter(o => o.status === 'cancelled').length || 0;
-
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        const dailyRevenue = orders
-          ?.filter(o => new Date(o.orderTime) >= today)
-          ?.reduce((sum, o) => sum + (o.totalAmount || 0), 0) || 0;
+        const pendingOrders = periodOrders.filter(o => o.status === 'pending').length;
+        const preparingOrders = periodOrders.filter(o => o.status === 'preparing').length;
+        const readyOrders = periodOrders.filter(o => o.status === 'ready').length;
+        const completedOrders = periodOrders.filter(o => o.status === 'completed').length;
+        const cancelledOrders = periodOrders.filter(o => o.status === 'cancelled').length;
+        const periodRevenue = periodOrders.reduce((sum, o) => sum + (o.totalAmount || 0), 0);
 
         const mealCounts: Record<string, { orders: number; revenue: number }> = {};
-        orders?.forEach(o => {
+        periodOrders.forEach(o => {
           o.items?.forEach(item => {
             if (!mealCounts[item.name]) mealCounts[item.name] = { orders: 0, revenue: 0 };
             mealCounts[item.name].orders += item.quantity;
-            mealCounts[item.name].revenue += item.quantity * item.price;
+            mealCounts[item.name].revenue += item.quantity * (item.price || 0);
           });
         });
         const topMenuItems = Object.entries(mealCounts)
@@ -76,7 +104,7 @@ export const ReportsView: React.FC = () => {
           .map(([name, data]) => ({ name, orders: data.orders, revenue: data.revenue }));
 
         const studentOrderCounts: Record<string, number> = {};
-        orders?.forEach(o => {
+        periodOrders.forEach(o => {
           if (o.studentId) {
             studentOrderCounts[o.studentId] = (studentOrderCounts[o.studentId] || 0) + 1;
           }
@@ -90,14 +118,14 @@ export const ReportsView: React.FC = () => {
           });
 
         const statusCounts: Record<string, number> = {};
-        orders?.forEach(o => {
+        periodOrders.forEach(o => {
           statusCounts[o.status] = (statusCounts[o.status] || 0) + 1;
         });
         const orderStatusBreakdown = Object.entries(statusCounts).map(([status, count]) => ({ status, count }));
 
         setReportData({
           totalOrders, totalRevenue, totalStudents, pendingOrders, preparingOrders,
-          readyOrders, completedOrders, cancelledOrders, dailyRevenue, topMenuItems,
+          readyOrders, completedOrders, cancelledOrders, periodRevenue, topMenuItems,
           studentActivity, orderStatusBreakdown,
         });
       } catch (err) {
@@ -106,72 +134,134 @@ export const ReportsView: React.FC = () => {
     };
 
     fetchReportData();
-  }, [institutionId]);
+  }, [institutionId, period]);
 
-  const handleDownload = (reportType: string, format: string) => {
-    let content = '';
-    if (reportType === 'daily-revenue') {
-      content = `FOODEXA Daily Revenue Report\nGenerated: ${new Date().toISOString()}\nInstitution ID: ${institutionId}\n\n`;
-      content += `Total Revenue Today: ₹${reportData?.dailyRevenue.toFixed(2) || '0.00'}\n`;
-      content += `Total Revenue (All Time): ₹${reportData?.totalRevenue.toFixed(2) || '0.00'}\n`;
-      content += `Total Orders: ${reportData?.totalOrders || 0}\n`;
-      content += `Total Students: ${reportData?.totalStudents || 0}\n`;
-      content += `\nOrder Status Breakdown:\n`;
-      reportData?.orderStatusBreakdown.forEach(item => {
-        content += `  ${item.status}: ${item.count}\n`;
-      });
-      content += `\nTop Menu Items:\n`;
-      reportData?.topMenuItems.forEach(item => {
-        content += `  ${item.name}: ${item.orders} orders, ₹${item.revenue.toFixed(2)}\n`;
-      });
-    } else if (reportType === 'orders') {
-      content = `FOODEXA Orders Report\nGenerated: ${new Date().toISOString()}\nInstitution ID: ${institutionId}\n\n`;
-      content += `Total Orders: ${reportData?.totalOrders || 0}\n`;
-      content += `Pending: ${reportData?.pendingOrders || 0}\n`;
-      content += `Preparing: ${reportData?.preparingOrders || 0}\n`;
-      content += `Ready: ${reportData?.readyOrders || 0}\n`;
-      content += `Completed: ${reportData?.completedOrders || 0}\n`;
-      content += `Cancelled: ${reportData?.cancelledOrders || 0}\n`;
-    } else if (reportType === 'students') {
-      content = `FOODEXA Student Activity Report\nGenerated: ${new Date().toISOString()}\nInstitution ID: ${institutionId}\n\n`;
-      content += `Total Students: ${reportData?.totalStudents || 0}\n`;
-      content += `\nTop Active Students:\n`;
-      reportData?.studentActivity.forEach(item => {
-        content += `  ${item.name}: ${item.orders} orders\n`;
-      });
-    } else if (reportType === 'menu') {
-      content = `FOODEXA Menu Performance Report\nGenerated: ${new Date().toISOString()}\nInstitution ID: ${institutionId}\n\n`;
-      content += `Total Menu Items: ${reportData?.topMenuItems.length || 0}\n`;
-      content += `\nTop Items by Orders:\n`;
-      reportData?.topMenuItems.forEach(item => {
-        content += `  ${item.name}: ${item.orders} orders, ₹${item.revenue.toFixed(2)} revenue\n`;
-      });
-    }
-
-    const blob = new Blob([content], { type: format === 'PDF' ? 'application/pdf' : 'text/csv;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `${reportType}-${new Date().toISOString().split('T')[0]}.${format.toLowerCase()}`;
-    link.click();
-    URL.revokeObjectURL(url);
-    setDownloadSuccessMsg(`Downloaded ${reportType}.${format.toLowerCase()}`);
+  const downloadCSV = (reportType: string, rows: string[][], headers: string[]) => {
+    const csv = [headers.join(','), ...rows.map(r => r.map(c => `"${c}"`).join(','))].join('\n');
+    downloadBlob(csv, `${reportType}-${period}-${new Date().toISOString().split('T')[0]}.csv`, 'text/csv;charset=utf-8');
+    setDownloadSuccessMsg(`Exported ${reportType} CSV`);
     setTimeout(() => setDownloadSuccessMsg(null), 3000);
   };
 
+  const downloadExcel = (reportType: string, rows: string[][], headers: string[]) => {
+    const BOM = '\uFEFF';
+    const sheet = rows.length > 0 ? [headers, ...rows] : [headers];
+    const xlsx = sheet.map(row => row.join('\t')).join('\n');
+    downloadBlob(BOM + xlsx, `${reportType}-${period}-${new Date().toISOString().split('T')[0]}.xls`, 'application/vnd.ms-excel;charset=utf-8');
+    setDownloadSuccessMsg(`Exported ${reportType} Excel`);
+    setTimeout(() => setDownloadSuccessMsg(null), 3000);
+  };
+
+  const downloadPDF = (reportType: string, content: string) => {
+    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${reportType}-${period}-${new Date().toISOString().split('T')[0]}.txt`;
+    link.click();
+    URL.revokeObjectURL(url);
+    setDownloadSuccessMsg(`Exported ${reportType} PDF`);
+    setTimeout(() => setDownloadSuccessMsg(null), 3000);
+  };
+
+  const downloadBlob = (content: string, filename: string, mime: string) => {
+    const blob = new Blob([content], { type: mime });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const getReportContent = (reportType: string): { headers: string[]; rows: string[][] } => {
+    if (!reportData) return { headers: [], rows: [] };
+    if (reportType === 'revenue') {
+      return {
+        headers: ['Period', 'Revenue', 'Orders', 'Completed', 'Pending', 'Preparing', 'Ready', 'Cancelled'],
+        rows: [[formatDateRange(period), `₹${reportData.periodRevenue.toFixed(2)}`, String(reportData.totalOrders), String(reportData.completedOrders), String(reportData.pendingOrders), String(reportData.preparingOrders), String(reportData.readyOrders), String(reportData.cancelledOrders)]],
+      };
+    } else if (reportType === 'orders') {
+      return {
+        headers: ['Status', 'Count'],
+        rows: reportData.orderStatusBreakdown.map(item => [item.status, String(item.count)]),
+      };
+    } else if (reportType === 'menu') {
+      return {
+        headers: ['Item', 'Orders', 'Revenue'],
+        rows: reportData.topMenuItems.map(item => [item.name, String(item.orders), `₹${item.revenue.toFixed(2)}`]),
+      };
+    } else if (reportType === 'students') {
+      return {
+        headers: ['Student', 'Orders'],
+        rows: reportData.studentActivity.map(item => [item.name, String(item.orders)]),
+      };
+    }
+    return { headers: [], rows: [] };
+  };
+
+  const getPDFContent = (reportType: string): string => {
+    if (!reportData) return '';
+    const lines: string[] = [
+      `FOODEXA ${period.charAt(0).toUpperCase() + period.slice(1)} Report`,
+      `Generated: ${new Date().toISOString()}`,
+      `Period: ${formatDateRange(period)}`,
+      `Institution ID: ${institutionId}`,
+      '',
+    ];
+    if (reportType === 'revenue') {
+      lines.push(`Period Revenue: ₹${reportData.periodRevenue.toFixed(2)}`);
+      lines.push(`Total Revenue: ₹${reportData.totalRevenue.toFixed(2)}`);
+      lines.push(`Orders: ${reportData.totalOrders}`);
+      lines.push(`Students: ${reportData.totalStudents}`);
+      lines.push('Status Breakdown:');
+      reportData.orderStatusBreakdown.forEach(item => lines.push(`  ${item.status}: ${item.count}`));
+      lines.push('Top Items:');
+      reportData.topMenuItems.slice(0, 5).forEach(item => lines.push(`  ${item.name}: ${item.orders} orders`));
+    } else if (reportType === 'orders') {
+      lines.push('Order Status Breakdown:');
+      reportData.orderStatusBreakdown.forEach(item => lines.push(`  ${item.status}: ${item.count}`));
+    } else if (reportType === 'menu') {
+      lines.push('Top Menu Items:');
+      reportData.topMenuItems.forEach(item => lines.push(`  ${item.name}: ${item.orders} orders, ₹${item.revenue.toFixed(2)}`));
+    } else if (reportType === 'students') {
+      lines.push('Student Activity:');
+      reportData.studentActivity.forEach(item => lines.push(`  ${item.name}: ${item.orders} orders`));
+    }
+    return lines.join('\n');
+  };
+
+  const handleDownload = (reportType: string, format: 'CSV' | 'Excel' | 'PDF') => {
+    const { headers, rows } = getReportContent(reportType);
+    if (format === 'CSV') downloadCSV(reportType, rows, headers);
+    else if (format === 'Excel') downloadExcel(reportType, rows, headers);
+    else if (format === 'PDF') downloadPDF(reportType, getPDFContent(reportType));
+  };
+
   const reportTypes = [
-    { id: 'daily-revenue', title: 'Daily Revenue Report', desc: 'Today\'s sales and order settlements', formats: ['CSV', 'PDF'] },
-    { id: 'orders', title: 'Orders Report', desc: 'All orders with status and payment details', formats: ['CSV', 'PDF'] },
-    { id: 'students', title: 'Student Activity Report', desc: 'Student meal ordering patterns', formats: ['CSV'] },
-    { id: 'menu', title: 'Menu Performance Report', desc: 'Item popularity and revenue by dish', formats: ['CSV', 'PDF'] },
+    { id: 'revenue', title: `${period.charAt(0).toUpperCase() + period.slice(1)} Revenue Report`, desc: `Sales and order settlements for ${formatDateRange(period)}`, formats: ['CSV', 'Excel', 'PDF'] },
+    { id: 'orders', title: 'Orders Report', desc: 'All orders with status and payment details', formats: ['CSV', 'Excel', 'PDF'] },
+    { id: 'students', title: 'Student Activity Report', desc: 'Student meal ordering patterns', formats: ['CSV', 'Excel'] },
+    { id: 'menu', title: 'Menu Performance Report', desc: 'Item popularity and revenue by dish', formats: ['CSV', 'Excel', 'PDF'] },
   ];
 
   return (
-    <div className="space-y-6 animate-fade-in font-sans">
+    <div className="space-y-6 font-sans">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-xl font-extrabold text-white">Reports & Data Exports</h1>
           <p className="text-xs text-slate-400">Generate reports from live Supabase data.</p>
+        </div>
+        <div className="flex bg-zinc-900 p-1 rounded-xl border border-zinc-800 text-xs font-semibold">
+          {(['daily', 'weekly', 'monthly'] as Period[]).map((p) => (
+            <button
+              key={p}
+              onClick={() => setPeriod(p)}
+              className={`px-4 py-2 rounded-lg transition-all ${period === p ? 'bg-indigo-600 text-white font-bold shadow-sm' : 'text-slate-400 hover:text-slate-200'}`}
+            >
+              {p.charAt(0).toUpperCase() + p.slice(1)}
+            </button>
+          ))}
         </div>
       </div>
 
@@ -185,8 +275,8 @@ export const ReportsView: React.FC = () => {
       {reportData && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
           <div className="p-4 rounded-xl bg-slate-900/80 border border-slate-800">
-            <div className="text-[10px] text-slate-500 uppercase font-semibold">Total Revenue</div>
-            <div className="text-lg font-black text-white font-mono mt-1">₹{reportData.totalRevenue.toFixed(2)}</div>
+            <div className="text-[10px] text-slate-500 uppercase font-semibold">Period Revenue</div>
+            <div className="text-lg font-black text-white font-mono mt-1">₹{reportData.periodRevenue.toFixed(2)}</div>
           </div>
           <div className="p-4 rounded-xl bg-slate-900/80 border border-slate-800">
             <div className="text-[10px] text-slate-500 uppercase font-semibold">Total Orders</div>
@@ -197,8 +287,8 @@ export const ReportsView: React.FC = () => {
             <div className="text-lg font-black text-white font-mono mt-1">{reportData.totalStudents}</div>
           </div>
           <div className="p-4 rounded-xl bg-slate-900/80 border border-slate-800">
-            <div className="text-[10px] text-slate-500 uppercase font-semibold">Today Revenue</div>
-            <div className="text-lg font-black text-emerald-400 font-mono mt-1">₹{reportData.dailyRevenue.toFixed(2)}</div>
+            <div className="text-[10px] text-slate-500 uppercase font-semibold">Completed</div>
+            <div className="text-lg font-black text-emerald-400 font-mono mt-1">{reportData.completedOrders}</div>
           </div>
         </div>
       )}
@@ -208,7 +298,7 @@ export const ReportsView: React.FC = () => {
           <div key={report.id} className="p-5 rounded-2xl bg-slate-900/80 border border-slate-800 shadow-xl space-y-3">
             <div className="flex items-center space-x-3">
               <div className="p-2.5 rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/20">
-                <FileText className="w-5 h-5" />
+                <Calendar className="w-5 h-5" />
               </div>
               <div>
                 <h3 className="text-sm font-bold text-white">{report.title}</h3>
@@ -219,7 +309,7 @@ export const ReportsView: React.FC = () => {
               {report.formats.map((fmt) => (
                 <button
                   key={fmt}
-                  onClick={() => handleDownload(report.id, fmt)}
+                  onClick={() => handleDownload(report.id, fmt as 'CSV' | 'Excel' | 'PDF')}
                   className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs flex items-center space-x-1.5 transition-all"
                 >
                   <Download className="w-3.5 h-3.5" />

@@ -29,6 +29,9 @@ interface CanteenManagementProps {
   onAddCounter: (counter: Counter) => Promise<string | null>;
   onUpdateCounter?: (counterId: string, updates: Partial<Counter>) => Promise<void>;
   onDeleteCounter?: (counterId: string) => Promise<void>;
+  onArchiveCounter?: (counterId: string) => Promise<void>;
+  onRestoreCounter?: (counterId: string) => Promise<void>;
+  onUpdateCounterStatus?: (counterId: string, status: string) => Promise<void>;
   onToggleCounterAvailability?: (counterId: string) => Promise<void>;
   onDeleteVendor?: (vendorId: string) => Promise<void>;
 }
@@ -54,9 +57,14 @@ export const CanteenManagement: React.FC<CanteenManagementProps> = ({
   onAddCounter,
   onUpdateCounter,
   onDeleteCounter,
-  onToggleCounterAvailability
+  onArchiveCounter,
+  onRestoreCounter,
+  onUpdateCounterStatus,
+  onToggleCounterAvailability,
+  onDeleteVendor
 }) => {
   const [activeTab, setActiveTab] = useState<'registered' | 'counters' | 'pending'>('counters');
+  const [counterStatusFilter, setCounterStatusFilter] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedVendorModal, setSelectedVendorModal] = useState<Vendor | null>(null);
 
@@ -69,9 +77,9 @@ export const CanteenManagement: React.FC<CanteenManagementProps> = ({
 
   const [newCounterCode, setNewCounterCode] = useState('');
   const [newCounterName, setNewCounterName] = useState('');
-  const [newCampusBlock, setNewCampusBlock] = useState('Main Campus');
-  const [newOperatingHours, setNewOperatingHours] = useState('08:00 AM - 09:00 PM');
-  const [newSelectedCategories, setNewSelectedCategories] = useState<string[]>(['Breakfast', 'Fast Food']);
+  const [newCampusBlock, setNewCampusBlock] = useState(campusBlocks.length > 0 ? campusBlocks[0].name : '');
+  const [newOperatingHours, setNewOperatingHours] = useState('');
+  const [newSelectedCategories, setNewSelectedCategories] = useState<string[]>([]);
   const [newAssignedStaff, setNewAssignedStaff] = useState('');
 
   const registeredVendors = vendors.filter((v) => v.status === 'approved' || v.status === 'suspended');
@@ -79,18 +87,23 @@ export const CanteenManagement: React.FC<CanteenManagementProps> = ({
 
   const displayedVendors = (activeTab === 'registered' ? registeredVendors : pendingVendors).filter(
     (v) =>
-      v.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      v.ownerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      v.campusBlock.toLowerCase().includes(searchTerm.toLowerCase())
+      (v.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (v.ownerName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (v.campusBlock || '').toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const displayedCounters = counters.filter(
-    (c) =>
-      c.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      c.campusBlock.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      c.categories.some((cat) => cat.toLowerCase().includes(searchTerm.toLowerCase()))
-  );
+  const displayedCounters = counters.filter((c) => {
+    const matchesSearch = c.code.toLowerCase().includes(searchTerm.toLowerCase()) || c.name.toLowerCase().includes(searchTerm.toLowerCase()) || c.campusBlock.toLowerCase().includes(searchTerm.toLowerCase()) || c.categories.some((cat) => cat.toLowerCase().includes(searchTerm.toLowerCase()));
+    const matchesStatus = counterStatusFilter === 'all' || c.status === counterStatusFilter || (counterStatusFilter === 'active' && c.isAvailable);
+    return matchesSearch && matchesStatus;
+  });
+
+  const counterStats = {
+    total: counters.length,
+    active: counters.filter(c => c.isAvailable && c.status !== 'archived').length,
+    archived: counters.filter(c => c.status === 'archived').length,
+    inactive: counters.filter(c => !c.isAvailable && c.status !== 'archived').length,
+  };
 
   const handleCategoryToggle = (cat: string) => {
     setNewSelectedCategories((prev) =>
@@ -101,9 +114,9 @@ export const CanteenManagement: React.FC<CanteenManagementProps> = ({
   const resetForm = () => {
     setNewCounterCode('');
     setNewCounterName('');
-    setNewCampusBlock('Main Campus');
-    setNewOperatingHours('08:00 AM - 09:00 PM');
-    setNewSelectedCategories(['Breakfast', 'Fast Food']);
+    setNewCampusBlock(campusBlocks.length > 0 ? campusBlocks[0].name : '');
+    setNewOperatingHours('');
+    setNewSelectedCategories([]);
     setNewAssignedStaff('');
     setCounterError(null);
   };
@@ -120,12 +133,12 @@ export const CanteenManagement: React.FC<CanteenManagementProps> = ({
       code: newCounterCode.trim(),
       name: newCounterName.trim(),
       campusBlock: newCampusBlock,
-      categories: newSelectedCategories.length > 0 ? newSelectedCategories : ['Snacks'],
+      categories: newSelectedCategories.length > 0 ? newSelectedCategories : [],
       operatingHours: newOperatingHours,
       isAvailable: true,
       assignedStaff: newAssignedStaff ? newAssignedStaff.split(',').map((s) => s.trim()).filter(Boolean) : [],
       queueLength: 0,
-      avgWaitTimeMins: 5,
+      avgWaitTimeMins: 0,
       activeMenuCount: 0,
       status: 'active'
     };
@@ -183,7 +196,7 @@ export const CanteenManagement: React.FC<CanteenManagementProps> = ({
     setDeleteVendorConfirm(null);
   };
 
-  const handleDeleteCounterConfirm = async
+  const handleDeleteCounterConfirm = async (counterId: string) => {
     if (onDeleteCounter) {
       await onDeleteCounter(counterId);
     }
@@ -192,7 +205,7 @@ export const CanteenManagement: React.FC<CanteenManagementProps> = ({
   const handleOpenCreateModal = () => {
     const nextLetter = String.fromCharCode(65 + counters.length);
     setNewCounterCode(`Counter ${nextLetter}`);
-    setNewCounterName(`Counter ${nextLetter} - Campus Food Express`);
+    setNewCounterName(`Counter ${nextLetter}`);
     setCounterError(null);
     setIsAddCounterOpen(true);
   };
@@ -257,7 +270,7 @@ export const CanteenManagement: React.FC<CanteenManagementProps> = ({
                 >
                   {campusBlocks.length > 0
                     ? campusBlocks.map(b => <option key={b.id} value={b.name}>{b.name}</option>)
-                    : <option value="Main Campus">Main Campus</option>
+                    : <option value="">No campus block</option>
                   }
                 </select>
               </div>
@@ -423,6 +436,37 @@ export const CanteenManagement: React.FC<CanteenManagementProps> = ({
       </div>
 
       {activeTab === 'counters' && (
+        <>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="p-3 rounded-xl bg-slate-900 border border-slate-800">
+              <div className="text-[10px] text-slate-500 uppercase font-semibold">Total Counters</div>
+              <div className="text-lg font-black text-white font-mono">{counterStats.total}</div>
+            </div>
+            <div className="p-3 rounded-xl bg-slate-900 border border-emerald-500/20">
+              <div className="text-[10px] text-emerald-400 uppercase font-semibold">Active</div>
+              <div className="text-lg font-black text-emerald-400 font-mono">{counterStats.active}</div>
+            </div>
+            <div className="p-3 rounded-xl bg-slate-900 border border-red-500/20">
+              <div className="text-[10px] text-red-400 uppercase font-semibold">Inactive</div>
+              <div className="text-lg font-black text-red-400 font-mono">{counterStats.inactive}</div>
+            </div>
+            <div className="p-3 rounded-xl bg-slate-900 border border-indigo-500/20">
+              <div className="text-[10px] text-indigo-400 uppercase font-semibold">Archived</div>
+              <div className="text-lg font-black text-indigo-400 font-mono">{counterStats.archived}</div>
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-2 pt-2">
+            {['all', 'active', 'inactive', 'archived'].map((st) => (
+              <button key={st} onClick={() => setCounterStatusFilter(st)}
+                className={`px-3 py-1.5 rounded-xl text-[11px] font-bold capitalize transition-all border ${counterStatusFilter === st ? 'bg-amber-500 text-slate-950 border-amber-500' : 'bg-slate-900 text-slate-400 border-slate-800 hover:text-white'}`}>
+                {st === 'all' ? 'All' : st}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+
+      {activeTab === 'counters' && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-4">
           {displayedCounters.map((counter) => (
             <div
@@ -447,37 +491,52 @@ export const CanteenManagement: React.FC<CanteenManagementProps> = ({
                     </div>
                   </div>
 
-                  <div className="flex items-center space-x-1">
-                    <button
-                      onClick={() => onToggleCounterAvailability && onToggleCounterAvailability(counter.id)}
-                      className={`px-3 py-1 rounded-xl text-[11px] font-bold flex items-center space-x-1.5 border transition-all ${
-                        counter.isAvailable
-                          ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20 hover:bg-emerald-500/20'
-                          : 'bg-red-500/10 text-red-400 border-red-500/20 hover:bg-red-500/20'
-                      }`}
-                    >
-                      <Power className="w-3 h-3" />
-                      <span>{counter.isAvailable ? 'OPEN' : 'CLOSED'}</span>
-                    </button>
-                    <button
-                      onClick={() => handleEditCounterOpen(counter)}
-                      className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition-colors"
-                      title="Edit Counter"
-                    >
-                      <Edit3 className="w-3.5 h-3.5" />
-                    </button>
-                    <button
-                      onClick={() => {
-                        if (window.confirm(`Delete ${counter.code} - ${counter.name}? This cannot be undone.`)) {
-                          handleDeleteCounterConfirm(counter.id);
-                        }
-                      }}
-                      className="p-1.5 rounded-lg bg-slate-800 hover:bg-red-900/50 text-slate-400 hover:text-red-400 transition-colors"
-                      title="Delete Counter"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
+                   <div className="flex items-center space-x-1">
+                     <button
+                       onClick={() => onToggleCounterAvailability && onToggleCounterAvailability(counter.id)}
+                       className={`px-3 py-1 rounded-xl text-[11px] font-bold flex items-center space-x-1.5 border transition-all ${
+                         counter.isAvailable
+                           ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20 hover:bg-emerald-500/20'
+                           : 'bg-red-500/10 text-red-400 border-red-500/20 hover:bg-red-500/20'
+                       }`}
+                     >
+                       <Power className="w-3 h-3" />
+                       <span>{counter.isAvailable ? 'OPEN' : 'CLOSED'}</span>
+                     </button>
+                     {counter.status === 'archived' ? (
+                       <button
+                         onClick={() => onRestoreCounter && onRestoreCounter(counter.id)}
+                         className="px-3 py-1 rounded-xl text-[11px] font-bold bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 hover:bg-indigo-500/20"
+                       >
+                         Restore
+                       </button>
+                     ) : (
+                       <button
+                         onClick={() => onArchiveCounter && onArchiveCounter(counter.id)}
+                         className="px-3 py-1 rounded-xl text-[11px] font-bold bg-zinc-800 text-zinc-400 border border-zinc-700 hover:text-white hover:bg-zinc-700"
+                       >
+                         Archive
+                       </button>
+                     )}
+                     <button
+                       onClick={() => handleEditCounterOpen(counter)}
+                       className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition-colors"
+                       title="Edit Counter"
+                     >
+                       <Edit3 className="w-3.5 h-3.5" />
+                     </button>
+                     <button
+                       onClick={() => {
+                         if (window.confirm(`Delete ${counter.code} - ${counter.name}? This cannot be undone.`)) {
+                           handleDeleteCounterConfirm(counter.id);
+                         }
+                       }}
+                       className="p-1.5 rounded-lg bg-slate-800 hover:bg-red-900/50 text-slate-400 hover:text-red-400 transition-colors"
+                       title="Delete Counter"
+                     >
+                       <Trash2 className="w-3.5 h-3.5" />
+                     </button>
+                   </div>
                 </div>
 
                 <div className="pt-2 border-t border-slate-800/80 space-y-1.5">
@@ -613,15 +672,15 @@ export const CanteenManagement: React.FC<CanteenManagementProps> = ({
                   >
                     Approve
                   </button>
-                  {vendor.status !== 'pending' && (
-                    <button
-                      onClick={() => setDeleteVendorConfirm(vendor.id)}
-                      className="px-3 py-2 rounded-xl bg-red-500/10 hover:bg-red-500/30 text-red-400 border border-red-500/30 text-xs font-bold transition-colors flex items-center space-x-1"
-                    >
-                      <Trash2 className='w-3.5 h-3.5' />
-                      <span>Delete</span>
-                    </button>
-                  )}
+                )}
+                {vendor.status === 'approved' && (
+                  <button
+                    onClick={() => setDeleteVendorConfirm(vendor.id)}
+                    className="px-3 py-2 rounded-xl bg-red-500/10 hover:bg-red-500/30 text-red-400 border border-red-500/30 text-xs font-bold transition-colors flex items-center space-x-1"
+                  >
+                    <Trash2 className='w-3.5 h-3.5' />
+                    <span>Delete</span>
+                  </button>
                 )}
               </div>
             </div>
@@ -713,6 +772,7 @@ export const CanteenManagement: React.FC<CanteenManagementProps> = ({
             </div>
           </div>
         </div>
+      )}
       {deleteVendorConfirm && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
           <div className="w-full max-w-sm bg-[#0C0C0E] border border-zinc-800 rounded-3xl p-6 space-y-4">
@@ -727,7 +787,6 @@ export const CanteenManagement: React.FC<CanteenManagementProps> = ({
             </div>
           </div>
         </div>
-      )}
       )}
     </div>
   );

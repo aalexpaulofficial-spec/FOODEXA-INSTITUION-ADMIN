@@ -11,7 +11,9 @@ import {
   Utensils,
   DollarSign,
   RefreshCw,
-  Check
+  Check,
+  ImageOff,
+  Gauge
 } from 'lucide-react';
 import { MenuItem, MenuStatus, DietaryType, Counter, MenuCategory } from '../../../types';
 import { supabase } from '../../../lib/supabaseClient';
@@ -26,6 +28,37 @@ interface AddEditMenuModalProps {
   categories?: MenuCategory[];
 }
 
+const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+const MAX_FILE_SIZE = 5 * 1024 * 1024;
+
+function compressImage(file: File, maxWidth = 1200): Promise<{ blob: Blob; preview: string }> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        let width = img.width;
+        let height = img.height;
+        if (width > maxWidth) { height = (maxWidth / width) * height; width = maxWidth; }
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) { reject(new Error('Canvas unavailable')); return; }
+        ctx.drawImage(img, 0, 0, width, height);
+        canvas.toBlob((blob) => {
+          if (!blob) { reject(new Error('Compression failed')); return; }
+          resolve({ blob, preview: URL.createObjectURL(blob) });
+        }, file.type || 'image/jpeg', 0.85);
+      };
+      img.onerror = () => reject(new Error('Image load failed'));
+      img.src = e.target?.result as string;
+    };
+    reader.onerror = () => reject(new Error('File read failed'));
+    reader.readAsDataURL(file);
+  });
+}
+
 export const AddEditMenuModal: React.FC<AddEditMenuModalProps> = ({
   isOpen,
   onClose,
@@ -36,9 +69,12 @@ export const AddEditMenuModal: React.FC<AddEditMenuModalProps> = ({
   categories = []
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const dropRef = useRef<HTMLDivElement>(null);
 
   const [imageUrl, setImageUrl] = useState('');
   const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadRetries, setUploadRetries] = useState(0);
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [category, setCategory] = useState('');
@@ -90,32 +126,93 @@ export const AddEditMenuModal: React.FC<AddEditMenuModalProps> = ({
       setSelectedCategoryId('');
       setSaveError(null);
     }
+    setUploadProgress(0);
+    setUploadRetries(0);
   }, [editingItem, isOpen]);
 
-  if (!isOpen) return null;
+  const processAndUpload = async (file: File) => {
+    setIsUploading(true);
+    setUploadProgress(0);
+    onNotify('Validating image...');
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      const file = e.target.files[0];
-      setIsUploading(true);
-      onNotify('Uploading image to storage...');
-      try {
-        const ext = file.name.split('.').pop() || 'jpg';
-        const filePath = `menu-items/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
-        const { data, error } = await supabase.storage.from('food-images').upload(filePath, file, { upsert: true });
-        if (error) {
-          onNotify(`Upload failed: ${error.message}`);
-          setIsUploading(false);
-          return;
-        }
-        const { data: urlData } = supabase.storage.from('food-images').getPublicUrl(data.path);
-        setImageUrl(urlData.publicUrl);
-        onNotify('Image uploaded successfully');
-      } catch (err: any) {
-        onNotify(`Upload error: ${err.message}`);
+    if (!ALLOWED_TYPES.includes(file.type)) {
+      onNotify('Invalid format. Use JPG, PNG, or WEBP.');
+      setIsUploading(false);
+      return;
+    }
+    if (file.size > MAX_FILE_SIZE) {
+      onNotify('Image too large. Max 5MB.');
+      setIsUploading(false);
+      return;
+    }
+
+    try {
+      setUploadProgress(10);
+      onNotify('Compressing image...');
+      const { blob, preview } = await compressImage(file);
+      setImageUrl(preview);
+      setUploadProgress(40);
+
+      const ext = file.name.split('.').pop() || 'jpg';
+      const filePath = `menu-items/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+
+      onNotify('Uploading to storage...');
+      const { data, error } = await supabase.storage.from('food-images').upload(filePath, blob, { upsert: true });
+      if (error) {
+        onNotify(`Upload failed: ${error.message}`);
+        setIsUploading(false);
+        return;
       }
+      setUploadProgress(90);
+      const { data: urlData } = supabase.storage.from('food-images').getPublicUrl(data.path);
+      const publicUrl = urlData.publicUrl;
+      setImageUrl(publicUrl);
+      setUploadProgress(100);
+      onNotify('Image uploaded successfully');
+      if (preview.startsWith('blob:')) URL.revokeObjectURL(preview);
+    } catch (err: any) {
+      onNotify(`Upload error: ${err.message}`);
+    } finally {
       setIsUploading(false);
     }
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadRetries(0);
+    await processAndUpload(file);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const handleDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const file = e.dataTransfer.files?.[0];
+    if (!file) return;
+    setUploadRetries(0);
+    await processAndUpload(file);
+  };
+
+  const handleRetryUpload = async () => {
+    const input = fileInputRef.current;
+    if (input?.files?.[0]) {
+      setUploadRetries(0);
+      await processAndUpload(input.files[0]);
+    } else {
+      input?.click();
+    }
+  };
+
+  const removeImage = () => {
+    if (imageUrl.startsWith('blob:')) URL.revokeObjectURL(imageUrl);
+    setImageUrl('');
+    setUploadProgress(0);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -127,24 +224,24 @@ export const AddEditMenuModal: React.FC<AddEditMenuModalProps> = ({
       id: editingItem ? editingItem.id : `menu-${Date.now()}`,
       vendorId: selectedCounterId || editingItem?.vendorId || '',
       vendorName: counters.find(c => c.id === selectedCounterId)?.name || editingItem?.vendorName || '',
-      name: name || 'Campus Dish',
-      category: category || 'General',
+      name: name || '',
+      category: category || '',
       price: parseFloat(price) || 0,
       discountPrice: discountPrice ? parseFloat(discountPrice) : undefined,
-      prepTimeMinutes: parseInt(prepTimeMinutes) || 10,
-      servingSize: servingSize || '1 Serving',
+      prepTimeMinutes: parseInt(prepTimeMinutes) || 0,
+      servingSize: servingSize || '',
       calories: editingItem?.calories || 0,
       proteinGrams: editingItem?.proteinGrams || 0,
       isVegetarian: foodType === 'Veg' || foodType === 'Vegan' || foodType === 'Jain',
       food_type: foodType,
       dietaryType: foodType,
       isAvailable: availability,
-      stockCount: 50,
+      stockCount: 0,
       imageUrl: imageUrl || '',
       description: description || '',
       ingredients: editingItem?.ingredients || [],
       allergens: editingItem?.allergens || [],
-      aiPopularityScore: editingItem?.aiPopularityScore || 75,
+      aiPopularityScore: editingItem?.aiPopularityScore || 0,
       status: status,
       tags: editingItem?.tags || [],
       analytics: editingItem?.analytics || undefined,
@@ -163,6 +260,8 @@ export const AddEditMenuModal: React.FC<AddEditMenuModalProps> = ({
     setIsSubmitting(false);
     onClose();
   };
+
+  if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-3 sm:p-6 overflow-y-auto">
@@ -201,24 +300,49 @@ export const AddEditMenuModal: React.FC<AddEditMenuModalProps> = ({
                 <label className="text-xs font-bold text-zinc-300 uppercase tracking-wider block">
                   Food Image
                 </label>
-                <div className="relative h-52 rounded-2xl border-2 border-dashed border-zinc-800 hover:border-indigo-500/50 bg-zinc-900/40 overflow-hidden flex flex-col items-center justify-center group transition-all">
+                <div
+                  ref={dropRef}
+                  onDragOver={handleDragOver}
+                  onDrop={handleDrop}
+                  className={`relative h-52 rounded-2xl border-2 border-dashed transition-all overflow-hidden flex flex-col items-center justify-center group ${
+                    imageUrl ? 'border-zinc-800 bg-zinc-950' : 'border-zinc-800 hover:border-indigo-500/50 bg-zinc-900/40'
+                  }`}
+                >
                   {imageUrl ? (
                     <div className="relative w-full h-full">
                       <img src={imageUrl} alt="Preview" className="w-full h-full object-cover" />
-                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
                         <button
                           type="button"
                           onClick={() => fileInputRef.current?.click()}
                           className="px-3 py-1.5 rounded-lg bg-indigo-600 text-white text-xs font-bold shadow"
                         >
-                          Change Image
+                          Change
+                        </button>
+                        <button
+                          type="button"
+                          onClick={removeImage}
+                          className="px-3 py-1.5 rounded-lg bg-red-600 text-white text-xs font-bold shadow"
+                        >
+                          Remove
                         </button>
                       </div>
+                      {isUploading && (
+                        <div className="absolute inset-x-0 top-0 p-2 bg-black/60">
+                          <div className="flex items-center space-x-2 text-[10px] text-white font-bold">
+                            <Gauge className="w-3.5 h-3.5 animate-spin" />
+                            <span>Uploading... {uploadProgress}%</span>
+                          </div>
+                          <div className="w-full h-1 bg-zinc-700 rounded-full mt-1 overflow-hidden">
+                            <div className="h-full bg-indigo-500 rounded-full transition-all" style={{ width: `${uploadProgress}%` }} />
+                          </div>
+                        </div>
+                      )}
                     </div>
                   ) : (
                     <div className="text-center p-6 space-y-2">
                       <Upload className="w-8 h-8 text-indigo-400 mx-auto" />
-                      <p className="text-xs font-bold text-white">Upload food image</p>
+                      <p className="text-xs font-bold text-white">Drag & drop or browse</p>
                       <p className="text-[10px] text-zinc-500">JPG, PNG, WEBP up to 5MB</p>
                       <button
                         type="button"
@@ -229,12 +353,30 @@ export const AddEditMenuModal: React.FC<AddEditMenuModalProps> = ({
                         {isUploading ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Camera className="w-3.5 h-3.5" />}
                         <span>{isUploading ? 'Uploading...' : 'Upload Image'}</span>
                       </button>
+                      {isUploading && uploadProgress > 0 && (
+                        <div className="w-48 mx-auto h-1 bg-zinc-800 rounded-full overflow-hidden">
+                          <div className="h-full bg-indigo-500 rounded-full transition-all" style={{ width: `${uploadProgress}%` }} />
+                        </div>
+                      )}
+                      {!isUploading && imageUrl === '' && uploadRetries > 0 && (
+                        <button type="button" onClick={handleRetryUpload} className="text-[10px] text-indigo-400 hover:text-indigo-300 font-semibold">
+                          Retry upload
+                        </button>
+                      )}
                     </div>
+                  )}
+                  {!imageUrl && !isUploading && (
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="absolute inset-0 cursor-pointer"
+                      aria-label="Upload image"
+                    />
                   )}
                   <input
                     ref={fileInputRef}
                     type="file"
-                    accept="image/*"
+                    accept="image/jpeg,image/png,image/webp"
                     onChange={handleFileUpload}
                     className="hidden"
                   />

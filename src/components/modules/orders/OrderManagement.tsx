@@ -365,24 +365,61 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
 
             {/* Status Change Buttons */}
             <div className="pt-3 border-t border-slate-800 flex flex-wrap gap-2">
-              <button
-                onClick={() => {
-                  onUpdateOrderStatus(selectedOrderModal.id, 'ready');
-                  setSelectedOrderModal(null);
-                }}
-                className="flex-1 py-2 rounded-xl bg-cyan-500 text-slate-950 font-bold text-xs"
-              >
-                Mark Ready
-              </button>
-              <button
-                onClick={() => {
-                  onUpdateOrderStatus(selectedOrderModal.id, 'completed');
-                  setSelectedOrderModal(null);
-                }}
-                className="flex-1 py-2 rounded-xl bg-emerald-500 text-slate-950 font-bold text-xs"
-              >
-                Mark Completed
-              </button>
+              {selectedOrderModal.status === 'pending' && (
+                <button
+                  onClick={() => {
+                    onUpdateOrderStatus(selectedOrderModal.id, 'accepted');
+                    setSelectedOrderModal(null);
+                  }}
+                  className="flex-1 py-2 rounded-xl bg-amber-500 text-slate-950 font-bold text-xs"
+                >
+                  Accept Order
+                </button>
+              )}
+              {(selectedOrderModal.status === 'pending' || selectedOrderModal.status === 'accepted') && (
+                <button
+                  onClick={() => {
+                    onUpdateOrderStatus(selectedOrderModal.id, 'preparing');
+                    setSelectedOrderModal(null);
+                  }}
+                  className="flex-1 py-2 rounded-xl bg-cyan-500 text-slate-950 font-bold text-xs"
+                >
+                  Start Preparing
+                </button>
+              )}
+              {(selectedOrderModal.status === 'preparing' || selectedOrderModal.status === 'accepted') && (
+                <button
+                  onClick={() => {
+                    onUpdateOrderStatus(selectedOrderModal.id, 'ready');
+                    setSelectedOrderModal(null);
+                  }}
+                  className="flex-1 py-2 rounded-xl bg-emerald-500 text-slate-950 font-bold text-xs"
+                >
+                  Mark Ready
+                </button>
+              )}
+              {(selectedOrderModal.status === 'ready') && (
+                <button
+                  onClick={() => {
+                    onUpdateOrderStatus(selectedOrderModal.id, 'completed');
+                    setSelectedOrderModal(null);
+                  }}
+                  className="flex-1 py-2 rounded-xl bg-indigo-500 text-white font-bold text-xs"
+                >
+                  Mark Completed
+                </button>
+              )}
+              {!['completed', 'cancelled'].includes(selectedOrderModal.status) && (
+                <button
+                  onClick={() => {
+                    onUpdateOrderStatus(selectedOrderModal.id, 'cancelled');
+                    setSelectedOrderModal(null);
+                  }}
+                  className="flex-1 py-2 rounded-xl bg-red-500 text-white font-bold text-xs"
+                >
+                  Cancel Order
+                </button>
+              )}
             </div>
           </div>
         </div>

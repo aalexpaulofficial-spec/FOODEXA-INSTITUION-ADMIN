@@ -1,8 +1,10 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '../lib/supabaseClient';
 import {
   Institution, Student, Vendor, Order, MenuItem, KitchenQueueItem,
-  CampusBlock, StaffMember, Announcement, AuditLog, Counter,
+  CampusBlock, StaffMember, Announcement, AuditLog, Counter, MenuCategory, OrderStatus,
+} from '../types';
+
 interface InstitutionData {
   institution: Institution | null;
   students: Student[];
@@ -29,6 +31,9 @@ interface InstitutionData {
   addCounter: (counter: Counter) => Promise<string | null>;
   updateCounter: (counterId: string, updates: Partial<Counter>) => Promise<void>;
   deleteCounter: (counterId: string) => Promise<void>;
+  archiveCounter: (counterId: string) => Promise<void>;
+  restoreCounter: (counterId: string) => Promise<void>;
+  updateCounterStatus: (counterId: string, status: string) => Promise<void>;
   toggleCounterAvailability: (counterId: string) => Promise<void>;
   updateKitchenStatus: (itemId: string, status: OrderStatus) => Promise<void>;
   updateOrderStatus: (orderId: string, status: OrderStatus) => Promise<void>;
@@ -54,15 +59,15 @@ function mapDbCounterToCounter(db: any): Counter {
   return {
     id: db.id,
     institution_id: db.institution_id,
-    code: db.code || db.name || 'Counter',
+    code: db.code || db.name || '',
     name: db.name || '',
     campusBlock: db.campus_block || db.campusBlock || '',
     categories: Array.isArray(db.categories) ? db.categories : (typeof db.categories === 'string' ? (() => { try { return JSON.parse(db.categories); } catch { return []; } })() : []),
-    operatingHours: db.operating_hours || db.operatingHours || '08:00 AM - 09:00 PM',
+    operatingHours: db.operating_hours || db.operatingHours || '',
     isAvailable: db.is_available ?? db.isAvailable ?? true,
     assignedStaff: Array.isArray(db.assigned_staff) ? db.assigned_staff : (typeof db.assigned_staff === 'string' ? db.assigned_staff.split(',').map((s: string) => s.trim()) : []),
     queueLength: db.queue_length || db.queueLength || 0,
-    avgWaitTimeMins: db.avg_wait_time_mins || db.avgWaitTimeMins || 5,
+    avgWaitTimeMins: db.avg_wait_time_mins || db.avgWaitTimeMins || 0,
     activeMenuCount: db.active_menu_count || db.activeMenuCount || 0,
     status: db.status || 'active',
     created_at: db.created_at,
@@ -95,9 +100,9 @@ function mapDbMenuItemToMenuItem(db: any): MenuItem {
     category: db.category || '',
     price: parseFloat(db.regular_price ?? db.price ?? 0),
     discountPrice: db.discount_price ? parseFloat(db.discount_price) : (db.discountPrice || undefined),
-    prepTimeMinutes: db.preparation_time || db.prepTimeMinutes || 10,
-    servingSize: db.serving_size || db.servingSize || '1 Serving',
-    calories: db.calories || 450,
+    prepTimeMinutes: db.preparation_time || db.prepTimeMinutes || 0,
+    servingSize: db.serving_size || db.servingSize || '',
+    calories: db.calories || 0,
     proteinGrams: db.protein_grams || db.proteinGrams || 0,
     carbsGrams: db.carbs_grams || db.carbsGrams,
     fatGrams: db.fat_grams || db.fatGrams,
@@ -105,7 +110,7 @@ function mapDbMenuItemToMenuItem(db: any): MenuItem {
     sugarGrams: db.sugar_grams || db.sugarGrams,
     isVegetarian: db.is_vegetarian ?? db.isVegetarian ?? (db.food_type === 'Veg'),
     food_type: db.food_type,
-    dietaryType: db.dietary_type || db.dietaryType || (db.food_type as any) || 'Veg',
+    dietaryType: db.dietary_type || db.dietaryType || (db.food_type as any) || '',
     isAvailable: db.availability ?? db.is_available ?? db.isAvailable ?? true,
     stockCount: db.stock_count || db.stockCount || 50,
     quantityAvailable: db.quantity_available || db.quantityAvailable,
@@ -181,6 +186,7 @@ export function useInstitutionData(institutionId: string | null): InstitutionDat
   const [profiles, setProfiles] = useState<{ user_id: string; role: string; full_name?: string; email?: string; phone?: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const isInitialMount = useRef(true);
 
   const enrichOrdersWithProfile = useCallback((rawOrders: any[], profileList: { user_id: string; role: string; full_name?: string; email?: string; phone?: string }[]) => {
     const profileMap = new Map(profileList.map(p => [p.user_id, p]));
@@ -209,7 +215,7 @@ export function useInstitutionData(institutionId: string | null): InstitutionDat
           orderNumber: o.order_number || o.orderNumber || '',
           itemsSummary: o.items ? (Array.isArray(o.items) ? o.items.map((i: any) => `${i.quantity || 0}x ${i.name || ''}`).join(', ') : '') : '',
           status: o.status,
-          prepTimeMinutes: o.estimated_wait_mins || o.estimatedWaitMins || 5,
+          prepTimeMinutes: o.estimated_wait_mins || o.estimatedWaitMins || 0,
           elapsedSeconds: 0,
           isPriority: o.is_priority || o.isPriority || false,
           notes: o.notes,
@@ -226,7 +232,9 @@ export function useInstitutionData(institutionId: string | null): InstitutionDat
       setLoading(false);
       return;
     }
-    setLoading(true);
+    if (isInitialMount.current) {
+      setLoading(true);
+    }
     setError(null);
 
     try {
@@ -272,7 +280,7 @@ export function useInstitutionData(institutionId: string | null): InstitutionDat
           email: d.email || d.institution_email || '',
           phone: d.phone || '',
           joinedDate: d.joined_date || d.created_at || '',
-          plan: d.plan || 'Basic',
+          plan: d.plan || '',
           logoUrl: d.logo_url || '',
           lastActivity: d.last_login || '',
           type: d.type || d.institution_type || '',
@@ -330,28 +338,12 @@ export function useInstitutionData(institutionId: string | null): InstitutionDat
       console.error('[useInstitutionData] fetchAll error:', err);
       setError(msg);
     } finally {
+      if (isInitialMount.current) {
+        isInitialMount.current = false;
+      }
       setLoading(false);
     }
   }, [institutionId, enrichOrdersWithProfile, enrichKitchenQueueWithProfile]);
-
-  useEffect(() => {
-    fetchAll();
-  }, [fetchAll]);
-
-  useEffect(() => {
-    if (!institutionId) return;
-    const channel = supabase
-      .channel(`inst_data_${institutionId}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles', filter: `institution_id=eq.${institutionId}` }, () => fetchAll())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'canteens', filter: `institution_id=eq.${institutionId}` }, () => fetchAll())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders', filter: `institution_id=eq.${institutionId}` }, () => fetchAll())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'menu_items', filter: `institution_id=eq.${institutionId}` }, () => fetchAll())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'menu_categories', filter: `institution_id=eq.${institutionId}` }, () => fetchAll())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'notifications', filter: `institution_id=eq.${institutionId}` }, () => fetchAll())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'audit_logs', filter: `institution_id=eq.${institutionId}` }, () => fetchAll())
-      .subscribe();
-    return () => { supabase.removeChannel(channel); };
-  }, [institutionId, fetchAll]);
 
   const uploadImage = async (file: File, path: string): Promise<string | null> => {
     try {
@@ -395,6 +387,11 @@ export function useInstitutionData(institutionId: string | null): InstitutionDat
   };
 
   const addCounter = async (counter: Counter): Promise<string | null> => {
+    const existingCounter = counters.find(c => c.code.toLowerCase() === counter.code.toLowerCase() && c.institution_id === institutionId);
+    if (existingCounter) {
+      setError(`Counter code "${counter.code}" already exists.`);
+      return null;
+    }
     const dbPayload = mapCounterToDb(counter, institutionId);
     const { data, error } = await supabase.from('canteens').insert(dbPayload).select().single();
     if (error) {
@@ -439,6 +436,39 @@ export function useInstitutionData(institutionId: string | null): InstitutionDat
     setCounters(prev => prev.filter(c => c.id !== counterId));
   };
 
+  const archiveCounter = async (counterId: string) => {
+    const { error } = await supabase.from('canteens').update({ status: 'archived', is_available: false }).eq('id', counterId);
+    if (error) {
+      console.error('[archiveCounter] Error:', error);
+      setError(`Failed to archive counter: ${error.message}`);
+      return;
+    }
+    setCounters(prev => prev.map(c => c.id === counterId ? { ...c, status: 'archived', isAvailable: false } : c));
+  };
+
+  const restoreCounter = async (counterId: string) => {
+    const { error } = await supabase.from('canteens').update({ status: 'active', is_available: true }).eq('id', counterId);
+    if (error) {
+      console.error('[restoreCounter] Error:', error);
+      setError(`Failed to restore counter: ${error.message}`);
+      return;
+    }
+    setCounters(prev => prev.map(c => c.id === counterId ? { ...c, status: 'active', isAvailable: true } : c));
+  };
+
+  const updateCounterStatus = async (counterId: string, status: string) => {
+    const dbUpdates: any = { status };
+    if (status === 'active') dbUpdates.is_available = true;
+    else if (status === 'inactive' || status === 'archived') dbUpdates.is_available = false;
+    const { error } = await supabase.from('canteens').update(dbUpdates).eq('id', counterId);
+    if (error) {
+      console.error('[updateCounterStatus] Error:', error);
+      setError(`Failed to update counter status: ${error.message}`);
+      return;
+    }
+    setCounters(prev => prev.map(c => c.id === counterId ? { ...c, status, isAvailable: dbUpdates.is_available } : c));
+  };
+
   const toggleCounterAvailability = async (counterId: string) => {
     const c = counters.find(c => c.id === counterId);
     if (!c) return;
@@ -459,6 +489,7 @@ export function useInstitutionData(institutionId: string | null): InstitutionDat
     if (error) console.error('[updateKitchenStatus] Error:', error);
     setKitchenQueue(prev => prev.map(item => (item.id === itemId || item.orderId === itemId) ? { ...item, status } : item));
     setOrders(prev => prev.map(o => o.id === realOrderId ? { ...o, status } : o));
+  };
 
   const updateOrderStatus = async (orderId: string, status: OrderStatus) => {
     const { error } = await supabase.from('orders').update({ status }).eq('id', orderId);
@@ -581,6 +612,11 @@ export function useInstitutionData(institutionId: string | null): InstitutionDat
   const toggleStaffPermission = async (staffId: string, permKey: string) => {
     const s = staff.find(s => s.id === staffId);
     if (!s) return;
+    const newPerms = { ...s.permissions, [permKey]: !s.permissions[permKey as keyof typeof s.permissions] };
+    const { error } = await supabase.from('profiles').update({ permissions: newPerms }).eq('id', staffId);
+    if (error) console.error('[toggleStaffPermission] Error:', error);
+    setStaff(prev => prev.map(s => s.id === staffId ? { ...s, permissions: newPerms } : s));
+  };
 
   const deleteStudent = async (studentId: string) => {
     const { error } = await supabase.from('profiles').delete().eq('id', studentId).eq('institution_id', institutionId);
@@ -687,12 +723,6 @@ export function useInstitutionData(institutionId: string | null): InstitutionDat
     setInstitution(prev => prev ? { ...prev, ...updates } : prev);
   };
 
-    const newPerms = { ...s.permissions, [permKey]: !s.permissions[permKey as keyof typeof s.permissions] };
-    const { error } = await supabase.from('profiles').update({ permissions: newPerms }).eq('id', staffId);
-    if (error) console.error('[toggleStaffPermission] Error:', error);
-    setStaff(prev => prev.map(s => s.id === staffId ? { ...s, permissions: newPerms } : s));
-  };
-
   const addAnnouncement = async (ann: Announcement) => {
     const { data, error } = await supabase.from('notifications').insert({ ...ann, institution_id: institutionId }).select().single();
     if (error) console.error('[addAnnouncement] Error:', error);
@@ -705,10 +735,11 @@ export function useInstitutionData(institutionId: string | null): InstitutionDat
     loading, error,
     refresh: fetchAll,
     updateStudentStatus, approveVendor, rejectVendor, suspendVendor,
-    addCounter, updateCounter, deleteCounter, toggleCounterAvailability,
+    addCounter, updateCounter, deleteCounter, archiveCounter, restoreCounter, updateCounterStatus, toggleCounterAvailability,
     updateKitchenStatus, updateOrderStatus,
     addMenuItem, updateMenuItem, deleteMenuItem, toggleMenuAvailability,
     addMenuCategory, updateMenuCategory, deleteMenuCategory,
     toggleStaffPermission, deleteStudent, addStaff, updateStaff, deleteStaff, deleteAnnouncement, deleteVendor, updateInstitution,
+    addAnnouncement, uploadImage,
   };
 }

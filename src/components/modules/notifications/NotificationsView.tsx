@@ -24,10 +24,10 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({
     e.preventDefault();
     const created: Announcement = {
       id: `ann-${Date.now()}`,
-      title: title || 'Campus Announcement',
+      title: title || '',
       category,
-      content: content || 'Announcement content.',
-      author: user?.email || 'Admin',
+      content: content || '',
+      author: user?.email || '',
       date: new Date().toISOString().split('T')[0],
       targetAudience: 'All Campus',
       isImportant: category === 'Emergency Alert'

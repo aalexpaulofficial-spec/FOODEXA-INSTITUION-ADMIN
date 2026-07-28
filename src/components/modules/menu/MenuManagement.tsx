@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import {
   UtensilsCrossed, Plus, Search, Sparkles, Flame, CheckCircle2, XCircle,
   FileUp, Tag, Clock, Copy, Archive, Eye, FileText, Keyboard, TrendingUp,
@@ -22,8 +22,8 @@ interface MenuManagementProps {
 }
 
 export const MenuManagement: React.FC<MenuManagementProps> = ({
-  menuItems: initialMenuItems,
-  categories: initialCategories,
+  menuItems,
+  categories,
   counters,
   onAddMenuItem,
   onUpdateMenuItem,
@@ -34,8 +34,6 @@ export const MenuManagement: React.FC<MenuManagementProps> = ({
   deleteMenuCategory,
   institutionId,
 }) => {
-  const [items, setItems] = useState<MenuItem[]>(initialMenuItems);
-  const [categories, setCategories] = useState<MenuCategory[]>(initialCategories);
   const [activeSection, setActiveSection] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [sortBy, setSortBy] = useState<'popularity' | 'price_low' | 'price_high'>('popularity');
@@ -53,68 +51,59 @@ export const MenuManagement: React.FC<MenuManagementProps> = ({
 
   const [toasts, setToasts] = useState<{ id: string; message: string }[]>([]);
 
-  useEffect(() => { setItems(initialMenuItems); }, [initialMenuItems]);
-  useEffect(() => { setCategories(initialCategories); }, [initialCategories]);
+  const filteredItems = useMemo(() => {
+    let items = menuItems;
+    if (activeSection === 'todays_specials') items = items.filter(i => i.isTodaysSpecial);
+    else if (activeSection === 'active') items = items.filter(i => i.isAvailable);
+    else if (activeSection === 'draft') items = items.filter(i => i.status === 'draft');
+    else if (activeSection === 'out_of_stock') items = items.filter(i => !i.isAvailable || i.status === 'out_of_stock');
+    else if (activeSection === 'scheduled') items = items.filter(i => i.status === 'scheduled');
+    else if (activeSection === 'archived') items = items.filter(i => i.status === 'archived');
+    if (selectedCategoryFilter !== 'all') items = items.filter(i => i.category === selectedCategoryFilter);
+    if (searchTerm.trim()) {
+      const q = searchTerm.toLowerCase();
+      items = items.filter(item => item.name.toLowerCase().includes(q) || item.category.toLowerCase().includes(q) || item.description.toLowerCase().includes(q));
+    }
+    return items;
+  }, [menuItems, activeSection, selectedCategoryFilter, searchTerm]);
 
-  const addToast = (message: string) => {
+  const sortedItems = useMemo(() => {
+    const arr = [...filteredItems];
+    if (sortBy === 'price_low') return arr.sort((a, b) => a.price - b.price);
+    if (sortBy === 'price_high') return arr.sort((a, b) => b.price - a.price);
+    return arr.sort((a, b) => (b.aiPopularityScore || 0) - (a.aiPopularityScore || 0));
+  }, [filteredItems, sortBy]);
+
+  const groupedByCategory = useMemo(() => {
+    const acc: Record<string, MenuItem[]> = {};
+    sortedItems.forEach(item => { const cat = item.category || 'General'; if (!acc[cat]) acc[cat] = []; acc[cat].push(item); });
+    return acc;
+  }, [sortedItems]);
+
+  const categoryOrder = useMemo(() => Object.keys(groupedByCategory).sort(), [groupedByCategory]);
+
+  const allCategories = useMemo(() => ['all', ...Array.from(new Set(menuItems.map(i => i.category)))], [menuItems]);
+
+  const addToast = useCallback((message: string) => {
     const id = `toast-${Date.now()}-${Math.random()}`;
     setToasts(prev => [...prev, { id, message }]);
     setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 3500);
-  };
-
-  const allCategories = ['all', ...Array.from(new Set(items.map(i => i.category)))];
-
-  const filteredItems = items.filter(item => {
-    if (activeSection === 'todays_specials' && !item.isTodaysSpecial) return false;
-    if (activeSection === 'active' && !item.isAvailable) return false;
-    if (activeSection === 'draft' && item.status !== 'draft') return false;
-    if (activeSection === 'out_of_stock' && item.isAvailable && item.status !== 'out_of_stock') return false;
-    if (activeSection === 'scheduled' && item.status !== 'scheduled') return false;
-    if (selectedCategoryFilter !== 'all' && item.category !== selectedCategoryFilter) return false;
-    if (searchTerm.trim()) {
-      const q = searchTerm.toLowerCase();
-      const textMatch = item.name.toLowerCase().includes(q) ||
-        item.category.toLowerCase().includes(q) ||
-        item.description.toLowerCase().includes(q);
-      if (!textMatch) return false;
-    }
-    return true;
-  });
-
-  const sortedItems = [...filteredItems].sort((a, b) => {
-    if (sortBy === 'price_low') return a.price - b.price;
-    if (sortBy === 'price_high') return b.price - a.price;
-    return (b.aiPopularityScore || 0) - (a.aiPopularityScore || 0);
-  });
-
-  const groupedByCategory = sortedItems.reduce((acc, item) => {
-    const cat = item.category || 'General';
-    if (!acc[cat]) acc[cat] = [];
-    acc[cat].push(item);
-    return acc;
-  }, {} as Record<string, MenuItem[]>);
-
-  const categoryOrder = Object.keys(groupedByCategory).sort();
+  }, []);
 
   const handleSaveItem = async (savedItem: MenuItem) => {
     const result = await onAddMenuItem(savedItem);
     if (result) {
-      setItems(prev => {
-        const exists = prev.some(i => i.id === savedItem.id);
-        if (exists) return prev.map(i => i.id === savedItem.id ? { ...savedItem, id: result } : i);
-        return [{ ...savedItem, id: result }, ...prev];
-      });
+      addToast(savedItem.status === 'draft' ? 'Draft saved' : 'Menu item published successfully');
     }
     return result;
   };
 
   const handleDeleteItem = async (itemId: string) => {
     await onDeleteMenuItem(itemId);
-    setItems(prev => prev.filter(i => i.id !== itemId));
     addToast('Menu item deleted');
   };
 
-  const handleDuplicate = (item: MenuItem) => {
+  const handleDuplicate = async (item: MenuItem) => {
     const duplicated: MenuItem = {
       ...item,
       id: `dup-${Date.now()}`,
@@ -122,8 +111,8 @@ export const MenuManagement: React.FC<MenuManagementProps> = ({
       status: 'draft',
       isAvailable: false,
     };
-    handleSaveItem(duplicated);
-    addToast(`Duplicated "${item.name}" to Drafts`);
+    const result = await onAddMenuItem(duplicated);
+    if (result) addToast(`Duplicated "${item.name}" to Drafts`);
   };
 
   const openCategoryModal = (cat?: MenuCategory) => {
@@ -148,12 +137,10 @@ export const MenuManagement: React.FC<MenuManagementProps> = ({
     if (!catName.trim()) { setCatError('Category name is required'); return; }
     if (editingCat) {
       await updateMenuCategory(editingCat.id, { name: catName.trim(), description: catDesc, canteen_id: catCounterId || editingCat.canteen_id });
-      setCategories(prev => prev.map(c => c.id === editingCat.id ? { ...c, name: catName.trim(), description: catDesc } : c));
       addToast('Category updated');
     } else {
       const result = await addMenuCategory({ name: catName.trim(), description: catDesc, canteen_id: catCounterId || null });
       if (result) {
-        setCategories(prev => [...prev, { id: result, institution_id: institutionId || '', canteen_id: catCounterId || '', name: catName.trim(), description: catDesc, sort_order: 0, is_active: true, created_at: new Date().toISOString() }]);
         addToast('Category created');
       } else {
         setCatError('Failed to create category');
@@ -165,12 +152,17 @@ export const MenuManagement: React.FC<MenuManagementProps> = ({
 
   const handleDeleteCategory = async (catId: string) => {
     await deleteMenuCategory(catId);
-    setCategories(prev => prev.filter(c => c.id !== catId));
     addToast('Category deleted');
   };
 
+  const toggleArchive = async (itemId: string, item: MenuItem) => {
+    const newStatus: MenuStatus = item.status === 'archived' ? 'published' : 'archived';
+    await onUpdateMenuItem(itemId, { status: newStatus });
+    addToast(newStatus === 'archived' ? 'Item archived' : 'Item restored');
+  };
+
   return (
-    <div className="space-y-6 animate-fade-in font-sans pb-12">
+    <div className="space-y-6 font-sans pb-12">
       <div className="fixed bottom-6 right-6 z-50 flex flex-col space-y-2 pointer-events-none">
         {toasts.map(t => (
           <div key={t.id} className="pointer-events-auto px-4 py-3 rounded-2xl bg-[#0C0C0E] border border-indigo-500/40 text-white text-xs font-bold shadow-2xl flex items-center space-x-2 animate-bounce-short">
@@ -204,6 +196,7 @@ export const MenuManagement: React.FC<MenuManagementProps> = ({
           { id: 'active', label: 'Active' },
           { id: 'draft', label: 'Drafts' },
           { id: 'out_of_stock', label: 'Out of Stock' },
+          { id: 'archived', label: 'Archived' },
         ].map(tab => (
           <button key={tab.id}
             onClick={() => setActiveSection(tab.id)}
@@ -437,6 +430,10 @@ export const MenuManagement: React.FC<MenuManagementProps> = ({
               <button onClick={() => onToggleAvailability(item.id)}
                 className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all border ${item.isAvailable ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20 hover:bg-emerald-500/20' : 'bg-red-500/10 text-red-400 border-red-500/20 hover:bg-red-500/20'}`}>
                 {item.isAvailable ? 'Mark Unavailable' : 'Mark Available'}
+              </button>
+              <button onClick={() => toggleArchive(item.id, item)}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all border ${item.status === 'archived' ? 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20' : 'bg-zinc-800 text-zinc-400 border-zinc-700 hover:text-white'}`}>
+                {item.status === 'archived' ? 'Restore' : 'Archive'}
               </button>
             </div>
             <div className="flex items-center space-x-1">
