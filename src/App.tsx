@@ -64,13 +64,16 @@ export function App() {
 
   const institutionId = role === 'institution_admin' ? authInstId : null;
   const {
-    institution, students, vendors, counters, orders, menuItems, kitchenQueue,
-    campusBlocks, staff, announcements, auditLogs,
+    institution, students, vendors, counters, orders, menuItems, menuCategories,
+    kitchenQueue, campusBlocks, staff, announcements, auditLogs,
     loading: dataLoading,
     refresh,
     updateStudentStatus, approveVendor, rejectVendor, suspendVendor,
-    addCounter, toggleCounterAvailability, updateKitchenStatus, updateOrderStatus,
-    addMenuItem, toggleMenuAvailability, toggleStaffPermission, addAnnouncement,
+    addCounter, updateCounter, deleteCounter, toggleCounterAvailability,
+    updateKitchenStatus, updateOrderStatus,
+    addMenuItem, updateMenuItem, deleteMenuItem, toggleMenuAvailability,
+    addMenuCategory, updateMenuCategory, deleteMenuCategory,
+    toggleStaffPermission, addAnnouncement,
   } = useInstitutionData(institutionId);
 
   if (authLoading) {
@@ -188,6 +191,8 @@ export function App() {
                         onRejectVendor={rejectVendor}
                         onSuspendVendor={suspendVendor}
                         onAddCounter={addCounter}
+                        onUpdateCounter={updateCounter}
+                        onDeleteCounter={deleteCounter}
                         onToggleCounterAvailability={toggleCounterAvailability}
                       />
                     )}
@@ -212,8 +217,16 @@ export function App() {
                     {currentTab === 'menus' && (
                       <MenuManagement
                         menuItems={menuItems}
+                        categories={menuCategories}
+                        counters={counters}
                         onAddMenuItem={addMenuItem}
+                        onUpdateMenuItem={updateMenuItem}
+                        onDeleteMenuItem={deleteMenuItem}
                         onToggleAvailability={toggleMenuAvailability}
+                        addMenuCategory={addMenuCategory}
+                        updateMenuCategory={updateMenuCategory}
+                        deleteMenuCategory={deleteMenuCategory}
+                        institutionId={institutionId}
                       />
                     )}
 

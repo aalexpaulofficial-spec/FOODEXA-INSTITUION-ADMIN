@@ -199,7 +199,7 @@ export function exportMenuToPdf(menuItems: MenuItem[], institutionName: string =
                 <td>${item.vendorName}</td>
                 <td>${item.prepTimeMinutes || 10} mins</td>
                 <td>${item.calories} kcal</td>
-                <td class="price">$${item.price.toFixed(2)}</td>
+                <td class="price">₹${item.price.toFixed(2)}</td>
                 <td>
                   <span style="font-weight: 700; color: ${item.isAvailable ? '#16a34a' : '#dc2626'};">
                     ${(item.status || (item.isAvailable ? 'published' : 'out_of_stock')).toUpperCase()}

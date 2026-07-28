@@ -290,7 +290,7 @@ export const StudentDashboardSyncModal: React.FC<StudentDashboardSyncModalProps>
 
                     <div className="text-right shrink-0">
                       <div className="font-mono font-bold text-emerald-400 text-xs">
-                        ${item.price.toFixed(2)}
+                        ₹{item.price.toFixed(2)}
                       </div>
                       {item.isAvailable ? (
                         <span className="mt-1 inline-block px-2.5 py-1 rounded-lg bg-emerald-500/20 text-emerald-400 text-[10px] font-bold">

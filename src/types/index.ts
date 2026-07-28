@@ -54,14 +54,21 @@ export interface MenuAnalytics {
 
 export interface MenuItem {
   id: string;
+  institution_id?: string;
+  canteen_id?: string;
+  category_id?: string;
   vendorId: string;
   vendorName: string;
   name: string;
   category: string;
   price: number;
   discountPrice?: number;
+  regular_price?: number;
+  discount_price?: number;
   prepTimeMinutes?: number;
+  preparation_time?: number;
   servingSize?: string;
+  serving_size?: string;
   calories: number;
   proteinGrams: number;
   carbsGrams?: number;
@@ -69,11 +76,14 @@ export interface MenuItem {
   fiberGrams?: number;
   sugarGrams?: number;
   isVegetarian: boolean;
+  food_type?: string;
   dietaryType?: DietaryType;
   isAvailable: boolean;
+  availability?: boolean;
   stockCount: number;
   quantityAvailable?: number;
   imageUrl: string;
+  image_url?: string;
   description: string;
   ingredients?: string[];
   allergens: string[];
@@ -88,13 +98,26 @@ export interface MenuItem {
   analytics?: MenuAnalytics;
   orderPriorityIndex?: number;
   createdAt?: string;
+  created_at?: string;
+}
+
+export interface MenuCategory {
+  id: string;
+  institution_id: string;
+  canteen_id: string;
+  name: string;
+  description: string;
+  sort_order: number;
+  is_active: boolean;
+  created_at: string;
 }
 
 export type OrderStatus = 'pending' | 'accepted' | 'preparing' | 'ready' | 'completed' | 'cancelled';
 
 export interface Counter {
   id: string;
-  code: string; // e.g. 'Counter A', 'Counter B', 'Counter C', 'Counter D'
+  institution_id?: string;
+  code: string;
   name: string;
   campusBlock: string;
   categories: string[];
@@ -104,6 +127,8 @@ export interface Counter {
   queueLength: number;
   avgWaitTimeMins: number;
   activeMenuCount: number;
+  status?: string;
+  created_at?: string;
 }
 
 export interface Order {

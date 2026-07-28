@@ -245,7 +245,7 @@ export const RevenueGrowthChart: React.FC<RevenueGrowthChartProps> = ({ menuItem
                   <img src={item.imageUrl} alt={item.name} className="w-9 h-9 rounded-lg object-cover" />
                   <div>
                     <p className="font-bold text-white">{item.name}</p>
-                    <p className="text-[10px] text-zinc-400">{item.category} • ${item.price.toFixed(2)}</p>
+                    <p className="text-[10px] text-zinc-400">{item.category} • ₹{item.price.toFixed(2)}</p>
                   </div>
                 </div>
 
