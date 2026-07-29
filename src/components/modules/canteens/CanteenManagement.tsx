@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   Store,
   CheckCircle2,
@@ -36,6 +36,103 @@ interface CanteenManagementProps {
   onDeleteVendor?: (vendorId: string) => Promise<void>;
 }
 
+// ─── CounterModalForm extracted OUTSIDE the parent component ────────────────
+// This is critical: defining it inside the parent causes React to unmount +
+// remount the entire modal on every state change (every keystroke), which
+// produces the blink/flash. Keeping it outside preserves the DOM tree.
+interface CounterModalFormProps {
+  isEdit: boolean;
+  counterName: string;
+  assignedStaff: string;
+  counterError: string | null;
+  isSaving: boolean;
+  onCounterNameChange: (v: string) => void;
+  onAssignedStaffChange: (v: string) => void;
+  onSubmit: (e: React.FormEvent) => void;
+  onClose: () => void;
+}
+
+const CounterModalForm: React.FC<CounterModalFormProps> = ({
+  isEdit,
+  counterName,
+  assignedStaff,
+  counterError,
+  isSaving,
+  onCounterNameChange,
+  onAssignedStaffChange,
+  onSubmit,
+  onClose,
+}) => (
+  <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
+    <div className="w-full max-w-lg bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl p-6 space-y-5 relative animate-fade-in">
+      <div className="flex items-start justify-between border-b border-slate-800 pb-3">
+        <div>
+          <h2 className="text-base font-bold text-white flex items-center space-x-2">
+            <Layers className="w-5 h-5 text-amber-400" />
+            <span>{isEdit ? 'Edit Campus Food Counter' : 'Create Campus Food Counter'}</span>
+          </h2>
+          <p className="text-xs text-slate-400">
+            {isEdit ? 'Update counter name and staff assignment.' : 'Configure a new serving counter with staff assignment.'}
+          </p>
+        </div>
+        <button onClick={onClose} className="p-1 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white">
+          <XCircle className="w-5 h-5" />
+        </button>
+      </div>
+
+      {counterError && (
+        <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-xs font-semibold flex items-center space-x-2">
+          <AlertCircle className="w-4 h-4 shrink-0" />
+          <span>{counterError}</span>
+        </div>
+      )}
+
+      <form onSubmit={onSubmit} className="space-y-4 text-xs">
+        <div>
+          <label className="text-slate-400 font-semibold block mb-1">Counter Name *</label>
+          <input
+            type="text"
+            required
+            value={counterName}
+            onChange={(e) => onCounterNameChange(e.target.value)}
+            placeholder="e.g. Counter A - Main Kitchen"
+            className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500"
+          />
+        </div>
+
+        <div>
+          <label className="text-slate-400 font-semibold block mb-1">Assigned Kitchen Staff</label>
+          <input
+            type="text"
+            value={assignedStaff}
+            onChange={(e) => onAssignedStaffChange(e.target.value)}
+            placeholder="Name 1, Name 2"
+            className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500"
+          />
+        </div>
+
+        <div className="pt-3 border-t border-slate-800 flex justify-end space-x-2">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold"
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            disabled={isSaving}
+            className="px-5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold shadow-lg shadow-amber-500/20 disabled:opacity-50"
+          >
+            {isSaving ? 'Saving...' : isEdit ? 'Update Counter' : 'Create Counter'}
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+);
+// ────────────────────────────────────────────────────────────────────────────
+
 export const CanteenManagement: React.FC<CanteenManagementProps> = ({
   vendors,
   counters = [],
@@ -64,11 +161,7 @@ export const CanteenManagement: React.FC<CanteenManagementProps> = ({
   const [isSaving, setIsSaving] = useState(false);
   const [deleteVendorConfirm, setDeleteVendorConfirm] = useState<string | null>(null);
 
-  const [newCounterCode, setNewCounterCode] = useState('');
   const [newCounterName, setNewCounterName] = useState('');
-  const [newCampusBlock, setNewCampusBlock] = useState(campusBlocks.length > 0 ? campusBlocks[0].name : '');
-  const [newOperatingHours, setNewOperatingHours] = useState('');
-  const [newSelectedCategories, setNewSelectedCategories] = useState<string[]>([]);
   const [newAssignedStaff, setNewAssignedStaff] = useState('');
 
   const registeredVendors = vendors.filter((v) => v.status === 'approved' || v.status === 'suspended');
@@ -81,11 +174,11 @@ export const CanteenManagement: React.FC<CanteenManagementProps> = ({
       (v.campusBlock || '').toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-const displayedCounters = counters.filter((c) => {
-     const matchesSearch = c.name.toLowerCase().includes(searchTerm.toLowerCase());
-     const matchesStatus = counterStatusFilter === 'all' || c.status === counterStatusFilter || (counterStatusFilter === 'active' && c.isAvailable);
-     return matchesSearch && matchesStatus;
-   });
+  const displayedCounters = counters.filter((c) => {
+    const matchesSearch = c.name.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesStatus = counterStatusFilter === 'all' || c.status === counterStatusFilter || (counterStatusFilter === 'active' && c.isAvailable);
+    return matchesSearch && matchesStatus;
+  });
 
   const counterStats = {
     total: counters.length,
@@ -94,75 +187,73 @@ const displayedCounters = counters.filter((c) => {
     inactive: counters.filter(c => !c.isAvailable && c.status !== 'archived').length,
   };
 
-  
+  const resetForm = useCallback(() => {
+    setNewCounterName('');
+    setNewAssignedStaff('');
+    setCounterError(null);
+  }, []);
 
-const resetForm = () => {
-     setNewCounterName('');
-     setNewAssignedStaff('');
-     setCounterError(null);
-   };
+  const handleCreateCounterSubmit = useCallback(async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newCounterName.trim()) return;
 
-const handleCreateCounterSubmit = async (e: React.FormEvent) => {
-     e.preventDefault();
-     if (!newCounterName.trim()) return;
+    setIsSaving(true);
+    setCounterError(null);
 
-     setIsSaving(true);
-     setCounterError(null);
+    const createdCounter: Counter = {
+      id: '',
+      code: newCounterName.trim(),
+      name: newCounterName.trim(),
+      campusBlock: '',
+      categories: [],
+      operatingHours: '',
+      isAvailable: true,
+      assignedStaff: newAssignedStaff ? newAssignedStaff.split(',').map((s) => s.trim()).filter(Boolean) : [],
+      queueLength: 0,
+      avgWaitTimeMins: 0,
+      activeMenuCount: 0,
+      status: 'active'
+    };
 
-     const createdCounter: Counter = {
-       id: '',
-       code: newCounterName.trim(),
-       name: newCounterName.trim(),
-       campusBlock: '',
-       categories: [],
-       operatingHours: '',
-       isAvailable: true,
-       assignedStaff: newAssignedStaff ? newAssignedStaff.split(',').map((s) => s.trim()).filter(Boolean) : [],
-       queueLength: 0,
-       avgWaitTimeMins: 0,
-       activeMenuCount: 0,
-       status: 'active'
-     };
+    const result = await onAddCounter(createdCounter);
+    if (result === null) {
+      setCounterError('Failed to create counter. Check console for details.');
+      setIsSaving(false);
+      return;
+    }
 
-     const result = await onAddCounter(createdCounter);
-     if (result === null) {
-       setCounterError('Failed to create counter. Check console for details.');
-       setIsSaving(false);
-       return;
-     }
+    setIsSaving(false);
+    setIsAddCounterOpen(false);
+    resetForm();
+  }, [newCounterName, newAssignedStaff, onAddCounter, resetForm]);
 
-     setIsSaving(false);
-     setIsAddCounterOpen(false);
-     resetForm();
-   };
+  const handleEditCounterOpen = useCallback((counter: Counter) => {
+    setEditingCounter(counter);
+    setNewCounterName(counter.name);
+    setNewAssignedStaff(counter.assignedStaff.join(', '));
+    setCounterError(null);
+    setIsEditCounterOpen(true);
+  }, []);
 
-const handleEditCounterOpen = (counter: Counter) => {
-     setEditingCounter(counter);
-     setNewCounterName(counter.name);
-     setNewAssignedStaff(counter.assignedStaff.join(', '));
-     setCounterError(null);
-     setIsEditCounterOpen(true);
-   };
+  const handleEditCounterSubmit = useCallback(async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingCounter || !newCounterName.trim()) return;
 
-const handleEditCounterSubmit = async (e: React.FormEvent) => {
-     e.preventDefault();
-     if (!editingCounter || !newCounterName.trim()) return;
+    setIsSaving(true);
+    setCounterError(null);
 
-     setIsSaving(true);
-     setCounterError(null);
+    if (onUpdateCounter) {
+      await onUpdateCounter(editingCounter.id, {
+        name: newCounterName.trim(),
+        assignedStaff: newAssignedStaff ? newAssignedStaff.split(',').map((s) => s.trim()).filter(Boolean) : [],
+      });
+    }
 
-     if (onUpdateCounter) {
-       await onUpdateCounter(editingCounter.id, {
-         name: newCounterName.trim(),
-         assignedStaff: newAssignedStaff ? newAssignedStaff.split(',').map((s) => s.trim()).filter(Boolean) : [],
-       });
-     }
-
-     setIsSaving(false);
-     setIsEditCounterOpen(false);
-     setEditingCounter(null);
-     resetForm();
-   };
+    setIsSaving(false);
+    setIsEditCounterOpen(false);
+    setEditingCounter(null);
+    resetForm();
+  }, [editingCounter, newCounterName, newAssignedStaff, onUpdateCounter, resetForm]);
 
   const handleDeleteVendor = async (vendorId: string) => {
     if (onDeleteVendor) { await onDeleteVendor(vendorId); }
@@ -175,105 +266,31 @@ const handleEditCounterSubmit = async (e: React.FormEvent) => {
     }
   };
 
-  const handleOpenCreateModal = () => {
-    const nextLetter = String.fromCharCode(65 + counters.length);
-    setNewCounterCode(`Counter ${nextLetter}`);
-    setNewCounterName(`Counter ${nextLetter}`);
-    setCounterError(null);
-    setIsAddCounterOpen(true);
-  };
-
-  const handleOpenCreateModalCustom = () => {
-    setNewCounterCode('');
+  const handleOpenCreateModalCustom = useCallback(() => {
     setNewCounterName('');
+    setNewAssignedStaff('');
     setCounterError(null);
     setIsAddCounterOpen(true);
-  };
+  }, []);
 
-const ModalForm = ({ isEdit = false }: { isEdit?: boolean }) => {
-     const handleSubmit = isEdit ? handleEditCounterSubmit : handleCreateCounterSubmit;
-     const closeModal = isEdit
-       ? () => { setIsEditCounterOpen(false); setEditingCounter(null); resetForm(); }
-       : () => { setIsAddCounterOpen(false); resetForm(); };
+  const handleCloseAddModal = useCallback(() => {
+    setIsAddCounterOpen(false);
+    resetForm();
+  }, [resetForm]);
 
-     return (
-       <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
-         <div className="w-full max-w-lg bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl p-6 space-y-5 relative animate-fade-in">
-           <div className="flex items-start justify-between border-b border-slate-800 pb-3">
-             <div>
-               <h2 className="text-base font-bold text-white flex items-center space-x-2">
-                 <Layers className="w-5 h-5 text-amber-400" />
-                 <span>{isEdit ? 'Edit Campus Food Counter' : 'Create Campus Food Counter'}</span>
-               </h2>
-               <p className="text-xs text-slate-400">
-                 {isEdit ? 'Update counter name and staff assignment.' : 'Configure a new serving counter with staff assignment.'}
-               </p>
-             </div>
-             <button onClick={closeModal} className="p-1 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white">
-               <XCircle className="w-5 h-5" />
-             </button>
-           </div>
-
-           {counterError && (
-             <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-xs font-semibold flex items-center space-x-2">
-               <AlertCircle className="w-4 h-4 shrink-0" />
-               <span>{counterError}</span>
-             </div>
-           )}
-
-           <form onSubmit={handleSubmit} className="space-y-4 text-xs">
-             <div>
-               <label className="text-slate-400 font-semibold block mb-1">Counter Name *</label>
-               <input
-                 type="text"
-                 required
-                 value={newCounterName}
-                 onChange={(e) => setNewCounterName(e.target.value)}
-                 placeholder="e.g. Counter A - Main Kitchen"
-                 className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500"
-               />
-             </div>
-
-             <div>
-               <label className="text-slate-400 font-semibold block mb-1">Assigned Kitchen Staff</label>
-               <input
-                 type="text"
-                 value={newAssignedStaff}
-                 onChange={(e) => setNewAssignedStaff(e.target.value)}
-                 placeholder="Name 1, Name 2"
-                 className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500"
-               />
-             </div>
-
-             <div className="pt-3 border-t border-slate-800 flex justify-end space-x-2">
-               <button
-                 type="button"
-                 onClick={closeModal}
-                 className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold"
-               >
-                 Cancel
-               </button>
-               <button
-                 type="submit"
-                 disabled={isSaving}
-                 className="px-5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold shadow-lg shadow-amber-500/20 disabled:opacity-50"
-               >
-                 {isSaving ? 'Saving...' : isEdit ? 'Update Counter' : 'Create Counter'}
-               </button>
-             </div>
-           </form>
-         </div>
-       </div>
-     );
-   };
+  const handleCloseEditModal = useCallback(() => {
+    setIsEditCounterOpen(false);
+    setEditingCounter(null);
+    resetForm();
+  }, [resetForm]);
 
   return (
     <div className="space-y-6 animate-fade-in font-sans">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-xl font-extrabold text-white">Campus Counter & Canteen Management</h1>
+          <h1 className="text-xl font-extrabold text-white">Campus Counter &amp; Canteen Management</h1>
           <p className="text-xs text-slate-400">
-            Control campus food counters, assign categories, staff, timing, & vendor outlets.
+            Control campus food counters, assign categories, staff, timing, &amp; vendor outlets.
           </p>
         </div>
 
@@ -402,52 +419,52 @@ const ModalForm = ({ isEdit = false }: { isEdit?: boolean }) => {
                     </div>
                   </div>
 
-                   <div className="flex items-center space-x-1">
-                     <button
-                       onClick={() => onToggleCounterAvailability && onToggleCounterAvailability(counter.id)}
-                       className={`px-3 py-1 rounded-xl text-[11px] font-bold flex items-center space-x-1.5 border transition-all ${
-                         counter.isAvailable
-                           ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20 hover:bg-emerald-500/20'
-                           : 'bg-red-500/10 text-red-400 border-red-500/20 hover:bg-red-500/20'
-                       }`}
-                     >
-                       <Power className="w-3 h-3" />
-                       <span>{counter.isAvailable ? 'OPEN' : 'CLOSED'}</span>
-                     </button>
-                     {counter.status === 'archived' ? (
-                       <button
-                         onClick={() => onRestoreCounter && onRestoreCounter(counter.id)}
-                         className="px-3 py-1 rounded-xl text-[11px] font-bold bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 hover:bg-indigo-500/20"
-                       >
-                         Restore
-                       </button>
-                     ) : (
-                       <button
-                         onClick={() => onArchiveCounter && onArchiveCounter(counter.id)}
-                         className="px-3 py-1 rounded-xl text-[11px] font-bold bg-zinc-800 text-zinc-400 border border-zinc-700 hover:text-white hover:bg-zinc-700"
-                       >
-                         Archive
-                       </button>
-                     )}
-                     <button
-                       onClick={() => handleEditCounterOpen(counter)}
-                       className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition-colors"
-                       title="Edit Counter"
-                     >
-                       <Edit3 className="w-3.5 h-3.5" />
-                     </button>
-                     <button
-                       onClick={() => {
-                         if (window.confirm(`Delete ${counter.code} - ${counter.name}? This cannot be undone.`)) {
-                           handleDeleteCounterConfirm(counter.id);
-                         }
-                       }}
-                       className="p-1.5 rounded-lg bg-slate-800 hover:bg-red-900/50 text-slate-400 hover:text-red-400 transition-colors"
-                       title="Delete Counter"
-                     >
-                       <Trash2 className="w-3.5 h-3.5" />
-                     </button>
-                   </div>
+                  <div className="flex items-center space-x-1">
+                    <button
+                      onClick={() => onToggleCounterAvailability && onToggleCounterAvailability(counter.id)}
+                      className={`px-3 py-1 rounded-xl text-[11px] font-bold flex items-center space-x-1.5 border transition-all ${
+                        counter.isAvailable
+                          ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20 hover:bg-emerald-500/20'
+                          : 'bg-red-500/10 text-red-400 border-red-500/20 hover:bg-red-500/20'
+                      }`}
+                    >
+                      <Power className="w-3 h-3" />
+                      <span>{counter.isAvailable ? 'OPEN' : 'CLOSED'}</span>
+                    </button>
+                    {counter.status === 'archived' ? (
+                      <button
+                        onClick={() => onRestoreCounter && onRestoreCounter(counter.id)}
+                        className="px-3 py-1 rounded-xl text-[11px] font-bold bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 hover:bg-indigo-500/20"
+                      >
+                        Restore
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => onArchiveCounter && onArchiveCounter(counter.id)}
+                        className="px-3 py-1 rounded-xl text-[11px] font-bold bg-zinc-800 text-zinc-400 border border-zinc-700 hover:text-white hover:bg-zinc-700"
+                      >
+                        Archive
+                      </button>
+                    )}
+                    <button
+                      onClick={() => handleEditCounterOpen(counter)}
+                      className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition-colors"
+                      title="Edit Counter"
+                    >
+                      <Edit3 className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (window.confirm(`Delete ${counter.code} - ${counter.name}? This cannot be undone.`)) {
+                          handleDeleteCounterConfirm(counter.id);
+                        }
+                      }}
+                      className="p-1.5 rounded-lg bg-slate-800 hover:bg-red-900/50 text-slate-400 hover:text-red-400 transition-colors"
+                      title="Delete Counter"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                 </div>
 
                 <div className="pt-2 border-t border-slate-800/80 space-y-1.5">
@@ -599,8 +616,33 @@ const ModalForm = ({ isEdit = false }: { isEdit?: boolean }) => {
         </div>
       )}
 
-      {isAddCounterOpen && <ModalForm />}
-      {isEditCounterOpen && <ModalForm isEdit />}
+      {/* ─── Modals rendered via stable external component ─── */}
+      {isAddCounterOpen && (
+        <CounterModalForm
+          isEdit={false}
+          counterName={newCounterName}
+          assignedStaff={newAssignedStaff}
+          counterError={counterError}
+          isSaving={isSaving}
+          onCounterNameChange={setNewCounterName}
+          onAssignedStaffChange={setNewAssignedStaff}
+          onSubmit={handleCreateCounterSubmit}
+          onClose={handleCloseAddModal}
+        />
+      )}
+      {isEditCounterOpen && (
+        <CounterModalForm
+          isEdit={true}
+          counterName={newCounterName}
+          assignedStaff={newAssignedStaff}
+          counterError={counterError}
+          isSaving={isSaving}
+          onCounterNameChange={setNewCounterName}
+          onAssignedStaffChange={setNewAssignedStaff}
+          onSubmit={handleEditCounterSubmit}
+          onClose={handleCloseEditModal}
+        />
+      )}
 
       {selectedVendorModal && (
         <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
@@ -620,10 +662,10 @@ const ModalForm = ({ isEdit = false }: { isEdit?: boolean }) => {
 
             <div className="space-y-3 text-xs">
               <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-1">
-                <div className="font-bold text-slate-300">Food Safety & Hygiene Documentation</div>
+                <div className="font-bold text-slate-300">Food Safety &amp; Hygiene Documentation</div>
                 <div className="flex items-center space-x-2 text-emerald-400 pt-1">
                   <ShieldCheck className="w-4 h-4" />
-                  <span>FSSAI License & Health Clearance Verified</span>
+                  <span>FSSAI License &amp; Health Clearance Verified</span>
                 </div>
               </div>
 
@@ -641,7 +683,7 @@ const ModalForm = ({ isEdit = false }: { isEdit?: boolean }) => {
               </div>
 
               <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-1">
-                <div className="text-[10px] text-slate-500 uppercase font-semibold">Contact & Owner Details</div>
+                <div className="text-[10px] text-slate-500 uppercase font-semibold">Contact &amp; Owner Details</div>
                 <div className="text-slate-200">{selectedVendorModal.ownerName} ({selectedVendorModal.email})</div>
                 <div className="text-slate-400 font-mono">{selectedVendorModal.phone}</div>
               </div>
@@ -684,6 +726,7 @@ const ModalForm = ({ isEdit = false }: { isEdit?: boolean }) => {
           </div>
         </div>
       )}
+
       {deleteVendorConfirm && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
           <div className="w-full max-w-sm bg-[#0C0C0E] border border-zinc-800 rounded-3xl p-6 space-y-4">
