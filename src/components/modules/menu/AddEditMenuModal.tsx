@@ -94,41 +94,53 @@ export const AddEditMenuModal: React.FC<AddEditMenuModalProps> = ({
     c => !selectedCounterId || c.canteen_id === selectedCounterId
   );
 
-  useEffect(() => {
-    if (editingItem) {
-      setImageUrl(editingItem.imageUrl || '');
-      setName(editingItem.name || '');
-      setDescription(editingItem.description || '');
-      setCategory(editingItem.category || '');
-      setPrice(editingItem.price ? editingItem.price.toString() : '');
-      setDiscountPrice(editingItem.discountPrice ? editingItem.discountPrice.toString() : '');
-      setPrepTimeMinutes(editingItem.prepTimeMinutes ? editingItem.prepTimeMinutes.toString() : '');
-      setServingSize(editingItem.servingSize || '');
-      setFoodType(editingItem.food_type as DietaryType || editingItem.dietaryType || 'Veg');
-      setAvailability(editingItem.isAvailable);
-      setStatus(editingItem.status || 'published');
-      setSelectedCounterId(editingItem.canteen_id || '');
-      setSelectedCategoryId(editingItem.category_id || '');
-      setSaveError(null);
-    } else {
-      setImageUrl('');
-      setName('');
-      setDescription('');
-      setCategory('');
-      setPrice('');
-      setDiscountPrice('');
-      setPrepTimeMinutes('');
-      setServingSize('');
-      setFoodType('Veg');
-      setAvailability(true);
-      setStatus('published');
-      setSelectedCounterId('');
-      setSelectedCategoryId('');
-      setSaveError(null);
-    }
-    setUploadProgress(0);
-    setUploadRetries(0);
-  }, [editingItem, isOpen]);
+const prevIsOpenRef = useRef(false);
+   const prevEditingIdRef = useRef<string | null>(null);
+
+   useEffect(() => {
+     const justOpened = isOpen && !prevIsOpenRef.current;
+     const editingId = editingItem?.id || null;
+     const editingChanged = editingId !== prevEditingIdRef.current;
+
+     if (justOpened || editingChanged) {
+       if (editingItem) {
+         setImageUrl(editingItem.imageUrl || '');
+         setName(editingItem.name || '');
+         setDescription(editingItem.description || '');
+         setCategory(editingItem.category || '');
+         setPrice(editingItem.price ? editingItem.price.toString() : '');
+         setDiscountPrice(editingItem.discountPrice ? editingItem.discountPrice.toString() : '');
+         setPrepTimeMinutes(editingItem.prepTimeMinutes ? editingItem.prepTimeMinutes.toString() : '');
+         setServingSize(editingItem.servingSize || '');
+         setFoodType(editingItem.food_type as DietaryType || editingItem.dietaryType || 'Veg');
+         setAvailability(editingItem.isAvailable);
+         setStatus(editingItem.status || 'published');
+         setSelectedCounterId(editingItem.canteen_id || '');
+         setSelectedCategoryId(editingItem.category_id || '');
+         setSaveError(null);
+       } else {
+         setImageUrl('');
+         setName('');
+         setDescription('');
+         setCategory('');
+         setPrice('');
+         setDiscountPrice('');
+         setPrepTimeMinutes('');
+         setServingSize('');
+         setFoodType('Veg');
+         setAvailability(true);
+         setStatus('published');
+         setSelectedCounterId('');
+         setSelectedCategoryId('');
+         setSaveError(null);
+       }
+       setUploadProgress(0);
+       setUploadRetries(0);
+     }
+
+     prevIsOpenRef.current = isOpen;
+     prevEditingIdRef.current = editingId;
+   }, [editingItem, isOpen]);
 
   const processAndUpload = async (file: File) => {
     setIsUploading(true);

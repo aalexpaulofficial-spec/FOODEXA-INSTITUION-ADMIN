@@ -59,10 +59,10 @@ export const MenuManagement: React.FC<MenuManagementProps> = ({
     else if (activeSection === 'out_of_stock') items = items.filter(i => !i.isAvailable || i.status === 'out_of_stock');
     else if (activeSection === 'scheduled') items = items.filter(i => i.status === 'scheduled');
     else if (activeSection === 'archived') items = items.filter(i => i.status === 'archived');
-    if (selectedCategoryFilter !== 'all') items = items.filter(i => i.category === selectedCategoryFilter);
+    if (selectedCategoryFilter !== 'all') items = items.filter(i => i.food_type === selectedCategoryFilter);
     if (searchTerm.trim()) {
       const q = searchTerm.toLowerCase();
-      items = items.filter(item => item.name.toLowerCase().includes(q) || item.category.toLowerCase().includes(q) || item.description.toLowerCase().includes(q));
+      items = items.filter(item => item.name.toLowerCase().includes(q) || item.food_type.toLowerCase().includes(q) || item.description.toLowerCase().includes(q));
     }
     return items;
   }, [menuItems, activeSection, selectedCategoryFilter, searchTerm]);
@@ -76,13 +76,13 @@ export const MenuManagement: React.FC<MenuManagementProps> = ({
 
   const groupedByCategory = useMemo(() => {
     const acc: Record<string, MenuItem[]> = {};
-    sortedItems.forEach(item => { const cat = item.category || 'General'; if (!acc[cat]) acc[cat] = []; acc[cat].push(item); });
+    sortedItems.forEach(item => { const cat = item.food_type || 'General'; if (!acc[cat]) acc[cat] = []; acc[cat].push(item); });
     return acc;
   }, [sortedItems]);
 
   const categoryOrder = useMemo(() => Object.keys(groupedByCategory).sort(), [groupedByCategory]);
 
-  const allCategories = useMemo(() => ['all', ...Array.from(new Set(menuItems.map(i => i.category)))], [menuItems]);
+  const allCategories = useMemo(() => ['all', ...Array.from(new Set(menuItems.map(i => i.food_type)))], [menuItems]);
 
   const addToast = useCallback((message: string) => {
     const id = `toast-${Date.now()}-${Math.random()}`;
@@ -396,7 +396,7 @@ export const MenuManagement: React.FC<MenuManagementProps> = ({
                 <div className="flex items-center space-x-2 mb-1">
                   <h3 className="font-bold text-base text-white tracking-tight truncate">{item.name}</h3>
                   <span className="px-2 py-0.5 rounded bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 text-[10px] font-bold whitespace-nowrap">
-                    {item.category}
+                    {item.food_type}
                   </span>
                 </div>
                 <p className="text-xs text-zinc-400 line-clamp-2 leading-relaxed">{item.description}</p>
