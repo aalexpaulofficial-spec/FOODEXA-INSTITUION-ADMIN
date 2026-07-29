@@ -56,14 +56,13 @@ export const KitchenDashboard: React.FC<KitchenDashboardProps> = ({
     setItems(queueItems);
   }, [queueItems]);
 
-  const pendingItems = items.filter((i) => i.status === 'pending');
-  const acceptedItems = items.filter((i) => i.status === 'accepted');
-  const preparingItems = items.filter((i) => i.status === 'preparing' || i.status === 'accepted');
+  const incomingItems = items.filter((i) => ['pending', 'accepted'].includes(i.status));
+  const preparingItems = items.filter((i) => i.status === 'preparing');
   const readyItems = items.filter((i) => i.status === 'ready');
 
   const formatSeconds = (sec: number) => {
     const m = Math.floor(sec / 60);
-    const s = sec % 10;
+    const s = sec % 60;
     return `${m}:${s < 10 ? '0' : ''}${s}`;
   };
 
@@ -127,14 +126,14 @@ export const KitchenDashboard: React.FC<KitchenDashboardProps> = ({
             <div className="flex items-center space-x-2">
               <span className="w-2.5 h-2.5 rounded-full bg-amber-500" />
               <span className="text-xs font-extrabold uppercase tracking-wider text-amber-400">
-                Incoming Queue ({pendingItems.length})
+                Incoming Queue ({incomingItems.length})
               </span>
             </div>
-            <span className="text-[10px] font-mono text-slate-500">Awaiting Stove</span>
-          </div>
+          <span className="text-[10px] font-mono text-slate-500">Awaiting Acceptance</span>
+        </div>
 
-          <div className="space-y-3 min-h-[400px]">
-            {pendingItems.map((item) => (
+        <div className="space-y-3 min-h-[400px]">
+          {incomingItems.map((item) => (
               <div
                 key={item.id}
                 className="p-4 rounded-xl bg-slate-950 border border-slate-800/80 space-y-3 shadow-lg hover:border-amber-500/40 transition-all"
@@ -177,9 +176,9 @@ export const KitchenDashboard: React.FC<KitchenDashboardProps> = ({
               </div>
             ))}
 
-            {pendingItems.length === 0 && (
+            {incomingItems.length === 0 && (
               <div className="py-16 text-center text-slate-500 text-xs italic">
-                No pending orders in queue.
+                No incoming orders in queue.
               </div>
             )}
           </div>

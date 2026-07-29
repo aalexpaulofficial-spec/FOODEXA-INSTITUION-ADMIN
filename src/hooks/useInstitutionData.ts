@@ -331,34 +331,44 @@ useEffect(() => {
      }
    }, [institutionId, fetchAll]);
 
-   const [menuItemsChannel, setMenuItemsChannel] = useState<any>(null);
-   const [canteensChannel, setCanteensChannel] = useState<any>(null);
+    const [menuItemsChannel, setMenuItemsChannel] = useState<any>(null);
+    const [canteensChannel, setCanteensChannel] = useState<any>(null);
+    const [ordersChannel, setOrdersChannel] = useState<any>(null);
 
-   useEffect(() => {
-     if (!institutionId) return;
+    useEffect(() => {
+      if (!institutionId) return;
 
-     const menuChannel = supabase
-       .channel('menu_items_realtime')
-       .on('postgres_changes', { event: '*', schema: 'public', table: 'menu_items' }, () => {
-         fetchAll();
-       })
-       .subscribe();
+      const menuChannel = supabase
+        .channel('menu_items_realtime')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'menu_items' }, () => {
+          fetchAll();
+        })
+        .subscribe();
 
-     const canteenChannel = supabase
-       .channel('canteens_realtime')
-       .on('postgres_changes', { event: '*', schema: 'public', table: 'canteens' }, () => {
-         fetchAll();
-       })
-       .subscribe();
+      const canteenChannel = supabase
+        .channel('canteens_realtime')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'canteens' }, () => {
+          fetchAll();
+        })
+        .subscribe();
 
-     setMenuItemsChannel(menuChannel);
-     setCanteensChannel(canteenChannel);
+      const ordersChannelSub = supabase
+        .channel('orders_realtime')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => {
+          fetchAll();
+        })
+        .subscribe();
 
-     return () => {
-       supabase.removeChannel(menuChannel);
-       supabase.removeChannel(canteenChannel);
-     };
-   }, [institutionId, fetchAll]);
+      setMenuItemsChannel(menuChannel);
+      setCanteensChannel(canteenChannel);
+      setOrdersChannel(ordersChannelSub);
+
+      return () => {
+        supabase.removeChannel(menuChannel);
+        supabase.removeChannel(canteenChannel);
+        supabase.removeChannel(ordersChannelSub);
+      };
+    }, [institutionId, fetchAll]);
 
   const uploadImage = async (file: File, path: string): Promise<string | null> => {
     try {

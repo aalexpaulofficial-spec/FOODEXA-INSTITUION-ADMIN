@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { QrCode, CheckCircle2, AlertCircle, X, ShoppingBag, User } from 'lucide-react';
 import { Order } from '../../types';
 
@@ -19,16 +19,18 @@ export const QRPickupScannerModal: React.FC<QRPickupScannerModalProps> = ({
   const [matchedOrder, setMatchedOrder] = useState<Order | null>(null);
   const [statusMsg, setStatusMsg] = useState<string | null>(null);
 
+  const safeOrders = useMemo(() => Array.isArray(orders) ? orders : [], [orders]);
+
   if (!isOpen) return null;
 
   const handleVerify = (codeToVerify: string) => {
     const clean = codeToVerify.trim().toLowerCase();
-    const found = orders.find(
+    const found = safeOrders.find(
       (o) =>
-        o.pickupCode.toLowerCase() === clean ||
-        o.orderNumber.toLowerCase() === clean ||
+        (o.pickupCode || '').toLowerCase() === clean ||
+        (o.orderNumber || '').toLowerCase() === clean ||
         (o.pickupNumber && o.pickupNumber.toLowerCase() === clean) ||
-        o.orderNumber.toLowerCase().includes(clean)
+        (o.orderNumber || '').toLowerCase().includes(clean)
     );
 
     if (found) {
@@ -113,7 +115,7 @@ export const QRPickupScannerModal: React.FC<QRPickupScannerModalProps> = ({
             Quick Pickup Codes:
           </span>
           <div className="flex flex-wrap gap-1.5">
-            {orders.map((o) => (
+            {safeOrders.slice(0, 20).map((o) => (
               <button
                 key={o.id}
                 onClick={() => {
@@ -158,7 +160,7 @@ export const QRPickupScannerModal: React.FC<QRPickupScannerModalProps> = ({
             </div>
             <div className="flex items-center space-x-2 text-slate-300">
               <ShoppingBag className="w-3.5 h-3.5 text-slate-400" />
-              <span>{matchedOrder.items.map((i) => `${i.quantity}x ${i.name}`).join(', ')}</span>
+              <span>{(Array.isArray(matchedOrder.items) ? matchedOrder.items : []).map((i) => `${i.quantity || 0}x ${i.name || ''}`).join(', ')}</span>
             </div>
 
             <button

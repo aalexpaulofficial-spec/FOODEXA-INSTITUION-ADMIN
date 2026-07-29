@@ -2,7 +2,8 @@ import React, { useState, useMemo, useCallback } from 'react';
 import {
   UtensilsCrossed, Plus, Search, Sparkles, Flame, CheckCircle2, XCircle,
   FileUp, Tag, Clock, Copy, Archive, Eye, FileText, Keyboard, TrendingUp,
-  Filter, SlidersHorizontal, X, AlertCircle, Check, Edit3, Trash2, Layers, DollarSign
+  Filter, SlidersHorizontal, X, AlertCircle, Check, Edit3, Trash2, Layers, DollarSign,
+  Dumbbell, Package, Star
 } from 'lucide-react';
 import { MenuItem, MenuStatus, MenuCategory, Counter } from '../../../types';
 import { AddEditMenuModal } from './AddEditMenuModal';
@@ -412,7 +413,11 @@ export const MenuManagement: React.FC<MenuManagementProps> = ({
             <div className="flex flex-wrap items-center gap-3 text-[11px] text-zinc-400 font-mono pt-2 border-t border-zinc-800/80">
               <span className="flex items-center space-x-1"><Clock className="w-3.5 h-3.5 text-indigo-400" /><span>{item.prepTimeMinutes || 10}m prep</span></span>
               <span className="flex items-center space-x-1"><Flame className="w-3.5 h-3.5 text-amber-400" /><span>{item.calories || 0} kcal</span></span>
-              <span>Serving: <strong className="text-zinc-200">{item.servingSize || 'Regular'}</strong></span>
+              <span className="flex items-center space-x-1"><Dumbbell className="w-3.5 h-3.5 text-emerald-400" /><span>{item.proteinGrams || 0}g protein</span></span>
+              <span>Stock: <strong className={item.stockCount > 0 ? 'text-emerald-400' : 'text-red-400'}>{item.stockCount}</strong></span>
+              <span>Rating: <strong className="text-amber-400">{(item.analytics?.averageRating || 0).toFixed(1)}</strong></span>
+              <span className="px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-400 text-[10px] font-mono">{item.category || '—'}</span>
+              <span className="text-zinc-400">{item.canteen_id || item.vendorId ? (counters.find(c => c.id === (item.canteen_id || item.vendorId))?.name || '—') : '—'}</span>
             </div>
 
             <div className="flex items-center space-x-2 text-[11px]">

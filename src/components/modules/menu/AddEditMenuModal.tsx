@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import {
   X,
   Sparkles,
@@ -13,7 +13,37 @@ import {
   RefreshCw,
   Check,
   ImageOff,
-  Gauge
+  Gauge,
+  Wand2,
+  Hash,
+  Tag,
+  Sun,
+  Moon,
+  Zap,
+  Package,
+  Star,
+  Target,
+  Activity,
+  ChevronDown,
+  ChevronUp,
+  Layers,
+  Store,
+  RotateCcw,
+  Info,
+  SparklesIcon,
+  Soup,
+  Fish,
+  Apple,
+  Droplets,
+  FlameIcon,
+  Sandwich,
+  Coffee,
+  Cake,
+  Dumbbell,
+  Percent,
+  ClockIcon,
+  Scale,
+  ChevronRight
 } from 'lucide-react';
 import { MenuItem, MenuStatus, DietaryType, Counter, MenuCategory } from '../../../types';
 import { supabase } from '../../../lib/supabaseClient';
@@ -30,6 +60,68 @@ interface AddEditMenuModalProps {
 
 const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 const MAX_FILE_SIZE = 5 * 1024 * 1024;
+
+const AUTO_CATEGORY_MAP: Record<string, string[]> = {
+  'chicken biryani': ['Main Course', 'Rice', 'Non Veg', 'Lunch', 'Dinner'],
+  'biryani': ['Main Course', 'Rice', 'Lunch', 'Dinner'],
+  'paneer': ['Main Course', 'North Indian', 'Veg'],
+  'butter chicken': ['Main Course', 'North Indian', 'Veg'],
+  'dal': ['Main Course', 'North Indian', 'Veg'],
+  'tandoori': ['Main Course', 'North Indian', 'Non Veg'],
+  'naan': ['Bread', 'North Indian', 'Veg'],
+  'roti': ['Bread', 'North Indian', 'Veg'],
+  'paratha': ['Bread', 'North Indian', 'Veg'],
+  'dosa': ['Main Course', 'South Indian', 'Veg', 'Breakfast'],
+  'idli': ['Main Course', 'South Indian', 'Veg', 'Breakfast'],
+  'vada': ['Snacks', 'South Indian', 'Veg'],
+  'sambar': ['Main Course', 'South Indian', 'Veg'],
+  'chole': ['Main Course', 'North Indian', 'Veg'],
+  'pizza': ['Fast Food', 'Continental', 'Italian'],
+  'burger': ['Fast Food', 'Continental'],
+  'pasta': ['Fast Food', 'Italian', 'Continental'],
+  'sandwich': ['Fast Food', 'Continental'],
+  'salad': ['Healthy Meals', 'Continental', 'Veg'],
+  'smoothie': ['Beverages', 'Healthy Meals'],
+  'juice': ['Beverages'],
+  'milkshake': ['Beverages', 'Desserts'],
+  'coffee': ['Beverages'],
+  'tea': ['Beverages'],
+  'cake': ['Bakery', 'Desserts'],
+  'cookie': ['Bakery', 'Desserts'],
+  'bread': ['Bakery', 'Breakfast'],
+  'muffin': ['Bakery', 'Desserts'],
+  'croissant': ['Bakery', 'Breakfast'],
+  'soup': ['Healthy Meals', 'Main Course'],
+  'noodles': ['Main Course', 'Chinese', 'Fast Food'],
+  'fried rice': ['Main Course', 'Chinese', 'Rice'],
+  'manchurian': ['Main Course', 'Chinese', 'Fast Food'],
+  'spring roll': ['Snacks', 'Chinese'],
+  'ice cream': ['Desserts', 'Beverages'],
+  'gelato': ['Desserts'],
+  'pudding': ['Desserts'],
+  'custard': ['Desserts'],
+  'faluda': ['Desserts', 'Beverages'],
+  'lassi': ['Beverages', 'Healthy Meals'],
+  'chaat': ['Snacks', 'Street Food', 'Fast Food'],
+  'pakora': ['Snacks', 'Fast Food'],
+  'samosa': ['Snacks', 'Fast Food'],
+  'momos': ['Snacks', 'Chinese', 'Fast Food'],
+  'steamed momos': ['Snacks', 'Chinese', 'Healthy Meals'],
+  'grilled': ['Healthy Meals', 'Fast Food'],
+  'grill': ['Healthy Meals', 'Fast Food'],
+  'tikka': ['Main Course', 'North Indian', 'Non Veg'],
+  'kebab': ['Main Course', 'North Indian', 'Non Veg'],
+  'roll': ['Main Course', 'Fast Food'],
+  'wrap': ['Main Course', 'Fast Food'],
+  'bowl': ['Healthy Meals', 'Main Course'],
+  'acai': ['Healthy Meals', 'Beverages', 'Desserts'],
+  'granola': ['Healthy Meals', 'Breakfast', 'Snacks'],
+  'breakfast': ['Breakfast', 'Healthy Meals'],
+  'egg': ['Breakfast', 'Healthy Meals'],
+  'omelette': ['Breakfast', 'Healthy Meals'],
+  'pancake': ['Breakfast', 'Desserts'],
+  'oats': ['Breakfast', 'Healthy Meals'],
+};
 
 function compressImage(file: File, maxWidth = 1200): Promise<{ blob: Blob; preview: string }> {
   return new Promise((resolve, reject) => {
@@ -77,16 +169,25 @@ export const AddEditMenuModal: React.FC<AddEditMenuModalProps> = ({
   const [uploadRetries, setUploadRetries] = useState(0);
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
-  const [category, setCategory] = useState('');
   const [price, setPrice] = useState('');
   const [discountPrice, setDiscountPrice] = useState('');
   const [prepTimeMinutes, setPrepTimeMinutes] = useState('');
   const [servingSize, setServingSize] = useState('');
+  const [calories, setCalories] = useState('');
+  const [proteinGrams, setProteinGrams] = useState('');
+  const [carbsGrams, setCarbsGrams] = useState('');
+  const [fatGrams, setFatGrams] = useState('');
+  const [fiberGrams, setFiberGrams] = useState('');
+  const [stockCount, setStockCount] = useState('');
   const [foodType, setFoodType] = useState<DietaryType>('Veg');
   const [availability, setAvailability] = useState(true);
   const [status, setStatus] = useState<MenuStatus>('published');
   const [selectedCounterId, setSelectedCounterId] = useState('');
   const [selectedCategoryId, setSelectedCategoryId] = useState('');
+  const [manualCategory, setManualCategory] = useState('');
+  const [categoryMode, setCategoryMode] = useState<'auto' | 'manual'>('auto');
+  const [autoSuggestions, setAutoSuggestions] = useState<string[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -94,53 +195,90 @@ export const AddEditMenuModal: React.FC<AddEditMenuModalProps> = ({
     c => !selectedCounterId || c.canteen_id === selectedCounterId
   );
 
-const prevIsOpenRef = useRef(false);
-   const prevEditingIdRef = useRef<string | null>(null);
+  const prevIsOpenRef = useRef(false);
+  const prevEditingIdRef = useRef<string | null>(null);
 
-   useEffect(() => {
-     const justOpened = isOpen && !prevIsOpenRef.current;
-     const editingId = editingItem?.id || null;
-     const editingChanged = editingId !== prevEditingIdRef.current;
+  const suggestedAutoCategories = useMemo(() => {
+    if (!name.trim() || categoryMode !== 'auto') return [];
+    const lower = name.toLowerCase().trim();
+    for (const [key, cats] of Object.entries(AUTO_CATEGORY_MAP)) {
+      if (lower.includes(key)) return cats;
+    }
+    return [];
+  }, [name, categoryMode]);
 
-     if (justOpened || editingChanged) {
-       if (editingItem) {
-         setImageUrl(editingItem.imageUrl || '');
-         setName(editingItem.name || '');
-         setDescription(editingItem.description || '');
-         setCategory(editingItem.category || '');
-         setPrice(editingItem.price ? editingItem.price.toString() : '');
-         setDiscountPrice(editingItem.discountPrice ? editingItem.discountPrice.toString() : '');
-         setPrepTimeMinutes(editingItem.prepTimeMinutes ? editingItem.prepTimeMinutes.toString() : '');
-         setServingSize(editingItem.servingSize || '');
-         setFoodType(editingItem.food_type as DietaryType || editingItem.dietaryType || 'Veg');
-         setAvailability(editingItem.isAvailable);
-         setStatus(editingItem.status || 'published');
-         setSelectedCounterId(editingItem.canteen_id || '');
-         setSelectedCategoryId(editingItem.category_id || '');
-         setSaveError(null);
-       } else {
-         setImageUrl('');
-         setName('');
-         setDescription('');
-         setCategory('');
-         setPrice('');
-         setDiscountPrice('');
-         setPrepTimeMinutes('');
-         setServingSize('');
-         setFoodType('Veg');
-         setAvailability(true);
-         setStatus('published');
-         setSelectedCounterId('');
-         setSelectedCategoryId('');
-         setSaveError(null);
-       }
-       setUploadProgress(0);
-       setUploadRetries(0);
-     }
+  useEffect(() => {
+    const justOpened = isOpen && !prevIsOpenRef.current;
+    const editingId = editingItem?.id || null;
+    const editingChanged = editingId !== prevEditingIdRef.current;
 
-     prevIsOpenRef.current = isOpen;
-     prevEditingIdRef.current = editingId;
-   }, [editingItem, isOpen]);
+    if (justOpened || editingChanged) {
+      if (editingItem) {
+        setImageUrl(editingItem.imageUrl || '');
+        setName(editingItem.name || '');
+        setDescription(editingItem.description || '');
+        setPrice(editingItem.price ? editingItem.price.toString() : '');
+        setDiscountPrice(editingItem.discountPrice ? editingItem.discountPrice.toString() : '');
+        setPrepTimeMinutes(editingItem.prepTimeMinutes ? editingItem.prepTimeMinutes.toString() : '');
+        setServingSize(editingItem.servingSize || '');
+        setCalories(editingItem.calories ? editingItem.calories.toString() : '');
+        setProteinGrams(editingItem.proteinGrams ? editingItem.proteinGrams.toString() : '');
+        setFoodType(editingItem.food_type as DietaryType || editingItem.dietaryType || 'Veg');
+        setAvailability(editingItem.isAvailable);
+        setStatus(editingItem.status || 'published');
+        setSelectedCounterId(editingItem.canteen_id || editingItem.vendorId || '');
+        setSelectedCategoryId(editingItem.category_id || '');
+        setManualCategory(editingItem.category || '');
+        setStockCount(editingItem.stockCount ? editingItem.stockCount.toString() : '0');
+        setCategoryMode('manual');
+        setAutoSuggestions([]);
+        setSaveError(null);
+      } else {
+        setImageUrl('');
+        setName('');
+        setDescription('');
+        setPrice('');
+        setDiscountPrice('');
+        setPrepTimeMinutes('');
+        setServingSize('');
+        setCalories('');
+        setProteinGrams('');
+        setCarbsGrams('');
+        setFatGrams('');
+        setFiberGrams('');
+        setStockCount('0');
+        setFoodType('Veg');
+        setAvailability(true);
+        setStatus('published');
+        setSelectedCounterId('');
+        setSelectedCategoryId('');
+        setManualCategory('');
+        setCategoryMode('auto');
+        setAutoSuggestions([]);
+        setSaveError(null);
+      }
+      setUploadProgress(0);
+      setUploadRetries(0);
+    }
+
+    prevIsOpenRef.current = isOpen;
+    prevEditingIdRef.current = editingId;
+  }, [editingItem, isOpen]);
+
+  useEffect(() => {
+    if (categoryMode === 'auto' && name.trim() && suggestedAutoCategories.length > 0) {
+      setAutoSuggestions(suggestedAutoCategories);
+      setShowSuggestions(true);
+    } else {
+      setShowSuggestions(false);
+      setAutoSuggestions([]);
+    }
+  }, [name, categoryMode, suggestedAutoCategories]);
+
+  const selectAutoCategory = (cat: string) => {
+    setManualCategory(cat);
+    setShowSuggestions(false);
+  };
 
   const processAndUpload = async (file: File) => {
     setIsUploading(true);
@@ -232,23 +370,28 @@ const prevIsOpenRef = useRef(false);
     setSaveError(null);
     setIsSubmitting(true);
 
+    const finalCategory = categoryMode === 'auto' ? manualCategory : manualCategory;
+
     const savedItem: MenuItem = {
       id: editingItem ? editingItem.id : `menu-${Date.now()}`,
       vendorId: selectedCounterId || editingItem?.vendorId || '',
       vendorName: counters.find(c => c.id === selectedCounterId)?.name || editingItem?.vendorName || '',
       name: name || '',
-      category: category || '',
+      category: finalCategory || '',
       price: parseFloat(price) || 0,
       discountPrice: discountPrice ? parseFloat(discountPrice) : undefined,
       prepTimeMinutes: parseInt(prepTimeMinutes) || 0,
       servingSize: servingSize || '',
-      calories: editingItem?.calories || 0,
-      proteinGrams: editingItem?.proteinGrams || 0,
+      calories: parseInt(calories) || 0,
+      proteinGrams: parseInt(proteinGrams) || 0,
+      carbsGrams: carbsGrams ? parseInt(carbsGrams) : undefined,
+      fatGrams: fatGrams ? parseInt(fatGrams) : undefined,
+      fiberGrams: fiberGrams ? parseInt(fiberGrams) : undefined,
+      stockCount: parseInt(stockCount) || 0,
       isVegetarian: foodType === 'Veg' || foodType === 'Vegan' || foodType === 'Jain',
       food_type: foodType,
       dietaryType: foodType,
       isAvailable: availability,
-      stockCount: 0,
       imageUrl: imageUrl || '',
       description: description || '',
       ingredients: editingItem?.ingredients || [],
@@ -277,7 +420,7 @@ const prevIsOpenRef = useRef(false);
 
   return (
     <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-3 sm:p-6 overflow-y-auto">
-      <div className="w-full max-w-3xl bg-[#0C0C0E] border border-zinc-800 rounded-3xl shadow-2xl flex flex-col max-h-[92vh] overflow-hidden my-auto">
+      <div className="w-full max-w-4xl bg-[#0C0C0E] border border-zinc-800 rounded-3xl shadow-2xl flex flex-col max-h-[92vh] overflow-hidden my-auto">
         <div className="p-5 border-b border-zinc-800/80 flex items-center justify-between bg-[#09090B]">
           <div className="flex items-center space-x-3">
             <div className="p-2.5 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400">
@@ -287,7 +430,7 @@ const prevIsOpenRef = useRef(false);
               <h2 className="text-base font-bold text-white tracking-tight">
                 {editingItem ? 'Edit Menu Item' : 'Add New Menu Item'}
               </h2>
-              <p className="text-xs text-zinc-400">Configure item details, pricing, and category.</p>
+              <p className="text-xs text-zinc-400">Configure item details, pricing, nutrition, and smart category.</p>
             </div>
           </div>
           <button
@@ -307,8 +450,9 @@ const prevIsOpenRef = useRef(false);
           )}
 
           <form onSubmit={handleSubmit} className="space-y-6">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <div className="space-y-3">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              {/* LEFT COLUMN: Image */}
+              <div className="lg:col-span-1 space-y-3">
                 <label className="text-xs font-bold text-zinc-300 uppercase tracking-wider block">
                   Food Image
                 </label>
@@ -329,14 +473,14 @@ const prevIsOpenRef = useRef(false);
                           onClick={() => fileInputRef.current?.click()}
                           className="px-3 py-1.5 rounded-lg bg-indigo-600 text-white text-xs font-bold shadow"
                         >
-                          Change
+                          Replace
                         </button>
                         <button
                           type="button"
                           onClick={removeImage}
                           className="px-3 py-1.5 rounded-lg bg-red-600 text-white text-xs font-bold shadow"
                         >
-                          Remove
+                          Delete
                         </button>
                       </div>
                       {isUploading && (
@@ -370,7 +514,7 @@ const prevIsOpenRef = useRef(false);
                           <div className="h-full bg-indigo-500 rounded-full transition-all" style={{ width: `${uploadProgress}%` }} />
                         </div>
                       )}
-                      {!isUploading && imageUrl === '' && uploadRetries > 0 && (
+                      {!isUploading && uploadRetries > 0 && (
                         <button type="button" onClick={handleRetryUpload} className="text-[10px] text-indigo-400 hover:text-indigo-300 font-semibold">
                           Retry upload
                         </button>
@@ -395,36 +539,116 @@ const prevIsOpenRef = useRef(false);
                 </div>
               </div>
 
-              <div className="space-y-4">
+              {/* CENTER COLUMN: Details */}
+              <div className="lg:col-span-2 space-y-4">
                 <div>
                   <label className="text-xs font-semibold text-zinc-300 block mb-1">Food Name *</label>
                   <input
                     type="text"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    placeholder="e.g. Crispy Masala Dosa"
+                    placeholder="e.g. Chicken Biryani"
                     required
                     className="w-full bg-zinc-900/80 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-indigo-500"
                   />
                 </div>
 
+                {/* Smart Category Section */}
                 <div>
-                  <label className="text-xs font-semibold text-zinc-300 block mb-1">Category *</label>
-                  <input
-                    type="text"
-                    value={category}
-                    onChange={(e) => setCategory(e.target.value)}
-                    placeholder="e.g. Breakfast, Snacks, Beverages"
-                    required
-                    list="category-suggestions"
-                    className="w-full bg-zinc-900/80 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-indigo-500"
-                  />
-                  <datalist id="category-suggestions">
-                    {categories.map(c => <option key={c.id} value={c.name} />)}
-                    <option value="Breakfast" /><option value="Lunch" /><option value="Dinner" />
-                    <option value="Snacks" /><option value="Beverages" /><option value="Desserts" />
-                    <option value="Healthy Meals" /><option value="Fast Food" />
-                  </datalist>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="text-xs font-semibold text-zinc-300 block">Category</label>
+                    <div className="flex items-center space-x-2">
+                      <button
+                        type="button"
+                        onClick={() => setCategoryMode('auto')}
+                        className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all flex items-center space-x-1 ${
+                          categoryMode === 'auto'
+                            ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30'
+                            : 'bg-zinc-900/80 text-zinc-500 border border-zinc-800'
+                        }`}
+                      >
+                        <Sparkles className="w-3 h-3" />
+                        <span>Auto</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setCategoryMode('manual')}
+                        className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all flex items-center space-x-1 ${
+                          categoryMode === 'manual'
+                            ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                            : 'bg-zinc-900/80 text-zinc-500 border border-zinc-800'
+                        }`}
+                      >
+                        <Tag className="w-3 h-3" />
+                        <span>Manual</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {categoryMode === 'auto' ? (
+                    <div className="space-y-2">
+                      <input
+                        type="text"
+                        value={manualCategory}
+                        onChange={(e) => {
+                          setManualCategory(e.target.value);
+                          if (!e.target.value.trim()) {
+                            setShowSuggestions(false);
+                          }
+                        }}
+                        onFocus={() => { if (suggestedAutoCategories.length > 0) setShowSuggestions(true); }}
+                        placeholder="Start typing to get smart suggestions..."
+                        className="w-full bg-zinc-900/80 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-indigo-500"
+                      />
+                      {showSuggestions && autoSuggestions.length > 0 && (
+                        <div className="bg-zinc-900/90 border border-zinc-800 rounded-xl p-2 space-y-1 animate-fade-in">
+                          <div className="text-[10px] text-zinc-500 font-semibold uppercase tracking-wider px-2 py-1 flex items-center space-x-1">
+                            <SparklesIcon className="w-3 h-3 text-indigo-400" />
+                            <span>Suggested Categories</span>
+                          </div>
+                          {autoSuggestions.map((cat) => (
+                            <button
+                              key={cat}
+                              type="button"
+                              onClick={() => selectAutoCategory(cat)}
+                              className="w-full text-left px-3 py-1.5 rounded-lg hover:bg-zinc-800 text-xs text-indigo-300 font-semibold transition-colors flex items-center space-x-2"
+                            >
+                              <Layers className="w-3 h-3" />
+                              <span>{cat}</span>
+                              <ChevronRight className="w-3 h-3 ml-auto" />
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                      {manualCategory && (
+                        <div className="flex items-center space-x-1 text-xs text-indigo-400">
+                          <Info className="w-3 h-3" />
+                          <span>Selected: <strong>{manualCategory}</strong> (change anytime above)</span>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <input
+                        type="text"
+                        value={manualCategory}
+                        onChange={(e) => setManualCategory(e.target.value)}
+                        placeholder="e.g. Breakfast, Main Course, Snacks"
+                        required
+                        list="category-suggestions-manual"
+                        className="w-full bg-zinc-900/80 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-indigo-500"
+                      />
+                      <datalist id="category-suggestions-manual">
+                        {categories.map(c => <option key={c.id} value={c.name} />)}
+                        <option value="Breakfast" /><option value="Lunch" /><option value="Dinner" />
+                        <option value="Snacks" /><option value="Beverages" /><option value="Desserts" />
+                        <option value="Healthy Meals" /><option value="Fast Food" />
+                        <option value="South Indian" /><option value="North Indian" />
+                        <option value="Chinese" /><option value="Continental" /><option value="Bakery" />
+                        <option value="Main Course" /><option value="Rice" /><option value="Bread" />
+                      </datalist>
+                    </div>
+                  )}
                 </div>
 
                 <div>
@@ -437,130 +661,196 @@ const prevIsOpenRef = useRef(false);
                     className="w-full bg-zinc-900/80 border border-zinc-800 rounded-xl p-3 text-xs text-white focus:outline-none focus:border-indigo-500"
                   />
                 </div>
-              </div>
-            </div>
 
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-              <div>
-                <label className="text-xs font-semibold text-zinc-300 block mb-1">Regular Price (₹) *</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={price}
-                  onChange={(e) => setPrice(e.target.value)}
-                  required
-                  className="w-full bg-zinc-900/80 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-xs font-mono text-white focus:outline-none focus:border-indigo-500"
-                />
-              </div>
-              <div>
-                <label className="text-xs font-semibold text-zinc-300 block mb-1">Discount Price (₹)</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={discountPrice}
-                  onChange={(e) => setDiscountPrice(e.target.value)}
-                  placeholder="Optional"
-                  className="w-full bg-zinc-900/80 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-xs font-mono text-white focus:outline-none focus:border-indigo-500"
-                />
-              </div>
-              <div>
-                <label className="text-xs font-semibold text-zinc-300 block mb-1">Prep Time (mins)</label>
-                <input
-                  type="number"
-                  min="0"
-                  value={prepTimeMinutes}
-                  onChange={(e) => setPrepTimeMinutes(e.target.value)}
-                  className="w-full bg-zinc-900/80 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-xs font-mono text-white focus:outline-none focus:border-indigo-500"
-                />
-              </div>
-              <div>
-                <label className="text-xs font-semibold text-zinc-300 block mb-1">Serving Size</label>
-                <input
-                  type="text"
-                  value={servingSize}
-                  onChange={(e) => setServingSize(e.target.value)}
-                  placeholder="e.g. 1 Bowl (350g)"
-                  className="w-full bg-zinc-900/80 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-indigo-500"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="text-xs font-semibold text-zinc-300 block mb-1.5">Food Type</label>
-                <div className="grid grid-cols-4 gap-2">
-                  {(['Veg', 'Non-Veg', 'Vegan', 'Jain'] as DietaryType[]).map((type) => (
-                    <button
-                      key={type}
-                      type="button"
-                      onClick={() => setFoodType(type)}
-                      className={`py-2 rounded-xl text-xs font-bold transition-all border ${
-                        foodType === type
-                          ? 'bg-indigo-600 text-white border-indigo-500 shadow'
-                          : 'bg-zinc-900/80 text-zinc-400 border-zinc-800 hover:text-white'
-                      }`}
-                    >
-                      {type}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div>
-                <label className="text-xs font-semibold text-zinc-300 block mb-1.5">Availability & Status</label>
-                <div className="grid grid-cols-2 gap-2">
-                  <select
-                    value={status}
-                    onChange={(e) => setStatus(e.target.value as MenuStatus)}
-                    className="bg-zinc-900/80 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none"
-                  >
-                    <option value="published">Published</option>
-                    <option value="draft">Draft</option>
-                    <option value="scheduled">Scheduled</option>
-                    <option value="hidden">Hidden</option>
-                    <option value="out_of_stock">Out of Stock</option>
-                    <option value="archived">Archived</option>
-                  </select>
-                  <label className="flex items-center space-x-2 cursor-pointer px-3 py-2 rounded-xl bg-zinc-900/80 border border-zinc-800">
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                  <div>
+                    <label className="text-xs font-semibold text-zinc-300 block mb-1">Price (₹) *</label>
                     <input
-                      type="checkbox"
-                      checked={availability}
-                      onChange={(e) => setAvailability(e.target.checked)}
-                      className="rounded border-zinc-800 bg-zinc-900 text-indigo-600 focus:ring-0"
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={price}
+                      onChange={(e) => setPrice(e.target.value)}
+                      required
+                      className="w-full bg-zinc-900/80 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-xs font-mono text-white focus:outline-none focus:border-indigo-500"
                     />
-                    <span className="text-xs font-semibold text-zinc-200">Available</span>
-                  </label>
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-zinc-300 block mb-1">Discount Price (₹)</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={discountPrice}
+                      onChange={(e) => setDiscountPrice(e.target.value)}
+                      placeholder="Optional"
+                      className="w-full bg-zinc-900/80 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-xs font-mono text-white focus:outline-none focus:border-indigo-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-zinc-300 block mb-1">Stock Count</label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={stockCount}
+                      onChange={(e) => setStockCount(e.target.value)}
+                      className="w-full bg-zinc-900/80 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-xs font-mono text-white focus:outline-none focus:border-indigo-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-zinc-300 block mb-1">Prep Time (mins)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={prepTimeMinutes}
+                      onChange={(e) => setPrepTimeMinutes(e.target.value)}
+                      className="w-full bg-zinc-900/80 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-xs font-mono text-white focus:outline-none focus:border-indigo-500"
+                    />
+                  </div>
                 </div>
-              </div>
-            </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="text-xs font-semibold text-zinc-300 block mb-1">Assign to Counter</label>
-                <select
-                  value={selectedCounterId}
-                  onChange={(e) => { setSelectedCounterId(e.target.value); setSelectedCategoryId(''); }}
-                  className="w-full bg-zinc-900/80 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-indigo-500"
-                >
-                  <option value="">-- Select Counter --</option>
-                  {counters.map((c) => (
-                    <option key={c.id} value={c.id}>{c.code} - {c.name}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="text-xs font-semibold text-zinc-300 block mb-1">Menu Category (DB)</label>
-                <select
-                  value={selectedCategoryId}
-                  onChange={(e) => setSelectedCategoryId(e.target.value)}
-                  className="w-full bg-zinc-900/80 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-indigo-500"
-                >
-                  <option value="">-- None (Type above) --</option>
-                  {filteredCategories.map((cat) => (
-                    <option key={cat.id} value={cat.id}>{cat.name}</option>
-                  ))}
-                </select>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-xs font-semibold text-zinc-300 block mb-1">Serving Size</label>
+                    <input
+                      type="text"
+                      value={servingSize}
+                      onChange={(e) => setServingSize(e.target.value)}
+                      placeholder="e.g. 1 Bowl (350g)"
+                      className="w-full bg-zinc-900/80 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-indigo-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-zinc-300 block mb-1">Food Type</label>
+                    <div className="grid grid-cols-4 gap-2">
+                      {(['Veg', 'Non-Veg', 'Vegan', 'Jain'] as DietaryType[]).map((type) => (
+                        <button
+                          key={type}
+                          type="button"
+                          onClick={() => setFoodType(type)}
+                          className={`py-2 rounded-xl text-xs font-bold transition-all border ${
+                            foodType === type
+                              ? 'bg-indigo-600 text-white border-indigo-500 shadow'
+                              : 'bg-zinc-900/80 text-zinc-400 border-zinc-800 hover:text-white'
+                          }`}
+                        >
+                          {type === 'Veg' ? '🥬' : type === 'Non-Veg' ? '🍗' : type === 'Vegan' ? '🌱' : '🕉'} {type}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-xs font-semibold text-zinc-300 block mb-1.5">Nutrition</label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="flex items-center space-x-1.5 bg-zinc-900/80 rounded-lg px-2 py-1.5 border border-zinc-800">
+                        <Flame className="w-3 h-3 text-amber-400" />
+                        <input
+                          type="number"
+                          min="0"
+                          value={calories}
+                          onChange={(e) => setCalories(e.target.value)}
+                          placeholder="Cal"
+                          className="bg-transparent border-none text-xs text-white w-full focus:outline-none font-mono"
+                        />
+                        <span className="text-[9px] text-zinc-500">kcal</span>
+                      </div>
+                      <div className="flex items-center space-x-1.5 bg-zinc-900/80 rounded-lg px-2 py-1.5 border border-zinc-800">
+                        <Dumbbell className="w-3 h-3 text-emerald-400" />
+                        <input
+                          type="number"
+                          min="0"
+                          value={proteinGrams}
+                          onChange={(e) => setProteinGrams(e.target.value)}
+                          placeholder="P"
+                          className="bg-transparent border-none text-xs text-white w-full focus:outline-none font-mono"
+                        />
+                        <span className="text-[9px] text-zinc-500">g</span>
+                      </div>
+                      <div className="flex items-center space-x-1.5 bg-zinc-900/80 rounded-lg px-2 py-1.5 border border-zinc-800">
+                        <Activity className="w-3 h-3 text-cyan-400" />
+                        <input
+                          type="number"
+                          min="0"
+                          value={carbsGrams}
+                          onChange={(e) => setCarbsGrams(e.target.value)}
+                          placeholder="Carbs"
+                          className="bg-transparent border-none text-xs text-white w-full focus:outline-none font-mono"
+                        />
+                        <span className="text-[9px] text-zinc-500">g</span>
+                      </div>
+                      <div className="flex items-center space-x-1.5 bg-zinc-900/80 rounded-lg px-2 py-1.5 border border-zinc-800">
+                        <Droplets className="w-3 h-3 text-blue-400" />
+                        <input
+                          type="number"
+                          min="0"
+                          value={fatGrams}
+                          onChange={(e) => setFatGrams(e.target.value)}
+                          placeholder="Fat"
+                          className="bg-transparent border-none text-xs text-white w-full focus:outline-none font-mono"
+                        />
+                        <span className="text-[9px] text-zinc-500">g</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-zinc-300 block mb-1.5">Availability & Status</label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <select
+                        value={status}
+                        onChange={(e) => setStatus(e.target.value as MenuStatus)}
+                        className="bg-zinc-900/80 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none"
+                      >
+                        <option value="published">Published</option>
+                        <option value="draft">Draft</option>
+                        <option value="scheduled">Scheduled</option>
+                        <option value="hidden">Hidden</option>
+                        <option value="out_of_stock">Out of Stock</option>
+                        <option value="archived">Archived</option>
+                      </select>
+                      <label className="flex items-center space-x-2 cursor-pointer px-3 py-2 rounded-xl bg-zinc-900/80 border border-zinc-800">
+                        <input
+                          type="checkbox"
+                          checked={availability}
+                          onChange={(e) => setAvailability(e.target.checked)}
+                          className="rounded border-zinc-800 bg-zinc-900 text-indigo-600 focus:ring-0"
+                        />
+                        <span className="text-xs font-semibold text-zinc-200">Available</span>
+                      </label>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-xs font-semibold text-zinc-300 block mb-1">Assign to Counter</label>
+                    <select
+                      value={selectedCounterId}
+                      onChange={(e) => { setSelectedCounterId(e.target.value); setSelectedCategoryId(''); }}
+                      className="w-full bg-zinc-900/80 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-indigo-500"
+                    >
+                      <option value="">-- Select Counter --</option>
+                      {counters.map((c) => (
+                        <option key={c.id} value={c.id}>{c.code} - {c.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-zinc-300 block mb-1">Menu Category (DB)</label>
+                    <select
+                      value={selectedCategoryId}
+                      onChange={(e) => setSelectedCategoryId(e.target.value)}
+                      className="w-full bg-zinc-900/80 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-indigo-500"
+                    >
+                      <option value="">-- None (Type above) --</option>
+                      {filteredCategories.map((cat) => (
+                        <option key={cat.id} value={cat.id}>{cat.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
               </div>
             </div>
 

@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
-import { PortalRole } from './types';
+import { PortalRole, OrderStatus } from './types';
 
 import { LoginView } from './components/modules/auth/LoginView';
 import { Header } from './components/common/Header';
@@ -100,9 +100,9 @@ export function App() {
     );
 }
 
-  const handleUpdateOrderStatus = (orderId: string, status: any) => {
+  const handleUpdateOrderStatus = (orderId: string, status: OrderStatus) => {
     updateOrderStatus(orderId, status);
-};
+  };
 
   return (
     <div className="min-h-screen bg-[#09090B] text-[#FAFAFA] flex flex-col font-sans selection:bg-indigo-500/30 selection:text-indigo-200">
@@ -204,6 +204,7 @@ export function App() {
 
                     {currentTab === 'orders' && (
                       <OrderManagement
+                        orders={orders}
                         currentInstitution={institution}
                         onUpdateOrderStatus={handleUpdateOrderStatus}
                         onOpenQRScanner={() => setIsQRScannerOpen(true)}
@@ -264,6 +265,8 @@ export function App() {
       <QRPickupScannerModal
         isOpen={isQRScannerOpen}
         onClose={() => setIsQRScannerOpen(false)}
+        orders={orders}
+        onCompleteOrder={(orderId) => updateOrderStatus(orderId, 'completed')}
       />
 
       <AISmartSearchModal
