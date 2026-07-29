@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
 import { PortalRole } from './types';
+import { AlertTriangle, RefreshCw } from 'lucide-react';
 
 import { LoginView } from './components/modules/auth/LoginView';
 import { Header } from './components/common/Header';
@@ -54,6 +55,8 @@ export function App() {
     'institution-requests', 'institutions', 'analytics', 'subscriptions', 'notifications', 'audit-logs'
   ], []);
 
+  const [dataLoadError, setDataLoadError] = useState<string | null>(null);
+
   useEffect(() => {
     if (role === 'super_admin' && institutionTabs.includes(currentTab)) {
       setCurrentTab('dashboard');
@@ -67,6 +70,7 @@ export function App() {
     institution, students, vendors, counters, orders, menuItems, menuCategories,
     kitchenQueue, campusBlocks, staff, announcements, auditLogs,
     loading: dataLoading,
+    error: dataError,
     refresh,
     updateStudentStatus, approveVendor, rejectVendor, suspendVendor,
     addCounter, updateCounter, deleteCounter, archiveCounter, restoreCounter, updateCounterStatus, toggleCounterAvailability,
@@ -75,6 +79,14 @@ export function App() {
     addMenuCategory, updateMenuCategory, deleteMenuCategory,
     toggleStaffPermission, deleteStudent, addStaff, updateStaff, deleteStaff, deleteAnnouncement, deleteVendor, updateInstitution, addAnnouncement,
   } = useInstitutionData(institutionId);
+
+  useEffect(() => {
+    if (dataError) {
+      setDataLoadError(dataError);
+    } else if (!dataLoading) {
+      setDataLoadError(null);
+    }
+  }, [dataError, dataLoading]);
 
   if (authLoading) {
     return (
@@ -155,11 +167,30 @@ export function App() {
               </SuperAdminDataProvider>
             ) : (
               <>
-                {dataLoading ? (
+                {dataLoading && !dataLoadError ? (
                   <div className="flex items-center justify-center py-32">
                     <div className="flex flex-col items-center space-y-4">
                       <div className="w-10 h-10 rounded-full border-2 border-indigo-500 border-t-transparent animate-spin" />
                       <p className="text-xs text-zinc-500">Loading institution data...</p>
+                    </div>
+                  </div>
+                ) : dataLoadError ? (
+                  <div className="flex items-center justify-center py-32">
+                    <div className="max-w-md w-full p-8 bg-[#0C0C0E] rounded-2xl border border-zinc-800 text-center">
+                      <div className="flex justify-center mb-4">
+                        <div className="p-3 bg-red-500/10 rounded-full">
+                          <AlertTriangle className="w-6 h-6 text-red-500" />
+                        </div>
+                      </div>
+                      <h2 className="text-lg font-bold mb-2 text-white">Unable to load dashboard</h2>
+                      <p className="text-sm text-zinc-400 mb-6">{dataLoadError}</p>
+                      <button
+                        onClick={() => { setDataLoadError(null); refresh(); }}
+                        className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-lg transition-colors inline-flex items-center gap-2"
+                      >
+                        <RefreshCw className="w-3.5 h-3.5" />
+                        Retry
+                      </button>
                     </div>
                   </div>
                 ) : (
@@ -167,6 +198,7 @@ export function App() {
                     {currentTab === 'dashboard' && (
                       <HomeDashboard
                         currentInstitution={institution || { id: authInstId || '', name: 'Your Institution', institution_code: '', studentsCount: 0, vendorsCount: 0, dailyOrdersCount: 0, monthlyRevenue: 0, status: 'active', contactPerson: '', email: '', phone: '', joinedDate: '', plan: 'Basic' }}
+                        orders={orders}
                         vendors={vendors}
                         onNavigate={setCurrentTab}
                         onOpenQRScanner={() => setIsQRScannerOpen(true)}

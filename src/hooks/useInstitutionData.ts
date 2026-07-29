@@ -5,6 +5,17 @@ import {
   CampusBlock, StaffMember, Announcement, AuditLog, Counter, MenuCategory, OrderStatus,
 } from '../types';
 
+const DATA_FETCH_TIMEOUT_MS = 15000;
+
+function withTimeout<T>(promise: PromiseLike<T>, ms: number, label: string): Promise<T> {
+  return Promise.race([
+    Promise.resolve(promise),
+    new Promise<T>((_, reject) =>
+      setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms)
+    ),
+  ]);
+}
+
 interface InstitutionData {
   institution: Institution | null;
   students: Student[];
@@ -186,7 +197,7 @@ export function useInstitutionData(institutionId: string | null): InstitutionDat
   const [profiles, setProfiles] = useState<{ user_id: string; role: string; full_name?: string; email?: string; phone?: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const isInitialMount = useRef(true);
+  const fetchedInstIdRef = useRef<string | null>(null);
 
   const enrichOrdersWithProfile = useCallback((rawOrders: any[], profileList: { user_id: string; role: string; full_name?: string; email?: string; phone?: string }[]) => {
     const profileMap = new Map(profileList.map(p => [p.user_id, p]));
@@ -232,9 +243,8 @@ export function useInstitutionData(institutionId: string | null): InstitutionDat
       setLoading(false);
       return;
     }
-    if (isInitialMount.current) {
-      setLoading(true);
-    }
+
+    setLoading(true);
     setError(null);
 
     try {
@@ -250,16 +260,16 @@ export function useInstitutionData(institutionId: string | null): InstitutionDat
         { data: auditLogsData },
         { data: profilesData },
       ] = await Promise.all([
-        supabase.from('institutions').select('*').eq('id', institutionId).single(),
-        supabase.from('profiles').select('*').eq('institution_id', institutionId).eq('role', 'student'),
-        supabase.from('canteens').select('*').eq('institution_id', institutionId),
-        supabase.from('orders').select('*').eq('institution_id', institutionId),
-        supabase.from('menu_items').select('*').eq('institution_id', institutionId),
-        supabase.from('menu_categories').select('*').eq('institution_id', institutionId),
-        supabase.from('profiles').select('*').eq('institution_id', institutionId).neq('role', 'student').neq('role', 'super_admin'),
-        supabase.from('notifications').select('*').eq('institution_id', institutionId),
-        supabase.from('audit_logs').select('*').eq('institution_id', institutionId),
-        supabase.from('profiles').select('*'),
+        withTimeout(supabase.from('institutions').select('*').eq('id', institutionId).single(), DATA_FETCH_TIMEOUT_MS, 'Institutions fetch'),
+        withTimeout(supabase.from('profiles').select('*').eq('institution_id', institutionId).eq('role', 'student'), DATA_FETCH_TIMEOUT_MS, 'Students fetch'),
+        withTimeout(supabase.from('canteens').select('*').eq('institution_id', institutionId), DATA_FETCH_TIMEOUT_MS, 'Canteens fetch'),
+        withTimeout(supabase.from('orders').select('*').eq('institution_id', institutionId), DATA_FETCH_TIMEOUT_MS, 'Orders fetch'),
+        withTimeout(supabase.from('menu_items').select('*').eq('institution_id', institutionId), DATA_FETCH_TIMEOUT_MS, 'Menu items fetch'),
+        withTimeout(supabase.from('menu_categories').select('*').eq('institution_id', institutionId), DATA_FETCH_TIMEOUT_MS, 'Menu categories fetch'),
+        withTimeout(supabase.from('profiles').select('*').eq('institution_id', institutionId).neq('role', 'student').neq('role', 'super_admin'), DATA_FETCH_TIMEOUT_MS, 'Staff fetch'),
+        withTimeout(supabase.from('notifications').select('*').eq('institution_id', institutionId), DATA_FETCH_TIMEOUT_MS, 'Notifications fetch'),
+        withTimeout(supabase.from('audit_logs').select('*').eq('institution_id', institutionId), DATA_FETCH_TIMEOUT_MS, 'Audit logs fetch'),
+        withTimeout(supabase.from('profiles').select('*'), DATA_FETCH_TIMEOUT_MS, 'Profiles fetch'),
       ]);
 
       if (instErr) console.error('[Data] institutions fetch error:', instErr);
@@ -333,17 +343,25 @@ export function useInstitutionData(institutionId: string | null): InstitutionDat
       if (staffData) setStaff(staffData as StaffMember[]);
       if (notificationsData) setAnnouncements(notificationsData as Announcement[]);
       if (auditLogsData) setAuditLogs(auditLogsData as AuditLog[]);
+
+      fetchedInstIdRef.current = institutionId;
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Unknown error';
       console.error('[useInstitutionData] fetchAll error:', err);
       setError(msg);
     } finally {
-      if (isInitialMount.current) {
-        isInitialMount.current = false;
-      }
       setLoading(false);
     }
   }, [institutionId, enrichOrdersWithProfile, enrichKitchenQueueWithProfile]);
+
+  useEffect(() => {
+    if (institutionId) {
+      fetchedInstIdRef.current = null;
+      fetchAll();
+    } else {
+      setLoading(false);
+    }
+  }, [institutionId, fetchAll]);
 
   const uploadImage = async (file: File, path: string): Promise<string | null> => {
     try {
