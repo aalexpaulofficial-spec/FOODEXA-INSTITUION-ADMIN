@@ -150,6 +150,64 @@ function mapMenuItemToDb(item: MenuItem, institutionId: string | null): any {
   };
 }
 
+function normalizeOrderStatus(value: unknown): OrderStatus {
+  const status = String(value || '').toLowerCase();
+  if (['pending', 'accepted', 'preparing', 'ready', 'completed', 'cancelled'].includes(status)) {
+    return status as OrderStatus;
+  }
+  return 'pending';
+}
+
+function normalizeKitchenStatus(value: unknown): 'Pending' | 'Preparing' | 'Ready' | string {
+  const status = String(value || 'Pending').toLowerCase();
+  if (status === 'preparing') return 'Preparing';
+  if (status === 'ready') return 'Ready';
+  return 'Pending';
+}
+
+function normalizeOrderItems(items: unknown): Order['items'] {
+  if (!Array.isArray(items)) return [];
+  return items.map((item: any) => ({
+    menuItemId: item.menuItemId || item.menu_item_id || item.id || '',
+    name: item.name || item.food_name || item.item_name || 'Item',
+    quantity: Number(item.quantity || item.qty || 0),
+    price: Number(item.price || item.unit_price || 0),
+  }));
+}
+
+function mapDbOrderToOrder(db: any): Order {
+  const orderTime = db.order_time || db.orderTime || db.created_at || '';
+  const pickupTime = db.pickup_time_estimated || db.pickupTimeEstimated || db.pickup_time || '';
+
+  return {
+    ...db,
+    id: db.id,
+    institutionId: db.institution_id || db.institutionId,
+    orderNumber: db.order_number || db.orderNumber || db.order_no || '',
+    studentId: db.student_id || db.studentId || db.user_id || '',
+    studentName: db.student_name || db.studentName || db.customer_name || '',
+    studentDepartment: db.student_department || db.studentDepartment || db.department || '',
+    vendorId: db.vendor_id || db.vendorId || db.canteen_id || '',
+    vendorName: db.vendor_name || db.vendorName || db.canteen_name || '',
+    pickupCounter: db.pickup_counter || db.pickupCounter || db.counter_number || '',
+    pickupNumber: db.pickup_number || db.pickupNumber || db.token_number || db.tokenNumber || '',
+    tokenNumber: db.token_number || db.tokenNumber || db.pickup_number || db.pickupNumber || '',
+    estimatedWaitMins: Number(db.estimated_wait_mins || db.estimatedWaitMins || 0),
+    items: normalizeOrderItems(db.items),
+    totalAmount: Number(db.total_amount || db.totalAmount || db.amount || 0),
+    status: normalizeOrderStatus(db.status),
+    kitchenStatus: normalizeKitchenStatus(db.kitchen_status || db.kitchenStatus),
+    orderTime,
+    pickupTimeEstimated: pickupTime,
+    pickupCode: db.pickup_code || db.pickupCode || '',
+    paymentMethod: db.payment_method || db.paymentMethod || 'UPI',
+    paymentStatus: db.payment_status || db.paymentStatus || 'pending',
+    notes: db.notes || '',
+    isPriority: db.is_priority || db.isPriority || false,
+    qrCodeData: db.qr_code_data || db.qrCodeData || db.pickup_code || db.pickupCode || '',
+  } as Order;
+}
+
 export function useInstitutionData(institutionId: string | null): InstitutionData {
   const [institution, setInstitution] = useState<Institution | null>(null);
   const [students, setStudents] = useState<Student[]>([]);
@@ -171,13 +229,15 @@ export function useInstitutionData(institutionId: string | null): InstitutionDat
   const enrichOrdersWithProfile = useCallback((rawOrders: any[], profileList: { user_id: string; role: string; full_name?: string; email?: string; phone?: string }[]) => {
     const profileMap = new Map(profileList.map(p => [p.user_id, p]));
     return rawOrders.map(o => {
-      const studentId = o.student_id || o.studentId;
+      const mappedOrder = mapDbOrderToOrder(o);
+      const studentId = mappedOrder.studentId;
       const profile = studentId ? profileMap.get(studentId) : undefined;
       return {
-        ...o,
-        userRole: profile?.role || o.user_role || '',
-        userEmail: profile?.email || o.user_email || '',
-        userPhone: profile?.phone || o.user_phone || '',
+        ...mappedOrder,
+        studentName: profile?.full_name || mappedOrder.studentName,
+        userRole: profile?.role || o.user_role || o.userRole || '',
+        userEmail: profile?.email || o.user_email || o.userEmail || '',
+        userPhone: profile?.phone || o.user_phone || o.userPhone || '',
       } as Order;
     });
   }, []);
@@ -185,24 +245,31 @@ export function useInstitutionData(institutionId: string | null): InstitutionDat
   const enrichKitchenQueueWithProfile = useCallback((rawOrders: any[], profileList: { user_id: string; role: string; full_name?: string; email?: string; phone?: string }[]) => {
     const profileMap = new Map(profileList.map(p => [p.user_id, p]));
     return rawOrders
-      .filter(o => ['pending', 'preparing', 'ready'].includes(o.status))
+      .map(mapDbOrderToOrder)
+      .filter(o => ['Pending', 'Preparing', 'Ready'].includes(o.kitchenStatus || '') || o.status === 'completed')
       .map(o => {
-        const studentId = o.student_id || o.studentId;
+        const studentId = o.studentId;
         const profile = studentId ? profileMap.get(studentId) : undefined;
         return {
           id: `kq-${o.id}`,
           orderId: o.id,
-          orderNumber: o.order_number || o.orderNumber || '',
-          itemsSummary: o.items ? (Array.isArray(o.items) ? o.items.map((i: any) => `${i.quantity || 0}x ${i.name || ''}`).join(', ') : '') : '',
-          status: o.status,
-          prepTimeMinutes: o.estimated_wait_mins || o.estimatedWaitMins || 0,
+          orderNumber: o.orderNumber,
+          itemsSummary: o.items.map((i) => `${i.quantity || 0}x ${i.name || ''}`).join(', '),
+          status: o.status === 'completed' ? 'completed' : normalizeOrderStatus(o.kitchenStatus),
+          prepTimeMinutes: o.estimatedWaitMins || 0,
           elapsedSeconds: 0,
-          isPriority: o.is_priority || o.isPriority || false,
+          isPriority: o.isPriority || false,
           notes: o.notes,
-          counterNumber: o.pickup_counter || o.pickupCounter || '',
-          customerName: profile?.full_name || o.customer_name || o.student_name || o.studentName || '',
-          customerRole: profile?.role || o.user_role || '',
-          pickupTime: o.pickup_time_estimated || o.pickupTimeEstimated || '',
+          counterNumber: o.pickupCounter || '',
+          customerName: profile?.full_name || o.studentName || '',
+          customerRole: profile?.role || o.userRole || '',
+          pickupTime: o.pickupTimeEstimated || '',
+          tokenNumber: o.tokenNumber,
+          pickupCode: o.pickupCode,
+          qrCodeData: o.qrCodeData,
+          paymentStatus: o.paymentStatus,
+          orderTime: o.orderTime,
+          items: o.items,
         };
       });
   }, []);
@@ -353,8 +420,21 @@ useEffect(() => {
         .subscribe();
 
       const ordersChannelSub = supabase
-        .channel('orders_realtime')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => {
+        .channel(`orders_realtime_${institutionId}`)
+        .on('postgres_changes', {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'orders',
+          filter: `institution_id=eq.${institutionId}`,
+        }, () => {
+          fetchAll();
+        })
+        .on('postgres_changes', {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'orders',
+          filter: `institution_id=eq.${institutionId}`,
+        }, () => {
           fetchAll();
         })
         .subscribe();
@@ -507,16 +587,22 @@ const archiveCounter = async (counterId: string) => {
   const updateKitchenStatus = async (itemId: string, status: OrderStatus) => {
     const kqItem = kitchenQueue.find(item => item.id === itemId || item.orderId === itemId);
     const realOrderId = kqItem?.orderId || itemId;
-    const { error } = await supabase.from('orders').update({ status }).eq('id', realOrderId);
+    const updates: { status?: OrderStatus; kitchen_status?: string } = status === 'completed'
+      ? { status: 'completed' }
+      : { kitchen_status: normalizeKitchenStatus(status) };
+    const { error } = await supabase.from('orders').update(updates).eq('id', realOrderId).eq('institution_id', institutionId);
     if (error) console.error('[updateKitchenStatus] Error:', error);
     setKitchenQueue(prev => prev.map(item => (item.id === itemId || item.orderId === itemId) ? { ...item, status } : item));
-    setOrders(prev => prev.map(o => o.id === realOrderId ? { ...o, status } : o));
+    setOrders(prev => prev.map(o => o.id === realOrderId ? { ...o, ...updates, status: updates.status ? normalizeOrderStatus(updates.status) : o.status, kitchenStatus: updates.kitchen_status || o.kitchenStatus } : o));
   };
 
   const updateOrderStatus = async (orderId: string, status: OrderStatus) => {
-    const { error } = await supabase.from('orders').update({ status }).eq('id', orderId);
+    const updates: { status?: OrderStatus; kitchen_status?: string } = ['preparing', 'ready'].includes(status)
+      ? { kitchen_status: normalizeKitchenStatus(status) }
+      : { status };
+    const { error } = await supabase.from('orders').update(updates).eq('id', orderId).eq('institution_id', institutionId);
     if (error) console.error('[updateOrderStatus] Error:', error);
-    setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status } : o));
+    setOrders(prev => prev.map(o => o.id === orderId ? { ...o, ...updates, status: updates.status ? normalizeOrderStatus(updates.status) : o.status, kitchenStatus: updates.kitchen_status || o.kitchenStatus } : o));
   };
 
   const addMenuItem = async (item: MenuItem): Promise<string | null> => {

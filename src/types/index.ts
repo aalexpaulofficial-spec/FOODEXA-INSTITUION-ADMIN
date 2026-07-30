@@ -133,6 +133,7 @@ export interface Counter {
 
 export interface Order {
   id: string;
+  institutionId?: string;
   orderNumber: string;
   studentId: string;
   studentName: string;
@@ -150,9 +151,11 @@ export interface Order {
   }[];
   totalAmount: number;
   status: OrderStatus;
+  kitchenStatus?: 'Pending' | 'Preparing' | 'Ready' | string;
   orderTime: string;
   pickupTimeEstimated: string;
   pickupCode: string;
+  tokenNumber?: string;
   paymentMethod: 'Razorpay UPI' | 'Razorpay Card' | 'Student Wallet' | 'UPI' | 'Card' | 'Meal Voucher';
   paymentStatus: 'paid' | 'pending' | 'cancelled' | 'refunded';
   notes?: string;
@@ -177,6 +180,12 @@ export interface KitchenQueueItem {
   customerName?: string;
   customerRole?: string;
   pickupTime?: string;
+  tokenNumber?: string;
+  pickupCode?: string;
+  qrCodeData?: string;
+  paymentStatus?: string;
+  orderTime?: string;
+  items?: Order['items'];
 }
 
 export interface StaffMember {

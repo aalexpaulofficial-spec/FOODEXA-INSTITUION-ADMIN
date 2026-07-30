@@ -18,9 +18,9 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
   onNavigate,
   onOpenQRScanner
 }) => {
-  const pendingCount = orders.filter((o) => o.status === 'pending').length;
-  const preparingCount = orders.filter((o) => o.status === 'preparing').length;
-  const readyCount = orders.filter((o) => o.status === 'ready').length;
+  const pendingCount = orders.filter((o) => o.kitchenStatus === 'Pending').length;
+  const preparingCount = orders.filter((o) => o.kitchenStatus === 'Preparing').length;
+  const readyCount = orders.filter((o) => o.kitchenStatus === 'Ready').length;
 
   const totalRevenue = useMemo(() =>
     orders.reduce((sum, o) => sum + o.totalAmount, 0),
@@ -228,10 +228,10 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
                 </tr>
               </thead>
               <tbody className="divide-y divide-zinc-800/50">
-                {orders.filter(o => ['pending', 'preparing', 'ready'].includes(o.status)).length === 0 ? (
+                {orders.filter(o => ['Pending', 'Preparing', 'Ready'].includes(o.kitchenStatus || '')).length === 0 ? (
                   <tr><td colSpan={6} className="p-8 text-center text-zinc-500">No active orders in queue</td></tr>
                 ) : (
-                  orders.filter(o => ['pending', 'preparing', 'ready'].includes(o.status)).map(o => {
+                  orders.filter(o => ['Pending', 'Preparing', 'Ready'].includes(o.kitchenStatus || '')).map(o => {
                     const role = (o.userRole || '').toLowerCase();
                     const roleBadge = role === 'student' ? '🎓 Student' : role === 'faculty' ? '👨‍🏫 Faculty' : role === 'guest' ? '👤 Guest' : '';
                     return (
@@ -244,10 +244,10 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
                       <td className="p-4">
                         <span className={`flex items-center gap-2 text-zinc-300`}>
                           <span className={`w-1.5 h-1.5 rounded-full ${
-                            o.status === 'preparing' ? 'bg-amber-500' :
-                            o.status === 'ready' ? 'bg-emerald-500' : 'bg-indigo-500'
+                            o.kitchenStatus === 'Preparing' ? 'bg-amber-500' :
+                            o.kitchenStatus === 'Ready' ? 'bg-emerald-500' : 'bg-indigo-500'
                           }`} />
-                          {o.status.charAt(0).toUpperCase() + o.status.slice(1)}
+                          {o.kitchenStatus || 'Pending'}
                         </span>
                       </td>
                     </tr>
