@@ -94,6 +94,8 @@ function mapCounterToDb(counter: Counter, institutionId: string | null): any {
 }
 
 function mapDbMenuItemToMenuItem(db: any): MenuItem {
+  const joinedCategory = Array.isArray(db.menu_categories) ? db.menu_categories[0] : db.menu_categories;
+  const categoryName = joinedCategory?.name || db.category_name || db.category || '';
   const isVeg = db.food_type === 'Veg' || db.food_type === 'Vegan';
   return {
     id: db.id,
@@ -103,7 +105,8 @@ function mapDbMenuItemToMenuItem(db: any): MenuItem {
     vendorId: db.canteen_id || '',
     vendorName: '',
     name: db.food_name || '',
-    category: '',
+    category: categoryName,
+    categoryName,
     price: parseFloat(db.regular_price ?? db.price ?? 0),
     regular_price: parseFloat(db.regular_price ?? db.price ?? 0),
     discountPrice: db.discount_price ? parseFloat(db.discount_price) : undefined,
@@ -300,7 +303,7 @@ export function useInstitutionData(institutionId: string | null): InstitutionDat
         withTimeout(supabase.from('profiles').select('*').eq('institution_id', institutionId).eq('role', 'student'), DATA_FETCH_TIMEOUT_MS, 'Students fetch'),
         withTimeout(supabase.from('canteens').select('*').eq('institution_id', institutionId), DATA_FETCH_TIMEOUT_MS, 'Canteens fetch'),
         withTimeout(supabase.from('orders').select('*').eq('institution_id', institutionId), DATA_FETCH_TIMEOUT_MS, 'Orders fetch'),
-        withTimeout(supabase.from('menu_items').select('*').eq('institution_id', institutionId), DATA_FETCH_TIMEOUT_MS, 'Menu items fetch'),
+        withTimeout(supabase.from('menu_items').select('*, menu_categories(name)').eq('institution_id', institutionId), DATA_FETCH_TIMEOUT_MS, 'Menu items fetch'),
         withTimeout(supabase.from('menu_categories').select('*').eq('institution_id', institutionId), DATA_FETCH_TIMEOUT_MS, 'Menu categories fetch'),
         withTimeout(supabase.from('profiles').select('*').eq('institution_id', institutionId).neq('role', 'student').neq('role', 'super_admin'), DATA_FETCH_TIMEOUT_MS, 'Staff fetch'),
         withTimeout(supabase.from('notifications').select('*').eq('institution_id', institutionId), DATA_FETCH_TIMEOUT_MS, 'Notifications fetch'),
@@ -399,6 +402,7 @@ useEffect(() => {
    }, [institutionId, fetchAll]);
 
     const [menuItemsChannel, setMenuItemsChannel] = useState<any>(null);
+    const [menuCategoriesChannel, setMenuCategoriesChannel] = useState<any>(null);
     const [canteensChannel, setCanteensChannel] = useState<any>(null);
     const [ordersChannel, setOrdersChannel] = useState<any>(null);
 
@@ -406,15 +410,37 @@ useEffect(() => {
       if (!institutionId) return;
 
       const menuChannel = supabase
-        .channel('menu_items_realtime')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'menu_items' }, () => {
+        .channel(`menu_items_realtime_${institutionId}`)
+        .on('postgres_changes', {
+          event: '*',
+          schema: 'public',
+          table: 'menu_items',
+          filter: `institution_id=eq.${institutionId}`,
+        }, () => {
           fetchAll();
         })
         .subscribe();
 
       const canteenChannel = supabase
-        .channel('canteens_realtime')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'canteens' }, () => {
+        .channel(`canteens_realtime_${institutionId}`)
+        .on('postgres_changes', {
+          event: '*',
+          schema: 'public',
+          table: 'canteens',
+          filter: `institution_id=eq.${institutionId}`,
+        }, () => {
+          fetchAll();
+        })
+        .subscribe();
+
+      const categoryChannel = supabase
+        .channel(`menu_categories_realtime_${institutionId}`)
+        .on('postgres_changes', {
+          event: '*',
+          schema: 'public',
+          table: 'menu_categories',
+          filter: `institution_id=eq.${institutionId}`,
+        }, () => {
           fetchAll();
         })
         .subscribe();
@@ -440,11 +466,13 @@ useEffect(() => {
         .subscribe();
 
       setMenuItemsChannel(menuChannel);
+      setMenuCategoriesChannel(categoryChannel);
       setCanteensChannel(canteenChannel);
       setOrdersChannel(ordersChannelSub);
 
       return () => {
         supabase.removeChannel(menuChannel);
+        supabase.removeChannel(categoryChannel);
         supabase.removeChannel(canteenChannel);
         supabase.removeChannel(ordersChannelSub);
       };
@@ -605,8 +633,44 @@ const archiveCounter = async (counterId: string) => {
     setOrders(prev => prev.map(o => o.id === orderId ? { ...o, ...updates, status: updates.status ? normalizeOrderStatus(updates.status) : o.status, kitchenStatus: updates.kitchen_status || o.kitchenStatus } : o));
   };
 
+  const ensureMenuCategory = async (name?: string, canteenId?: string): Promise<string | null> => {
+    const cleanName = (name || '').trim();
+    if (!cleanName || !institutionId) return null;
+
+    const existing = menuCategories.find((cat) =>
+      cat.name.toLowerCase() === cleanName.toLowerCase() &&
+      (!canteenId || !cat.canteen_id || cat.canteen_id === canteenId)
+    );
+    if (existing) return existing.id;
+
+    const { data, error } = await supabase
+      .from('menu_categories')
+      .insert({
+        institution_id: institutionId,
+        canteen_id: canteenId || null,
+        name: cleanName,
+        description: '',
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.error('[ensureMenuCategory] Supabase error:', error);
+      setError(`Failed to create category: ${error.message}`);
+      return null;
+    }
+
+    if (data) {
+      setMenuCategories(prev => [...prev, data as MenuCategory]);
+      return data.id;
+    }
+
+    return null;
+  };
+
   const addMenuItem = async (item: MenuItem): Promise<string | null> => {
-    const dbPayload = mapMenuItemToDb(item, institutionId);
+    const categoryId = item.category_id || await ensureMenuCategory(item.category || item.categoryName, item.canteen_id || item.vendorId);
+    const dbPayload = mapMenuItemToDb({ ...item, category_id: categoryId || undefined }, institutionId);
     const { data, error } = await supabase.from('menu_items').insert(dbPayload).select().single();
     if (error) {
       console.error('[addMenuItem] Supabase error:', error);
@@ -622,6 +686,7 @@ const archiveCounter = async (counterId: string) => {
   };
 
 const updateMenuItem = async (itemId: string, updates: Partial<MenuItem>) => {
+     const categoryId = updates.category_id || await ensureMenuCategory(updates.category || updates.categoryName, updates.canteen_id);
      const dbUpdates: any = {};
      if (updates.name !== undefined) dbUpdates.food_name = updates.name;
      if (updates.description !== undefined) dbUpdates.description = updates.description;
@@ -634,7 +699,7 @@ const updateMenuItem = async (itemId: string, updates: Partial<MenuItem>) => {
      if (updates.status !== undefined) dbUpdates.status = updates.status;
      if (updates.food_type !== undefined) dbUpdates.food_type = updates.food_type;
      if (updates.canteen_id !== undefined) dbUpdates.canteen_id = updates.canteen_id;
-     if (updates.category_id !== undefined) dbUpdates.category_id = updates.category_id;
+     if (updates.category_id !== undefined || categoryId) dbUpdates.category_id = categoryId || updates.category_id;
      if (updates.calories !== undefined) dbUpdates.calories = updates.calories;
      if (updates.isTodaysSpecial !== undefined) dbUpdates.is_todays_special = updates.isTodaysSpecial;
      if (updates.ingredients !== undefined) dbUpdates.ingredients = updates.ingredients;
@@ -676,6 +741,7 @@ const addMenuCategory = async (cat: Partial<MenuCategory>): Promise<string | nul
        institution_id: institutionId,
        canteen_id: cat.canteen_id || null,
        name: cat.name || '',
+       description: cat.description || '',
      };
      const { data, error } = await supabase.from('menu_categories').insert(payload).select().single();
      if (error) {

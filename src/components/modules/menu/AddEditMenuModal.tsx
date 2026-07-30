@@ -53,6 +53,7 @@ interface AddEditMenuModalProps {
   onClose: () => void;
   onSave: (item: MenuItem) => Promise<string | null>;
   editingItem?: MenuItem | null;
+  initialMode?: 'manual' | 'image';
   onNotify: (msg: string) => void;
   counters?: Counter[];
   categories?: MenuCategory[];
@@ -123,6 +124,14 @@ const AUTO_CATEGORY_MAP: Record<string, string[]> = {
   'oats': ['Breakfast', 'Healthy Meals'],
 };
 
+function suggestCategoriesFromText(value: string): string[] {
+  const lower = value.toLowerCase().trim();
+  for (const [key, cats] of Object.entries(AUTO_CATEGORY_MAP)) {
+    if (lower.includes(key)) return cats;
+  }
+  return [];
+}
+
 function compressImage(file: File, maxWidth = 1200): Promise<{ blob: Blob; preview: string }> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -156,6 +165,7 @@ export const AddEditMenuModal: React.FC<AddEditMenuModalProps> = ({
   onClose,
   onSave,
   editingItem,
+  initialMode = 'manual',
   onNotify,
   counters = [],
   categories = []
@@ -200,11 +210,7 @@ export const AddEditMenuModal: React.FC<AddEditMenuModalProps> = ({
 
   const suggestedAutoCategories = useMemo(() => {
     if (!name.trim() || categoryMode !== 'auto') return [];
-    const lower = name.toLowerCase().trim();
-    for (const [key, cats] of Object.entries(AUTO_CATEGORY_MAP)) {
-      if (lower.includes(key)) return cats;
-    }
-    return [];
+    return suggestCategoriesFromText(name);
   }, [name, categoryMode]);
 
   useEffect(() => {
@@ -253,7 +259,7 @@ export const AddEditMenuModal: React.FC<AddEditMenuModalProps> = ({
         setSelectedCounterId('');
         setSelectedCategoryId('');
         setManualCategory('');
-        setCategoryMode('auto');
+        setCategoryMode(initialMode === 'image' ? 'auto' : 'manual');
         setAutoSuggestions([]);
         setSaveError(null);
       }
@@ -263,7 +269,7 @@ export const AddEditMenuModal: React.FC<AddEditMenuModalProps> = ({
 
     prevIsOpenRef.current = isOpen;
     prevEditingIdRef.current = editingId;
-  }, [editingItem, isOpen]);
+  }, [editingItem, initialMode, isOpen]);
 
   useEffect(() => {
     if (categoryMode === 'auto' && name.trim() && suggestedAutoCategories.length > 0) {
@@ -297,6 +303,20 @@ export const AddEditMenuModal: React.FC<AddEditMenuModalProps> = ({
     }
 
     try {
+      const nameFromFile = file.name
+        .replace(/\.[^.]+$/, '')
+        .replace(/[-_]+/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+      if (!name.trim() && nameFromFile) {
+        setName(nameFromFile.replace(/\b\w/g, char => char.toUpperCase()));
+      }
+      const imageCategorySuggestions = suggestCategoriesFromText(nameFromFile);
+      if (!manualCategory.trim() && imageCategorySuggestions.length > 0) {
+        setManualCategory(imageCategorySuggestions[0]);
+        setAutoSuggestions(imageCategorySuggestions);
+        setShowSuggestions(true);
+      }
       setUploadProgress(10);
       onNotify('Compressing image...');
       const { blob, preview } = await compressImage(file);
@@ -318,6 +338,7 @@ export const AddEditMenuModal: React.FC<AddEditMenuModalProps> = ({
       const publicUrl = urlData.publicUrl;
       setImageUrl(publicUrl);
       setUploadProgress(100);
+      setCategoryMode('auto');
       onNotify('Image uploaded successfully');
       if (preview.startsWith('blob:')) URL.revokeObjectURL(preview);
     } catch (err: any) {
@@ -371,6 +392,12 @@ export const AddEditMenuModal: React.FC<AddEditMenuModalProps> = ({
     setIsSubmitting(true);
 
     const finalCategory = categoryMode === 'auto' ? manualCategory : manualCategory;
+
+    if (initialMode === 'image' && !imageUrl) {
+      setSaveError('Please upload a food image before saving this item.');
+      setIsSubmitting(false);
+      return;
+    }
 
     const savedItem: MenuItem = {
       id: editingItem ? editingItem.id : `menu-${Date.now()}`,
@@ -428,9 +455,13 @@ export const AddEditMenuModal: React.FC<AddEditMenuModalProps> = ({
             </div>
             <div>
               <h2 className="text-base font-bold text-white tracking-tight">
-                {editingItem ? 'Edit Menu Item' : 'Add New Menu Item'}
+                {editingItem ? 'Edit Menu Item' : initialMode === 'image' ? 'Add Item With Image' : 'Add Item Manually'}
               </h2>
-              <p className="text-xs text-zinc-400">Configure item details, pricing, nutrition, and smart category.</p>
+              <p className="text-xs text-zinc-400">
+                {initialMode === 'image'
+                  ? 'Upload a food photo, confirm the details, and publish it to Supabase.'
+                  : 'Enter the food details clearly and publish it to Supabase.'}
+              </p>
             </div>
           </div>
           <button

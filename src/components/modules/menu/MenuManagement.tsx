@@ -35,13 +35,14 @@ export const MenuManagement: React.FC<MenuManagementProps> = ({
   deleteMenuCategory,
   institutionId,
 }) => {
-  const [activeSection, setActiveSection] = useState<string>('all');
+  const [activeSection, setActiveSection] = useState<string>('categories');
   const [searchTerm, setSearchTerm] = useState('');
   const [sortBy, setSortBy] = useState<'popularity' | 'price_low' | 'price_high'>('popularity');
   const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<string>('all');
 
   const [isAddEditOpen, setIsAddEditOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<MenuItem | null>(null);
+  const [addMode, setAddMode] = useState<'manual' | 'image'>('manual');
 
   const [isCatModalOpen, setIsCatModalOpen] = useState(false);
   const [editingCat, setEditingCat] = useState<MenuCategory | null>(null);
@@ -52,6 +53,12 @@ export const MenuManagement: React.FC<MenuManagementProps> = ({
 
   const [toasts, setToasts] = useState<{ id: string; message: string }[]>([]);
 
+  const categoryNameById = useMemo(() => new Map(categories.map(category => [category.id, category.name])), [categories]);
+
+  const getItemCategory = useCallback((item: MenuItem) => {
+    return item.categoryName || item.category || (item.category_id ? categoryNameById.get(item.category_id) : '') || 'Uncategorized';
+  }, [categoryNameById]);
+
   const filteredItems = useMemo(() => {
     let items = menuItems;
     if (activeSection === 'todays_specials') items = items.filter(i => i.isTodaysSpecial);
@@ -60,13 +67,18 @@ export const MenuManagement: React.FC<MenuManagementProps> = ({
     else if (activeSection === 'out_of_stock') items = items.filter(i => !i.isAvailable || i.status === 'out_of_stock');
     else if (activeSection === 'scheduled') items = items.filter(i => i.status === 'scheduled');
     else if (activeSection === 'archived') items = items.filter(i => i.status === 'archived');
-    if (selectedCategoryFilter !== 'all') items = items.filter(i => i.food_type === selectedCategoryFilter);
+    if (selectedCategoryFilter !== 'all') items = items.filter(i => getItemCategory(i) === selectedCategoryFilter);
     if (searchTerm.trim()) {
       const q = searchTerm.toLowerCase();
-      items = items.filter(item => item.name.toLowerCase().includes(q) || item.food_type.toLowerCase().includes(q) || item.description.toLowerCase().includes(q));
+      items = items.filter(item =>
+        item.name.toLowerCase().includes(q) ||
+        getItemCategory(item).toLowerCase().includes(q) ||
+        (item.food_type || '').toLowerCase().includes(q) ||
+        item.description.toLowerCase().includes(q)
+      );
     }
     return items;
-  }, [menuItems, activeSection, selectedCategoryFilter, searchTerm]);
+  }, [menuItems, activeSection, selectedCategoryFilter, searchTerm, getItemCategory]);
 
   const sortedItems = useMemo(() => {
     const arr = [...filteredItems];
@@ -77,13 +89,17 @@ export const MenuManagement: React.FC<MenuManagementProps> = ({
 
   const groupedByCategory = useMemo(() => {
     const acc: Record<string, MenuItem[]> = {};
-    sortedItems.forEach(item => { const cat = item.food_type || 'General'; if (!acc[cat]) acc[cat] = []; acc[cat].push(item); });
+    sortedItems.forEach(item => {
+      const cat = getItemCategory(item);
+      if (!acc[cat]) acc[cat] = [];
+      acc[cat].push(item);
+    });
     return acc;
-  }, [sortedItems]);
+  }, [sortedItems, getItemCategory]);
 
   const categoryOrder = useMemo(() => Object.keys(groupedByCategory).sort(), [groupedByCategory]);
 
-  const allCategories = useMemo(() => ['all', ...Array.from(new Set(menuItems.map(i => i.food_type)))], [menuItems]);
+  const allCategories = useMemo(() => ['all', ...Array.from(new Set(menuItems.map(getItemCategory))).sort()], [menuItems, getItemCategory]);
 
   const addToast = useCallback((message: string) => {
     const id = `toast-${Date.now()}-${Math.random()}`;
@@ -92,6 +108,12 @@ export const MenuManagement: React.FC<MenuManagementProps> = ({
   }, []);
 
   const handleSaveItem = async (savedItem: MenuItem) => {
+    if (editingItem) {
+      await onUpdateMenuItem(editingItem.id, savedItem);
+      addToast('Menu item updated successfully');
+      return editingItem.id;
+    }
+
     const result = await onAddMenuItem(savedItem);
     if (result) {
       addToast(savedItem.status === 'draft' ? 'Draft saved' : 'Menu item published successfully');
@@ -183,17 +205,21 @@ export const MenuManagement: React.FC<MenuManagementProps> = ({
             <Layers className="w-4 h-4 text-amber-400" />
             <span>Manage Categories ({categories.length})</span>
           </button>
-          <button onClick={() => { setEditingItem(null); setIsAddEditOpen(true); }} className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-xs transition-all shadow-lg shadow-indigo-600/30 flex items-center space-x-2">
+          <button onClick={() => { setEditingItem(null); setAddMode('manual'); setIsAddEditOpen(true); }} className="px-5 py-2.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-white font-extrabold text-xs transition-all border border-zinc-800 flex items-center space-x-2">
+            <Keyboard className="w-4 h-4" />
+            <span>Add Manually</span>
+          </button>
+          <button onClick={() => { setEditingItem(null); setAddMode('image'); setIsAddEditOpen(true); }} className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-xs transition-all shadow-lg shadow-indigo-600/30 flex items-center space-x-2">
             <Plus className="w-4 h-4" />
-            <span>Add Menu Item</span>
+            <span>Add With Image</span>
           </button>
         </div>
       </div>
 
       <div className="flex items-center space-x-1 overflow-x-auto border-b border-zinc-800/80 pb-2">
         {[
-          { id: 'all', label: 'All Items' },
           { id: 'categories', label: 'By Category' },
+          { id: 'all', label: 'All Items' },
           { id: 'active', label: 'Active' },
           { id: 'draft', label: 'Drafts' },
           { id: 'out_of_stock', label: 'Out of Stock' },
@@ -269,7 +295,7 @@ export const MenuManagement: React.FC<MenuManagementProps> = ({
           {categoryOrder.length === 0 && (
             <div className="p-12 text-center rounded-2xl bg-[#0C0C0E] border border-zinc-800 text-zinc-500 space-y-3">
               <UtensilsCrossed className="w-10 h-10 mx-auto opacity-40" />
-              <p className="font-semibold text-zinc-400">No menu items yet. Click "Add Menu Item" to get started.</p>
+              <p className="font-semibold text-zinc-400">No menu items yet. Use Add Manually or Add With Image to publish your first item.</p>
             </div>
           )}
         </div>
@@ -291,6 +317,7 @@ export const MenuManagement: React.FC<MenuManagementProps> = ({
         onClose={() => setIsAddEditOpen(false)}
         onSave={handleSaveItem}
         editingItem={editingItem}
+        initialMode={addMode}
         onNotify={addToast}
         counters={counters}
         categories={categories}
@@ -416,7 +443,7 @@ export const MenuManagement: React.FC<MenuManagementProps> = ({
               <span className="flex items-center space-x-1"><Dumbbell className="w-3.5 h-3.5 text-emerald-400" /><span>{item.proteinGrams || 0}g protein</span></span>
               <span>Stock: <strong className={item.stockCount > 0 ? 'text-emerald-400' : 'text-red-400'}>{item.stockCount}</strong></span>
               <span>Rating: <strong className="text-amber-400">{(item.analytics?.averageRating || 0).toFixed(1)}</strong></span>
-              <span className="px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-400 text-[10px] font-mono">{item.category || '—'}</span>
+              <span className="px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-400 text-[10px] font-mono">{getItemCategory(item)}</span>
               <span className="text-zinc-400">{item.canteen_id || item.vendorId ? (counters.find(c => c.id === (item.canteen_id || item.vendorId))?.name || '—') : '—'}</span>
             </div>
 
@@ -442,7 +469,7 @@ export const MenuManagement: React.FC<MenuManagementProps> = ({
               </button>
             </div>
             <div className="flex items-center space-x-1">
-              <button onClick={() => { setEditingItem(item); setIsAddEditOpen(true); }}
+              <button onClick={() => { setEditingItem(item); setAddMode(item.imageUrl ? 'image' : 'manual'); setIsAddEditOpen(true); }}
                 className="p-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-semibold transition-colors">Edit</button>
               <button onClick={() => handleDuplicate(item)}
                 className="p-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-400 hover:text-white transition-colors" title="Duplicate">

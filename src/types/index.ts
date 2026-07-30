@@ -57,6 +57,7 @@ export interface MenuItem {
   institution_id?: string;
   canteen_id?: string;
   category_id?: string;
+  categoryName?: string;
   vendorId: string;
   vendorName: string;
   name: string;
