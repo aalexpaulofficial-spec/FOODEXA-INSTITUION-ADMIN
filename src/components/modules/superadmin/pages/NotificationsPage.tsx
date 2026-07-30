@@ -22,7 +22,7 @@ export const NotificationsPage: React.FC = () => {
   });
 
   const deleteNotification = async (id: string) => {
-    await supabase.from('platform_notifications').delete().eq('id', id);
+    await supabase.from('notifications').delete().eq('id', id);
     refresh();
   };
 

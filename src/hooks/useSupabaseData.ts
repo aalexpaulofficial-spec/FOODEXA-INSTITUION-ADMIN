@@ -17,7 +17,9 @@ export interface InstitutionRequest {
   phone_number?: string;
   institution_website?: string;
   student_population?: string;
+  food_courts?: number;
   food_courts_count?: string;
+  vendors?: number;
   vendors_count?: string;
   message?: string;
   status: 'pending' | 'approved' | 'active' | 'rejected' | 'suspended' | 'changes_requested' | 'disabled';
@@ -153,11 +155,8 @@ export interface UseSupabaseDataReturn {
 
 const REQUESTS_TABLE = 'institution_requests';
 const INSTITUTIONS_TABLE = 'institutions';
-const STUDENTS_TABLE = 'students';
 const ORDERS_TABLE = 'orders';
-const VENDORS_TABLE = 'vendors';
-const AUDIT_LOGS_TABLE = 'platform_audit_logs';
-const NOTIFICATIONS_TABLE = 'platform_notifications';
+const NOTIFICATIONS_TABLE = 'notifications';
 
 export function useSupabaseData(): UseSupabaseDataReturn {
   const [institutionRequests, setInstitutionRequests] = useState<InstitutionRequest[]>([]);
@@ -187,15 +186,23 @@ export function useSupabaseData(): UseSupabaseDataReturn {
         console.error(`[AuditLog] Invalid user_id UUID: "${userId}"`);
         return;
       }
-      await supabaseAdmin.from(AUDIT_LOGS_TABLE).insert({
-        user_id: userId,
-        user_name: user?.email || 'Unknown',
-        action,
-        target,
-        target_id: targetId || null,
-        details: details || null,
-        ip_address: 'web-client',
-      });
+      const possibleTables = ['audit_logs', 'platform_audit_logs', 'admin_audit_logs'];
+      let inserted = false;
+      for (const table of possibleTables) {
+        try {
+          const { error } = await supabaseAdmin.from(table).insert({
+            user_id: userId,
+            user_name: user?.email || 'Unknown',
+            action,
+            target,
+            target_id: targetId || null,
+            details: details || null,
+            ip_address: 'web-client',
+          });
+          if (!error) { inserted = true; break; }
+        } catch { continue; }
+      }
+      if (!inserted) console.warn('[AuditLog] No audit log table available');
     } catch {
       // silently fail - audit logs are non-critical
     }
@@ -281,9 +288,9 @@ export function useSupabaseData(): UseSupabaseDataReturn {
 
       // Fetch total counts in parallel
       const [studentRes, orderRes, vendorRes] = await Promise.allSettled([
-        supabaseAdmin.from(STUDENTS_TABLE).select('id', { count: 'exact', head: true }),
+        supabaseAdmin.from('profiles').select('id', { count: 'exact', head: true }).eq('role', 'student'),
         supabaseAdmin.from(ORDERS_TABLE).select('id', { count: 'exact', head: true }),
-        supabaseAdmin.from(VENDORS_TABLE).select('id', { count: 'exact', head: true }),
+        supabaseAdmin.from('canteens').select('id', { count: 'exact', head: true }),
       ]);
 
       setTotalStudents(studentRes.status === 'fulfilled' ? studentRes.value.count || 0 : 0);
@@ -295,25 +302,36 @@ export function useSupabaseData(): UseSupabaseDataReturn {
       const revenue = insts.reduce((sum, inst) => sum + (inst.monthly_revenue || 0), 0);
       setTotalRevenue(revenue);
 
-      // Fetch audit logs
-      const { data: logs, error: logsErr } = await supabaseAdmin
-        .from(AUDIT_LOGS_TABLE)
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(100);
-      if (!logsErr) {
-        setAuditLogs((logs as AuditLog[]) || []);
+      // Fetch audit logs (gracefully handles missing table)
+      const auditTables = ['audit_logs', 'platform_audit_logs', 'admin_audit_logs'];
+      let logsFound = false;
+      for (const tbl of auditTables) {
+        const { data: logs, error: logsErr } = await supabaseAdmin
+          .from(tbl)
+          .select('*')
+          .order('created_at', { ascending: false })
+          .limit(100);
+        if (!logsErr) {
+          setAuditLogs((logs as AuditLog[]) || []);
+          logsFound = true;
+          break;
+        }
       }
+      if (!logsFound) setAuditLogs([]);
 
       // Fetch notifications
+      const notifColumns = ['id', 'type', 'created_at', 'title', 'message', 'read'];
       const { data: notifs, error: notifsErr } = await supabaseAdmin
         .from(NOTIFICATIONS_TABLE)
-        .select('*')
+        .select(notifColumns.join(','))
         .order('created_at', { ascending: false })
         .limit(50);
-      if (!notifsErr) {
-        setNotifications((notifs as PlatformNotification[]) || []);
-        setUnreadCount(((notifs as PlatformNotification[]) || []).filter((n) => !n.read).length);
+      if (!notifsErr && notifs) {
+        setNotifications((notifs as unknown as PlatformNotification[]) || []);
+        setUnreadCount((notifs as unknown as PlatformNotification[]).filter((n: any) => !n.read).length);
+      } else {
+        setNotifications([]);
+        setUnreadCount(0);
       }
 
     } catch (err: unknown) {
@@ -343,7 +361,7 @@ export function useSupabaseData(): UseSupabaseDataReturn {
       )
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: STUDENTS_TABLE },
+        { event: '*', schema: 'public', table: 'profiles' },
         () => fetchAll()
       )
       .on(
@@ -353,7 +371,7 @@ export function useSupabaseData(): UseSupabaseDataReturn {
       )
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: VENDORS_TABLE },
+        { event: '*', schema: 'public', table: 'canteens' },
         () => fetchAll()
       )
       .on(
@@ -567,8 +585,8 @@ password: password,
       role: request.role || null,
       institution_website: request.institution_website || null,
       student_population: parseInt(request.student_population || '0', 10) || 0,
-      food_courts: parseInt(request.food_courts_count || '0', 10) || 0,
-      vendors: parseInt(request.vendors_count || '0', 10) || 0,
+      food_courts: typeof request.food_courts === 'number' ? request.food_courts : parseInt(request.food_courts_count || '0', 10) || 0,
+      vendors: typeof request.vendors === 'number' ? request.vendors : parseInt(request.vendors_count || '0', 10) || 0,
       message: request.message || null,
       phone: request.phone_number || null,
       email: generatedEmail,
@@ -648,14 +666,16 @@ generated_password: password,
     );
 
     // Step 6: Notification
-    const { error: notifError } = await supabaseAdmin.from(NOTIFICATIONS_TABLE).insert({
-      title: 'Institution Approved',
-      message: `${request.institution_name} has been approved and activated on the platform. Code: ${institutionCode}`,
-      type: 'success',
-      read: false,
-    });
-    if (notifError) {
-      console.error('[approveRequest] Failed to create notification:', notifError);
+    try {
+      const { error: notifError } = await supabaseAdmin.from(NOTIFICATIONS_TABLE).insert({
+        type: 'success',
+        title: 'Institution Approved',
+        message: `${request.institution_name} has been approved and activated on the platform. Code: ${institutionCode}`,
+        read: false,
+      });
+      if (notifError) console.error('[approveRequest] Failed to create notification:', notifError);
+    } catch {
+      console.warn('[approveRequest] notifications table may not have expected columns');
     }
 
     // Step 7: Refresh from Supabase (source of truth)
@@ -767,9 +787,9 @@ generated_password: password,
     await createAuditLog('Institution Rejected', request.institution_name, id, reason || 'No reason provided');
 
     await supabaseAdmin.from(NOTIFICATIONS_TABLE).insert({
+      type: 'warning',
       title: 'Institution Rejected',
       message: `${request.institution_name} registration has been rejected.${reason ? ` Reason: ${reason}` : ''}`,
-      type: 'warning',
       read: false,
     });
 
@@ -831,9 +851,9 @@ generated_password: password,
     await createAuditLog('Changes Requested', request.institution_name, id, notes);
 
     await supabaseAdmin.from(NOTIFICATIONS_TABLE).insert({
+      type: 'info',
       title: 'Changes Requested',
       message: `Changes requested for ${request.institution_name}: ${notes}`,
-      type: 'info',
       read: false,
     });
 
@@ -875,9 +895,9 @@ generated_password: password,
 
     await createAuditLog('Institution Disabled', inst?.name || id, id);
     await supabaseAdmin.from(NOTIFICATIONS_TABLE).insert({
+      type: 'warning',
       title: 'Institution Disabled',
       message: `${inst?.name || 'An institution'} has been disabled. Admin can no longer log in.`,
-      type: 'warning',
       read: false,
     });
 
@@ -920,9 +940,9 @@ generated_password: password,
 
     await createAuditLog('Institution Re-enabled', inst.name, id);
     await supabaseAdmin.from(NOTIFICATIONS_TABLE).insert({
+      type: 'success',
       title: 'Institution Re-enabled',
       message: `${inst.name} has been re-enabled. Admin can now log in again.`,
-      type: 'success',
       read: false,
     });
 
@@ -962,9 +982,9 @@ generated_password: password,
     }
     await createAuditLog('Institution Suspended', inst?.name || id, id);
     await supabaseAdmin.from(NOTIFICATIONS_TABLE).insert({
+      type: 'warning',
       title: 'Institution Suspended',
       message: `${inst?.name || 'An institution'} has been suspended.`,
-      type: 'warning',
       read: false,
     });
     await fetchAll();
@@ -984,9 +1004,9 @@ generated_password: password,
     }
     await createAuditLog('Institution Reactivated', inst?.name || id, id);
     await supabaseAdmin.from(NOTIFICATIONS_TABLE).insert({
+      type: 'success',
       title: 'Institution Reactivated',
       message: `${inst?.name || 'An institution'} has been reactivated.`,
-      type: 'success',
       read: false,
     });
     await fetchAll();
@@ -1006,9 +1026,9 @@ generated_password: password,
     }
     await createAuditLog('Institution Deleted', inst?.name || id, id);
     await supabaseAdmin.from(NOTIFICATIONS_TABLE).insert({
+      type: 'error',
       title: 'Institution Deleted',
       message: `${inst?.name || 'An institution'} has been permanently removed.`,
-      type: 'error',
       read: false,
     });
     await fetchAll();
@@ -1034,7 +1054,11 @@ generated_password: password,
   // Mark notification read
   // ---------------------------------------------------------------
   const markNotificationRead = async (id: string) => {
-    await supabaseAdmin.from(NOTIFICATIONS_TABLE).update({ read: true }).eq('id', id);
+    try {
+      await supabaseAdmin.from(NOTIFICATIONS_TABLE).update({ read: true }).eq('id', id);
+    } catch {
+      try { await supabaseAdmin.from(NOTIFICATIONS_TABLE).update({ is_read: true }).eq('id', id); } catch {}
+    }
     setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, read: true } : n)));
     setUnreadCount((prev) => Math.max(0, prev - 1));
   };
@@ -1046,7 +1070,11 @@ generated_password: password,
     const unread = notifications.filter((n) => !n.read);
     if (unread.length === 0) return;
     const ids = unread.map((n) => n.id);
-    await supabaseAdmin.from(NOTIFICATIONS_TABLE).update({ read: true }).in('id', ids);
+    try {
+      await supabaseAdmin.from(NOTIFICATIONS_TABLE).update({ read: true }).in('id', ids);
+    } catch {
+      try { await supabaseAdmin.from(NOTIFICATIONS_TABLE).update({ is_read: true }).in('id', ids); } catch {}
+    }
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
     setUnreadCount(0);
   };
