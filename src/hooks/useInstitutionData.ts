@@ -366,11 +366,19 @@ export function useInstitutionData(institutionId: string | null): InstitutionDat
 
   const uploadImage = async (file: File, path: string): Promise<string | null> => {
     try {
+      if (!file || !path) {
+        console.error('[Upload] Invalid file or path');
+        return null;
+      }
       const ext = file.name.split('.').pop() || 'jpg';
       const filePath = `${path}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
       const { data, error } = await supabase.storage.from('food-images').upload(filePath, file, { upsert: true });
       if (error) {
         console.error('[Upload] Storage error:', error);
+        return null;
+      }
+      if (!data) {
+        console.error('[Upload] No data returned from upload');
         return null;
       }
       const { data: urlData } = supabase.storage.from('food-images').getPublicUrl(data.path);
@@ -382,11 +390,15 @@ export function useInstitutionData(institutionId: string | null): InstitutionDat
   };
 
   const updateStudentStatus = async (studentId: string, status: 'active' | 'suspended') => {
+    if (!studentId || !status) {
+      console.error('[updateStudentStatus] Invalid studentId or status');
+      return;
+    }
     try {
       const { error } = await supabase.from('profiles').update({ status }).eq('id', studentId);
       if (error) console.warn('[updateStudentStatus] profiles table may not have status column:', error.message);
-    } catch {
-      console.warn('[updateStudentStatus] Could not update status on profiles table');
+    } catch (err) {
+      console.error('[updateStudentStatus] Error updating status:', err);
     }
     setStudents(prev => prev.map(s => s.id === studentId ? { ...s, status } : s));
   };

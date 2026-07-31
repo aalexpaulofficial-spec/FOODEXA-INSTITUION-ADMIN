@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Lock, Mail, ShieldCheck, KeyRound, Sparkles, ArrowRight, Building2, Globe, Sun, Moon, Laptop, AlertCircle } from 'lucide-react';
 import { useAuth } from '../../../context/AuthContext';
 import { useTheme } from '../../../context/ThemeContext';
+import { supabase } from '../../../lib/supabaseClient';
 
 export function LoginView() {
   const { theme, setTheme } = useTheme();

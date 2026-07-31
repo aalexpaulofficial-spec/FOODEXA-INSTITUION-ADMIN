@@ -190,7 +190,7 @@ export function useSupabaseData(): UseSupabaseDataReturn {
       let inserted = false;
       for (const table of possibleTables) {
         try {
-          const { error } = await supabaseAdmin.from(table).insert({
+          const { error } = await supabase.from(table).insert({
             user_id: userId,
             user_name: user?.email || 'Unknown',
             action,

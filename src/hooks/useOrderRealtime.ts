@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { supabase, supabaseAdmin } from '../lib/supabaseClient';
+import { supabase } from '../lib/supabaseClient';
 import { Order, OrderStatus, OrderItem, Notification } from '../types';
 import {
   buildStatusUpdate,
