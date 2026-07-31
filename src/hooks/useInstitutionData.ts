@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { supabase } from '../lib/supabaseClient';
+import { supabase, supabaseAdmin } from '../lib/supabaseClient';
 import {
   Institution, Student, Vendor, Order, MenuItem,
   CampusBlock, StaffMember, Announcement, AuditLog, Counter, MenuCategory, OrderStatus,
@@ -639,7 +639,7 @@ const archiveCounter = async (counterId: string) => {
     }
     void (async () => {
       try {
-        const { error } = await supabase
+        const { error } = await supabaseAdmin
           .from('orders')
           .update(updates)
           .eq('id', orderId)
