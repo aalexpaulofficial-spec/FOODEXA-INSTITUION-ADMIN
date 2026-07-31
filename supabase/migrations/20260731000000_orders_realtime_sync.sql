@@ -13,6 +13,7 @@
 -- 1. Guarantee the status / timestamp columns used by the sync payloads exist
 -- -----------------------------------------------------------------------------
 ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS kitchen_status text DEFAULT 'Pending';
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS order_status text;
 ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS counter_status text;
 ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS accepted_at timestamptz;
 ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS preparing_at timestamptz;

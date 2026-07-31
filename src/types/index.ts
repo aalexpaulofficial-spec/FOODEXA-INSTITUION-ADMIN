@@ -152,6 +152,7 @@ export interface Order {
   }[];
   totalAmount: number;
   status: OrderStatus;
+  orderStatus?: string;
   kitchenStatus?: 'Pending' | 'Accepted' | 'Preparing' | 'Ready' | 'Completed' | 'Cancelled' | string;
   counterStatus?: string;
   orderTime: string;

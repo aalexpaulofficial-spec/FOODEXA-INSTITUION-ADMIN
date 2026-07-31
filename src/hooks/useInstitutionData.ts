@@ -634,7 +634,9 @@ const archiveCounter = async (counterId: string) => {
       }
     }
     const updates = buildStatusUpdate(status) as any;
-    if (existing?.studentId) { updates.student_id = existing.studentId; }
+    if (existing?.studentId) {
+      updates.student_id = existing.studentId;
+    }
     void (async () => {
       try {
         const { error } = await supabase

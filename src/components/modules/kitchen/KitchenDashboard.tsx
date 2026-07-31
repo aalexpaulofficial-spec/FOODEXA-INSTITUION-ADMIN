@@ -56,6 +56,7 @@ export const KitchenDashboard: React.FC<KitchenDashboardProps> = ({
   const preparingItems = useMemo(() => safeOrders.filter((o) => o.kitchenStatus === 'Preparing'), [safeOrders]);
   const readyItems = useMemo(() => safeOrders.filter((o) => o.kitchenStatus === 'Ready'), [safeOrders]);
   const completedItems = useMemo(() => safeOrders.filter((o) => o.kitchenStatus === 'Completed'), [safeOrders]);
+  const cancelledItems = useMemo(() => safeOrders.filter((o) => o.kitchenStatus === 'Cancelled'), [safeOrders]);
 
   const getElapsedSeconds = (order: Order): number => {
     const startedAt = order.preparingAt || order.acceptedAt || order.created_at || order.orderTime || '';
@@ -126,7 +127,7 @@ export const KitchenDashboard: React.FC<KitchenDashboardProps> = ({
 
   const renderCard = (
     item: Order,
-    tone: 'amber' | 'cyan' | 'emerald' | 'green',
+    tone: 'amber' | 'cyan' | 'emerald' | 'green' | 'red',
     action?: React.ReactNode
   ) => {
     const border = {
@@ -134,12 +135,14 @@ export const KitchenDashboard: React.FC<KitchenDashboardProps> = ({
       cyan: 'border-cyan-500/30',
       emerald: 'border-emerald-500/30',
       green: 'border-green-500/20',
+      red: 'border-red-500/30',
     }[tone];
     const text = {
       amber: 'text-amber-400',
       cyan: 'text-cyan-300',
       emerald: 'text-emerald-400',
       green: 'text-green-400',
+      red: 'text-red-400',
     }[tone];
 
     return (
@@ -191,6 +194,9 @@ export const KitchenDashboard: React.FC<KitchenDashboardProps> = ({
           </div>
           <div className="px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-800 text-slate-300">
             Ready: <strong className="text-emerald-400 font-mono">{readyItems.length}</strong>
+          </div>
+          <div className="px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-800 text-slate-300">
+            Cancelled: <strong className="text-red-400 font-mono">{cancelledItems.length}</strong>
           </div>
         </div>
       </div>
@@ -283,7 +289,7 @@ export const KitchenDashboard: React.FC<KitchenDashboardProps> = ({
                   className="w-full py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-bold text-xs transition-colors flex items-center justify-center space-x-1.5"
                 >
                   <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                  <span>Complete</span>
+                  <span>Picked Up</span>
                 </button>
               ))
             )}
@@ -305,6 +311,22 @@ export const KitchenDashboard: React.FC<KitchenDashboardProps> = ({
           </div>
         </section>
       </div>
+
+      <section className="p-4 rounded-2xl bg-slate-900/80 border border-slate-800 space-y-4">
+        <div className="flex items-center justify-between pb-2 border-b border-slate-800">
+          <div className="flex items-center space-x-2">
+            <span className="w-2.5 h-2.5 rounded-full bg-red-400" />
+            <span className="text-xs font-extrabold uppercase tracking-wider text-red-400">Cancelled ({cancelledItems.length})</span>
+          </div>
+          <span className="text-[10px] font-mono text-slate-500">Cancelled</span>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
+          {cancelledItems.map((item) => renderCard(item, 'red'))}
+          {cancelledItems.length === 0 && (
+            <div className="col-span-full py-16 text-center text-slate-500 text-xs italic">No cancelled orders.</div>
+          )}
+        </div>
+      </section>
     </div>
   );
 };
