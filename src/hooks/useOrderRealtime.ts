@@ -272,7 +272,7 @@ export function useOrderRealtime(
           read: false,
         };
 
-        const { error } = await supabaseAdmin
+        const { error } = await supabase
           .from('notifications')
           .insert(notifPayload)
           .select()
@@ -326,7 +326,7 @@ export function useOrderRealtime(
       );
 
       try {
-        const { error: updateError } = await supabaseAdmin
+        const { error: updateError } = await supabase
           .from('orders')
           .update(updates)
           .eq('id', orderId)

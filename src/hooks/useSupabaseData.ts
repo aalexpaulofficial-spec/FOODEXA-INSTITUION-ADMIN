@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { supabase, supabaseAdmin } from '../lib/supabaseClient';
+import { supabase } from '../lib/supabaseClient';
 
 // ---------------------------------------------------------------
 // Types for Supabase rows
@@ -213,7 +213,7 @@ export function useSupabaseData(): UseSupabaseDataReturn {
   // ---------------------------------------------------------------
   const verifyAdminAccess = useCallback(async (): Promise<boolean> => {
     try {
-      const { data, error: checkErr } = await supabaseAdmin
+      const { data, error: checkErr } = await supabase
         .from(REQUESTS_TABLE)
         .select('id')
         .limit(1);
@@ -261,7 +261,7 @@ export function useSupabaseData(): UseSupabaseDataReturn {
       }
 
       // Fetch institution requests
-      const { data: requests, error: reqErr } = await supabaseAdmin
+      const { data: requests, error: reqErr } = await supabase
         .from(REQUESTS_TABLE)
         .select('*')
         .order('created_at', { ascending: false });
@@ -274,7 +274,7 @@ export function useSupabaseData(): UseSupabaseDataReturn {
       setInstitutionRequests((requests as InstitutionRequest[]) || []);
 
       // Fetch approved institutions
-      const { data: institutions, error: instErr } = await supabaseAdmin
+      const { data: institutions, error: instErr } = await supabase
         .from(INSTITUTIONS_TABLE)
         .select('*')
         .order('created_at', { ascending: false });
@@ -288,9 +288,9 @@ export function useSupabaseData(): UseSupabaseDataReturn {
 
       // Fetch total counts in parallel
       const [studentRes, orderRes, vendorRes] = await Promise.allSettled([
-        supabaseAdmin.from('profiles').select('id', { count: 'exact', head: true }).eq('role', 'student'),
-        supabaseAdmin.from(ORDERS_TABLE).select('id', { count: 'exact', head: true }),
-        supabaseAdmin.from('canteens').select('id', { count: 'exact', head: true }),
+        supabase.from('profiles').select('id', { count: 'exact', head: true }).eq('role', 'student'),
+        supabase.from(ORDERS_TABLE).select('id', { count: 'exact', head: true }),
+        supabase.from('canteens').select('id', { count: 'exact', head: true }),
       ]);
 
       setTotalStudents(studentRes.status === 'fulfilled' ? studentRes.value.count || 0 : 0);
@@ -306,7 +306,7 @@ export function useSupabaseData(): UseSupabaseDataReturn {
       const auditTables = ['audit_logs', 'platform_audit_logs', 'admin_audit_logs'];
       let logsFound = false;
       for (const tbl of auditTables) {
-        const { data: logs, error: logsErr } = await supabaseAdmin
+        const { data: logs, error: logsErr } = await supabase
           .from(tbl)
           .select('*')
           .order('created_at', { ascending: false })
@@ -321,7 +321,7 @@ export function useSupabaseData(): UseSupabaseDataReturn {
 
       // Fetch notifications
       const notifColumns = ['id', 'type', 'created_at', 'title', 'message', 'read'];
-      const { data: notifs, error: notifsErr } = await supabaseAdmin
+      const { data: notifs, error: notifsErr } = await supabase
         .from(NOTIFICATIONS_TABLE)
         .select(notifColumns.join(','))
         .order('created_at', { ascending: false })
@@ -427,13 +427,13 @@ export function useSupabaseData(): UseSupabaseDataReturn {
     }
 
     const [reqRes, instRes] = await Promise.all([
-      supabaseAdmin
+      supabase
         .from(REQUESTS_TABLE)
         .select('id')
         .eq('institution_code', cleanedCode)
         .neq('id', requestId)
         .maybeSingle(),
-      supabaseAdmin
+      supabase
         .from(INSTITUTIONS_TABLE)
         .select('id')
         .eq('institution_code', cleanedCode)
@@ -468,7 +468,7 @@ export function useSupabaseData(): UseSupabaseDataReturn {
     let existingUserId: string | undefined;
 
     try {
-      const { data: allUsers, error: listError } = await supabaseAdmin.auth.admin.listUsers();
+      const { data: allUsers, error: listError } = await supabase.auth.admin.listUsers();
 
       if (listError) {
         console.error('[prepareApproval] Failed to list auth users:', listError);
@@ -534,7 +534,7 @@ export function useSupabaseData(): UseSupabaseDataReturn {
     let existingUserId: string | null = null;
 
     try {
-      const { data: allUsers, error: listError } = await supabaseAdmin.auth.admin.listUsers();
+      const { data: allUsers, error: listError } = await supabase.auth.admin.listUsers();
       if (listError) {
         throw new Error(`Failed to check existing auth users: ${listError.message}`);
       }
@@ -557,7 +557,7 @@ export function useSupabaseData(): UseSupabaseDataReturn {
     if (emailAlreadyExisted && existingUserId) {
       authUserId = existingUserId;
     } else {
-      const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
+      const { data: authData, error: authError } = await supabase.auth.admin.createUser({
         email: generatedEmail,
 password: password,
         email_confirm: true,
@@ -598,7 +598,7 @@ password: password,
       status: 'active',
     };
 
-    const { data: instData, error: instError } = await supabaseAdmin
+    const { data: instData, error: instError } = await supabase
       .from(INSTITUTIONS_TABLE)
       .insert(institutionRecord)
       .select('id')
@@ -619,7 +619,7 @@ password: password,
     }
 
     // Step 3: Update institution_requests — save code, email, password, status → approved
-    const { error: updateReqError } = await supabaseAdmin
+    const { error: updateReqError } = await supabase
       .from(REQUESTS_TABLE)
       .update({
         status: 'approved',
@@ -637,7 +637,7 @@ generated_password: password,
 
     // Step 4: Create or update user profile
     if (emailAlreadyExisted) {
-      const { error: profileError } = await supabaseAdmin
+      const { error: profileError } = await supabase
         .from('profiles')
         .update({ institution_id: instData.id })
         .eq('user_id', authUserId);
@@ -645,7 +645,7 @@ generated_password: password,
         console.error('[approveRequest] Failed to update existing user profile:', profileError);
       }
     } else {
-      const { error: profileError } = await supabaseAdmin
+      const { error: profileError } = await supabase
         .from('profiles')
         .insert({
           user_id: authUserId,
@@ -667,7 +667,7 @@ generated_password: password,
 
     // Step 6: Notification
     try {
-      const { error: notifError } = await supabaseAdmin.from(NOTIFICATIONS_TABLE).insert({
+      const { error: notifError } = await supabase.from(NOTIFICATIONS_TABLE).insert({
         type: 'success',
         title: 'Institution Approved',
         message: `${request.institution_name} has been approved and activated on the platform. Code: ${institutionCode}`,
@@ -746,7 +746,7 @@ generated_password: password,
       rejection_reason: reason || null,
     };
 
-    const { error: updateErr } = await supabaseAdmin
+    const { error: updateErr } = await supabase
       .from(REQUESTS_TABLE)
       .update(updateData)
       .eq('id', id);
@@ -786,7 +786,7 @@ generated_password: password,
 
     await createAuditLog('Institution Rejected', request.institution_name, id, reason || 'No reason provided');
 
-    await supabaseAdmin.from(NOTIFICATIONS_TABLE).insert({
+    await supabase.from(NOTIFICATIONS_TABLE).insert({
       type: 'warning',
       title: 'Institution Rejected',
       message: `${request.institution_name} registration has been rejected.${reason ? ` Reason: ${reason}` : ''}`,
@@ -828,7 +828,7 @@ generated_password: password,
     const request = institutionRequests.find((r) => r.id === id);
     if (!request) throw new Error('Institution request not found. Please refresh and try again.');
 
-    const { error: updateErr } = await supabaseAdmin
+    const { error: updateErr } = await supabase
       .from(REQUESTS_TABLE)
       .update({
         status: 'changes_requested',
@@ -850,7 +850,7 @@ generated_password: password,
 
     await createAuditLog('Changes Requested', request.institution_name, id, notes);
 
-    await supabaseAdmin.from(NOTIFICATIONS_TABLE).insert({
+    await supabase.from(NOTIFICATIONS_TABLE).insert({
       type: 'info',
       title: 'Changes Requested',
       message: `Changes requested for ${request.institution_name}: ${notes}`,
@@ -866,7 +866,7 @@ generated_password: password,
   const disableInstitution = async (id: string) => {
     const inst = approvedInstitutions.find((i) => i.id === id);
 
-    const { error: instErr } = await supabaseAdmin
+    const { error: instErr } = await supabase
       .from(INSTITUTIONS_TABLE)
       .update({ status: 'disabled' })
       .eq('id', id);
@@ -884,7 +884,7 @@ generated_password: password,
     // Also update the original request status
     const request = institutionRequests.find((r) => r.institution_code === inst?.institution_code);
     if (request) {
-      const { error: reqErr } = await supabaseAdmin
+      const { error: reqErr } = await supabase
         .from(REQUESTS_TABLE)
         .update({ status: 'disabled' })
         .eq('id', request.id);
@@ -894,7 +894,7 @@ generated_password: password,
     }
 
     await createAuditLog('Institution Disabled', inst?.name || id, id);
-    await supabaseAdmin.from(NOTIFICATIONS_TABLE).insert({
+    await supabase.from(NOTIFICATIONS_TABLE).insert({
       type: 'warning',
       title: 'Institution Disabled',
       message: `${inst?.name || 'An institution'} has been disabled. Admin can no longer log in.`,
@@ -911,7 +911,7 @@ generated_password: password,
     const inst = approvedInstitutions.find((i) => i.id === id);
     if (!inst) throw new Error('Institution not found. Please refresh and try again.');
 
-    const { error: instErr } = await supabaseAdmin
+    const { error: instErr } = await supabase
       .from(INSTITUTIONS_TABLE)
       .update({ status: 'active' })
       .eq('id', id);
@@ -929,7 +929,7 @@ generated_password: password,
     // Also update the original request status
     const request = institutionRequests.find((r) => r.institution_code === inst?.institution_code);
     if (request) {
-      const { error: reqErr } = await supabaseAdmin
+      const { error: reqErr } = await supabase
         .from(REQUESTS_TABLE)
         .update({ status: 'active' })
         .eq('id', request.id);
@@ -939,7 +939,7 @@ generated_password: password,
     }
 
     await createAuditLog('Institution Re-enabled', inst.name, id);
-    await supabaseAdmin.from(NOTIFICATIONS_TABLE).insert({
+    await supabase.from(NOTIFICATIONS_TABLE).insert({
       type: 'success',
       title: 'Institution Re-enabled',
       message: `${inst.name} has been re-enabled. Admin can now log in again.`,
@@ -956,7 +956,7 @@ generated_password: password,
     const request = institutionRequests.find((r) => r.id === id);
     if (!request) throw new Error('Institution request not found. Please refresh and try again.');
 
-    const { error } = await supabaseAdmin.from(REQUESTS_TABLE).update(updates).eq('id', id);
+    const { error } = await supabase.from(REQUESTS_TABLE).update(updates).eq('id', id);
     if (error) {
       if (error.message?.toLowerCase().includes('row-level security') || error.message?.toLowerCase().includes('policy')) {
         throw new Error(`RLS policy blocked the update. Invalid service role key. Raw: ${error.message}`);
@@ -973,7 +973,7 @@ generated_password: password,
   // ---------------------------------------------------------------
   const suspendInstitution = async (id: string) => {
     const inst = approvedInstitutions.find((i) => i.id === id);
-    const { error } = await supabaseAdmin.from(INSTITUTIONS_TABLE).update({ status: 'suspended' }).eq('id', id);
+    const { error } = await supabase.from(INSTITUTIONS_TABLE).update({ status: 'suspended' }).eq('id', id);
     if (error) {
       if (error.message?.toLowerCase().includes('row-level security') || error.message?.toLowerCase().includes('policy')) {
         throw new Error(`RLS policy blocked the update. Invalid service role key. Raw: ${error.message}`);
@@ -981,7 +981,7 @@ generated_password: password,
       throw new Error(`Failed to suspend institution: ${error.message}`);
     }
     await createAuditLog('Institution Suspended', inst?.name || id, id);
-    await supabaseAdmin.from(NOTIFICATIONS_TABLE).insert({
+    await supabase.from(NOTIFICATIONS_TABLE).insert({
       type: 'warning',
       title: 'Institution Suspended',
       message: `${inst?.name || 'An institution'} has been suspended.`,
@@ -995,7 +995,7 @@ generated_password: password,
   // ---------------------------------------------------------------
   const activateInstitution = async (id: string) => {
     const inst = approvedInstitutions.find((i) => i.id === id);
-    const { error } = await supabaseAdmin.from(INSTITUTIONS_TABLE).update({ status: 'active' }).eq('id', id);
+    const { error } = await supabase.from(INSTITUTIONS_TABLE).update({ status: 'active' }).eq('id', id);
     if (error) {
       if (error.message?.toLowerCase().includes('row-level security') || error.message?.toLowerCase().includes('policy')) {
         throw new Error(`RLS policy blocked the update. Invalid service role key. Raw: ${error.message}`);
@@ -1003,7 +1003,7 @@ generated_password: password,
       throw new Error(`Failed to activate institution: ${error.message}`);
     }
     await createAuditLog('Institution Reactivated', inst?.name || id, id);
-    await supabaseAdmin.from(NOTIFICATIONS_TABLE).insert({
+    await supabase.from(NOTIFICATIONS_TABLE).insert({
       type: 'success',
       title: 'Institution Reactivated',
       message: `${inst?.name || 'An institution'} has been reactivated.`,
@@ -1017,7 +1017,7 @@ generated_password: password,
   // ---------------------------------------------------------------
   const deleteInstitution = async (id: string) => {
     const inst = approvedInstitutions.find((i) => i.id === id);
-    const { error } = await supabaseAdmin.from(INSTITUTIONS_TABLE).delete().eq('id', id);
+    const { error } = await supabase.from(INSTITUTIONS_TABLE).delete().eq('id', id);
     if (error) {
       if (error.message?.toLowerCase().includes('row-level security') || error.message?.toLowerCase().includes('policy')) {
         throw new Error(`RLS policy blocked deletion. Invalid service role key. Raw: ${error.message}`);
@@ -1025,7 +1025,7 @@ generated_password: password,
       throw new Error(`Failed to delete institution: ${error.message}`);
     }
     await createAuditLog('Institution Deleted', inst?.name || id, id);
-    await supabaseAdmin.from(NOTIFICATIONS_TABLE).insert({
+    await supabase.from(NOTIFICATIONS_TABLE).insert({
       type: 'error',
       title: 'Institution Deleted',
       message: `${inst?.name || 'An institution'} has been permanently removed.`,
@@ -1039,7 +1039,7 @@ generated_password: password,
   // ---------------------------------------------------------------
   const updateInstitution = async (id: string, updates: Partial<SupabaseInstitution>) => {
     const inst = approvedInstitutions.find((i) => i.id === id);
-    const { error } = await supabaseAdmin.from(INSTITUTIONS_TABLE).update(updates).eq('id', id);
+    const { error } = await supabase.from(INSTITUTIONS_TABLE).update(updates).eq('id', id);
     if (error) {
       if (error.message?.toLowerCase().includes('row-level security') || error.message?.toLowerCase().includes('policy')) {
         throw new Error(`RLS policy blocked the update. Invalid service role key. Raw: ${error.message}`);
@@ -1055,9 +1055,9 @@ generated_password: password,
   // ---------------------------------------------------------------
   const markNotificationRead = async (id: string) => {
     try {
-      await supabaseAdmin.from(NOTIFICATIONS_TABLE).update({ read: true }).eq('id', id);
+      await supabase.from(NOTIFICATIONS_TABLE).update({ read: true }).eq('id', id);
     } catch {
-      try { await supabaseAdmin.from(NOTIFICATIONS_TABLE).update({ is_read: true }).eq('id', id); } catch {}
+      try { await supabase.from(NOTIFICATIONS_TABLE).update({ is_read: true }).eq('id', id); } catch {}
     }
     setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, read: true } : n)));
     setUnreadCount((prev) => Math.max(0, prev - 1));
@@ -1071,9 +1071,9 @@ generated_password: password,
     if (unread.length === 0) return;
     const ids = unread.map((n) => n.id);
     try {
-      await supabaseAdmin.from(NOTIFICATIONS_TABLE).update({ read: true }).in('id', ids);
+      await supabase.from(NOTIFICATIONS_TABLE).update({ read: true }).in('id', ids);
     } catch {
-      try { await supabaseAdmin.from(NOTIFICATIONS_TABLE).update({ is_read: true }).in('id', ids); } catch {}
+      try { await supabase.from(NOTIFICATIONS_TABLE).update({ is_read: true }).in('id', ids); } catch {}
     }
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
     setUnreadCount(0);
