@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   CalendarClock,
   CheckCircle2,
@@ -9,13 +9,14 @@ import {
   QrCode,
   Timer,
   User,
+  ChefHat,
 } from 'lucide-react';
-import { KitchenQueueItem, OrderStatus } from '../../../types';
+import { Order, OrderStatus } from '../../../types';
 
 interface KitchenDashboardProps {
-  queueItems: KitchenQueueItem[];
+  orders: Order[];
   currentInstitution?: { name: string; institution_code: string; campus?: string };
-  onUpdateKitchenStatus: (itemId: string, status: OrderStatus) => void;
+  onUpdateOrderStatus: (orderId: string, status: OrderStatus) => void;
 }
 
 const getRoleDisplay = (role?: string) => {
@@ -23,101 +24,94 @@ const getRoleDisplay = (role?: string) => {
   if (r === 'student') return { label: 'Student', cls: 'text-indigo-300' };
   if (r === 'faculty') return { label: 'Faculty', cls: 'text-purple-300' };
   if (r === 'guest') return { label: 'Guest', cls: 'text-slate-300' };
-  return { label: role || 'Unknown', cls: 'text-slate-400' };
+  return { label: role || '', cls: 'text-slate-400' };
 };
 
 const formatTime = (value?: string) => {
-  if (!value) return '-';
+  if (!value) return '';
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return value;
   return parsed.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
 };
 
-export const KitchenDashboard: React.FC<KitchenDashboardProps> = ({
-  queueItems,
-  onUpdateKitchenStatus,
-}) => {
-  const [items, setItems] = useState<KitchenQueueItem[]>(queueItems);
+const formatSeconds = (sec: number) => {
+  const m = Math.floor(sec / 60);
+  const s = sec % 60;
+  return `${m}:${s < 10 ? '0' : ''}${s}`;
+};
 
+export const KitchenDashboard: React.FC<KitchenDashboardProps> = ({
+  orders,
+  onUpdateOrderStatus,
+}) => {
+  const safeOrders = useMemo(() => (Array.isArray(orders) ? orders : []), [orders]);
+
+  const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
-    const timer = setInterval(() => {
-      setItems((prev) =>
-        prev.map((item) =>
-          item.status === 'preparing'
-            ? { ...item, elapsedSeconds: item.elapsedSeconds + 1 }
-            : item
-        )
-      );
-    }, 1000);
+    const timer = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(timer);
   }, []);
 
-  useEffect(() => {
-    setItems(queueItems);
-  }, [queueItems]);
+  const incomingItems = useMemo(() => safeOrders.filter((o) => o.kitchenStatus === 'Pending'), [safeOrders]);
+  const preparingItems = useMemo(() => safeOrders.filter((o) => o.kitchenStatus === 'Preparing'), [safeOrders]);
+  const readyItems = useMemo(() => safeOrders.filter((o) => o.kitchenStatus === 'Ready'), [safeOrders]);
+  const completedItems = useMemo(() => safeOrders.filter((o) => o.kitchenStatus === 'Completed'), [safeOrders]);
 
-  const incomingItems = items.filter((item) => item.status === 'pending');
-  const preparingItems = items.filter((item) => item.status === 'preparing');
-  const readyItems = items.filter((item) => item.status === 'ready');
-  const completedItems = items.filter((item) => item.status === 'completed');
-
-  const formatSeconds = (sec: number) => {
-    const m = Math.floor(sec / 60);
-    const s = sec % 60;
-    return `${m}:${s < 10 ? '0' : ''}${s}`;
+  const getElapsedSeconds = (order: Order): number => {
+    const startedAt = order.preparingAt || order.acceptedAt || order.created_at || order.orderTime || '';
+    const t = new Date(startedAt).getTime();
+    if (Number.isNaN(t)) return 0;
+    return Math.max(0, Math.floor((now - t) / 1000));
   };
 
-  const renderCustomerInfo = (item: KitchenQueueItem) => {
-    const role = getRoleDisplay(item.customerRole);
+  const renderCustomerInfo = (item: Order) => {
+    const role = getRoleDisplay(item.userRole);
     return (
       <div className="flex items-center justify-between gap-3 text-[11px] pt-2 border-t border-slate-800/60">
         <div className="flex items-center gap-1.5 min-w-0">
           <User className="w-3 h-3 text-slate-500 shrink-0" />
-          <span className="font-semibold text-slate-200 truncate">{item.customerName || '-'}</span>
+          <span className="font-semibold text-slate-200 truncate">{item.studentName || ''}</span>
         </div>
         <span className={`text-xs font-bold shrink-0 ${role.cls}`}>{role.label}</span>
       </div>
     );
   };
 
-  const renderPickupInfo = (item: KitchenQueueItem) => (
+  const renderPickupInfo = (item: Order) => (
     <div className="flex items-center justify-between text-[11px] text-slate-400">
       <div className="flex items-center gap-1">
         <CalendarClock className="w-3 h-3 text-slate-500" />
-        <span className="font-mono">{formatTime(item.orderTime || item.pickupTime)}</span>
+        <span className="font-mono">{formatTime(item.orderTime || item.pickupTimeEstimated)}</span>
       </div>
-      <div className="font-mono text-slate-300 font-semibold">{item.counterNumber || '-'}</div>
+      <div className="font-mono text-slate-300 font-semibold">{item.pickupCounter || ''}</div>
     </div>
   );
 
-  const renderOrderMeta = (item: KitchenQueueItem) => (
+  const renderOrderMeta = (item: Order) => (
     <div className="grid grid-cols-2 gap-2 text-[11px]">
       <div className="flex items-center gap-1.5 text-slate-400 min-w-0">
         <Hash className="w-3 h-3 text-slate-500 shrink-0" />
         <span>Token</span>
-        <span className="font-mono font-bold text-slate-200 truncate">{item.tokenNumber || '-'}</span>
+        <span className="font-mono font-bold text-slate-200 truncate">{item.tokenNumber || ''}</span>
       </div>
       <div className="flex items-center gap-1.5 text-slate-400 min-w-0">
         <KeyRound className="w-3 h-3 text-slate-500 shrink-0" />
         <span>Code</span>
-        <span className="font-mono font-bold text-slate-200 truncate">{item.pickupCode || '-'}</span>
+        <span className="font-mono font-bold text-slate-200 truncate">{item.pickupCode || ''}</span>
       </div>
       <div className="flex items-center gap-1.5 text-slate-400 min-w-0">
         <CreditCard className="w-3 h-3 text-slate-500 shrink-0" />
-        <span className="capitalize truncate">{item.paymentStatus || 'pending'}</span>
+        <span className="capitalize truncate">{item.paymentStatus || ''}</span>
       </div>
       <div className="flex items-center gap-1.5 text-slate-400 min-w-0">
         <QrCode className="w-3 h-3 text-slate-500 shrink-0" />
-        <span className="font-mono truncate">{item.qrCodeData || item.pickupCode || '-'}</span>
+        <span className="font-mono truncate">{item.qrCodeData || item.pickupCode || ''}</span>
       </div>
     </div>
   );
 
-  const renderItems = (item: KitchenQueueItem) => {
-    if (!item.items?.length) {
-      return <div className="text-[11px] font-bold text-slate-200">{item.itemsSummary || 'No items listed'}</div>;
-    }
-
+  const renderItems = (item: Order) => {
+    if (!item.items?.length) return null;
     return (
       <div className="space-y-1">
         {item.items.map((orderItem, index) => (
@@ -131,7 +125,7 @@ export const KitchenDashboard: React.FC<KitchenDashboardProps> = ({
   };
 
   const renderCard = (
-    item: KitchenQueueItem,
+    item: Order,
     tone: 'amber' | 'cyan' | 'emerald' | 'green',
     action?: React.ReactNode
   ) => {
@@ -151,7 +145,7 @@ export const KitchenDashboard: React.FC<KitchenDashboardProps> = ({
     return (
       <div key={item.id} className={`p-4 rounded-xl bg-slate-950 border ${border} space-y-3 shadow-lg transition-all`}>
         <div className="flex items-center justify-between gap-3">
-          <span className={`font-mono font-bold text-sm ${text}`}>{item.orderNumber || '-'}</span>
+          <span className={`font-mono font-bold text-sm ${text}`}>{item.orderNumber || ''}</span>
           {item.isPriority && (
             <span className="px-2 py-0.5 rounded bg-red-500/10 text-red-400 border border-red-500/20 text-[9px] font-bold uppercase flex items-center space-x-1">
               <Flame className="w-3 h-3 text-red-400" />
@@ -184,7 +178,7 @@ export const KitchenDashboard: React.FC<KitchenDashboardProps> = ({
             </span>
           </div>
           <p className="text-xs text-slate-400">
-            Supabase Realtime orders for the logged-in institution.
+            Supabase Realtime orders for the logged-in institution. Same source as Order Management.
           </p>
         </div>
 
@@ -213,13 +207,22 @@ export const KitchenDashboard: React.FC<KitchenDashboardProps> = ({
           <div className="space-y-3 min-h-[400px]">
             {incomingItems.map((item) =>
               renderCard(item, 'amber', (
-                <button
-                  onClick={() => onUpdateKitchenStatus(item.id, 'preparing')}
-                  className="w-full py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs transition-colors flex items-center justify-center space-x-1"
-                >
-                  <CheckCircle2 className="w-3.5 h-3.5" />
-                  <span>Accept</span>
-                </button>
+                <div className="space-y-2">
+                  <button
+                    onClick={() => onUpdateOrderStatus(item.id, 'accepted')}
+                    className="w-full py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs transition-colors flex items-center justify-center space-x-1"
+                  >
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    <span>Accept</span>
+                  </button>
+                  <button
+                    onClick={() => onUpdateOrderStatus(item.id, 'preparing')}
+                    className="w-full py-2 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-xs transition-colors flex items-center justify-center space-x-1"
+                  >
+                    <ChefHat className="w-3.5 h-3.5" />
+                    <span>Start Preparing</span>
+                  </button>
+                </div>
               ))
             )}
             {incomingItems.length === 0 && <div className="py-16 text-center text-slate-500 text-xs italic">No pending orders.</div>}
@@ -236,13 +239,14 @@ export const KitchenDashboard: React.FC<KitchenDashboardProps> = ({
           </div>
           <div className="space-y-3 min-h-[400px]">
             {preparingItems.map((item) => {
-              const prepSeconds = Math.max((item.prepTimeMinutes || 1) * 60, 1);
-              const progressPct = Math.min(100, Math.floor((item.elapsedSeconds / prepSeconds) * 100));
+              const elapsedSeconds = getElapsedSeconds(item);
+              const prepSeconds = Math.max((item.estimatedWaitMins || 1) * 60, 1);
+              const progressPct = Math.min(100, Math.floor((elapsedSeconds / prepSeconds) * 100));
               return renderCard(item, 'cyan', (
                 <div className="space-y-3">
                   <div>
                     <div className="flex justify-between text-[10px] text-slate-400 mb-1">
-                      <span className="flex items-center gap-1"><Timer className="w-3 h-3" /> {formatSeconds(item.elapsedSeconds)}</span>
+                      <span className="flex items-center gap-1"><Timer className="w-3 h-3" /> {formatSeconds(elapsedSeconds)}</span>
                       <span className="font-mono">{progressPct}%</span>
                     </div>
                     <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
@@ -250,7 +254,7 @@ export const KitchenDashboard: React.FC<KitchenDashboardProps> = ({
                     </div>
                   </div>
                   <button
-                    onClick={() => onUpdateKitchenStatus(item.id, 'ready')}
+                    onClick={() => onUpdateOrderStatus(item.id, 'ready')}
                     className="w-full py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs transition-colors flex items-center justify-center space-x-1.5"
                   >
                     <CheckCircle2 className="w-4 h-4" />
@@ -275,7 +279,7 @@ export const KitchenDashboard: React.FC<KitchenDashboardProps> = ({
             {readyItems.map((item) =>
               renderCard(item, 'emerald', (
                 <button
-                  onClick={() => onUpdateKitchenStatus(item.id, 'completed')}
+                  onClick={() => onUpdateOrderStatus(item.id, 'completed')}
                   className="w-full py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-bold text-xs transition-colors flex items-center justify-center space-x-1.5"
                 >
                   <CheckCircle2 className="w-4 h-4 text-emerald-400" />

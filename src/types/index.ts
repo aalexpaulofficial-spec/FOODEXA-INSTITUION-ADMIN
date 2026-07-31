@@ -152,8 +152,16 @@ export interface Order {
   }[];
   totalAmount: number;
   status: OrderStatus;
-  kitchenStatus?: 'Pending' | 'Preparing' | 'Ready' | string;
+  kitchenStatus?: 'Pending' | 'Accepted' | 'Preparing' | 'Ready' | 'Completed' | 'Cancelled' | string;
+  counterStatus?: string;
   orderTime: string;
+  created_at?: string;
+  createdAt?: string;
+  acceptedAt?: string;
+  preparingAt?: string;
+  readyAt?: string;
+  completedAt?: string;
+  cancelledAt?: string;
   pickupTimeEstimated: string;
   pickupCode: string;
   tokenNumber?: string;
@@ -165,28 +173,6 @@ export interface Order {
   userRole?: string;
   userEmail?: string;
   userPhone?: string;
-}
-
-export interface KitchenQueueItem {
-  id: string;
-  orderId: string;
-  orderNumber: string;
-  itemsSummary: string;
-  status: OrderStatus;
-  prepTimeMinutes: number;
-  elapsedSeconds: number;
-  isPriority: boolean;
-  notes?: string;
-  counterNumber: string;
-  customerName?: string;
-  customerRole?: string;
-  pickupTime?: string;
-  tokenNumber?: string;
-  pickupCode?: string;
-  qrCodeData?: string;
-  paymentStatus?: string;
-  orderTime?: string;
-  items?: Order['items'];
 }
 
 export interface StaffMember {

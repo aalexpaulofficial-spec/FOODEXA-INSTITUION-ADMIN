@@ -35,8 +35,14 @@ export const StudentDashboardSyncModal: React.FC<StudentDashboardSyncModalProps>
 
   if (!isOpen) return null;
 
-  // Latest active order for student
-  const activeStudentOrder = orders[0] || null;
+  // Latest active order — same Supabase source, updated in real time
+  const activeStudentOrder = (Array.isArray(orders) && orders.length > 0
+    ? [...orders].sort((a, b) => {
+        const ta = new Date(a.created_at || a.orderTime || 0).getTime();
+        const tb = new Date(b.created_at || b.orderTime || 0).getTime();
+        return (Number.isNaN(tb) ? 0 : tb) - (Number.isNaN(ta) ? 0 : ta);
+      })[0]
+    : null) || null;
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-lg flex items-center justify-center p-3 sm:p-4 animate-fade-in">
@@ -230,7 +236,7 @@ export const StudentDashboardSyncModal: React.FC<StudentDashboardSyncModalProps>
                     {activeStudentOrder.items.map((i) => `${i.quantity}x ${i.name}`).join(', ')}
                   </span>
                   <span className="font-mono font-bold text-amber-400">
-                    ${activeStudentOrder.totalAmount.toFixed(2)} ({activeStudentOrder.paymentStatus.toUpperCase()})
+                    ₹{activeStudentOrder.totalAmount.toFixed(2)} ({activeStudentOrder.paymentStatus.toUpperCase()})
                   </span>
                 </div>
               </div>

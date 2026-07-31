@@ -57,12 +57,12 @@ export function App() {
   const institutionId = role === 'institution_admin' ? authInstId : null;
   const {
     institution, students, vendors, counters, orders, menuItems, menuCategories,
-    kitchenQueue, campusBlocks, staff, announcements, auditLogs,
+    campusBlocks, staff, announcements, auditLogs,
     loading: dataLoading,
     refresh,
     updateStudentStatus, approveVendor, rejectVendor, suspendVendor,
     addCounter, updateCounter, deleteCounter, archiveCounter, restoreCounter, updateCounterStatus, toggleCounterAvailability,
-    updateKitchenStatus, updateOrderStatus,
+    updateOrderStatus, fetchOrderDetails,
     addMenuItem, updateMenuItem, deleteMenuItem, toggleMenuAvailability,
     addMenuCategory, updateMenuCategory, deleteMenuCategory,
     toggleStaffPermission, deleteStudent, addStaff, updateStaff, deleteStaff, deleteAnnouncement, deleteVendor, updateInstitution, addAnnouncement,
@@ -125,7 +125,7 @@ export function App() {
           onTabChange={(tab) => { setCurrentTab(tab); setIsMobileMenuOpen(false); }}
           currentPortal={currentPortal}
           pendingVendorCount={vendors.filter((v) => v.status === 'pending').length}
-          activeKitchenOrdersCount={kitchenQueue.filter((k) => k.status === 'preparing').length}
+          activeKitchenOrdersCount={orders.filter((o) => o.kitchenStatus === 'Preparing' || o.kitchenStatus === 'Accepted').length}
           isMobileMenuOpen={isMobileMenuOpen}
           onCloseMobileMenu={() => setIsMobileMenuOpen(false)}
         />
@@ -196,9 +196,9 @@ export function App() {
 
                     {currentTab === 'kitchen' && (
                       <KitchenDashboard
-                        queueItems={kitchenQueue}
+                        orders={orders}
                         currentInstitution={institution}
-                        onUpdateKitchenStatus={updateKitchenStatus}
+                        onUpdateOrderStatus={handleUpdateOrderStatus}
                       />
                     )}
 
@@ -207,6 +207,7 @@ export function App() {
                         orders={orders}
                         currentInstitution={institution}
                         onUpdateOrderStatus={handleUpdateOrderStatus}
+                        onFetchOrderDetails={fetchOrderDetails}
                         onOpenQRScanner={() => setIsQRScannerOpen(true)}
                       />
                     )}

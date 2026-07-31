@@ -1,38 +1,35 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   ShoppingBag,
   Search,
-  Filter,
   Clock,
   QrCode,
   CheckCircle2,
   XCircle,
   Eye,
-  ChevronRight,
   User,
   Store,
   DollarSign,
   GraduationCap,
-  UserCheck,
-  UserX,
-  Building2,
-  MapPin,
-  Smartphone,
   Mail,
+  Smartphone,
   CalendarClock,
   CreditCard,
-  Loader2,
   PackageOpen,
-  AlertTriangle,
+  Hash,
+  KeyRound,
   Zap,
-  ArrowRight
+  Building2,
+  AlertTriangle
 } from 'lucide-react';
 import { Order, OrderStatus } from '../../../types';
+import { isWithinCancelWindow, CANCEL_BLOCK_MESSAGE } from '../../../lib/orderUtils';
 
 interface OrderManagementProps {
   orders: Order[];
   currentInstitution?: { name: string; institution_code: string; campus?: string };
   onUpdateOrderStatus: (orderId: string, status: OrderStatus) => void;
+  onFetchOrderDetails?: (orderId: string) => Promise<Order | null>;
   onOpenQRScanner: () => void;
 }
 
@@ -72,18 +69,49 @@ const getStatusColor = (status: OrderStatus) => {
   }
 };
 
+const Detail = ({ label, value }: { label: string; value?: React.ReactNode }) => (
+  <div className="flex items-start gap-2 text-slate-300 min-w-0">
+    <span className="text-[10px] uppercase tracking-wider font-bold text-slate-500 shrink-0">{label}</span>
+    <span className="text-slate-200 font-medium break-words">{value || ''}</span>
+  </div>
+);
+
 export const OrderManagement: React.FC<OrderManagementProps> = ({
   orders,
   currentInstitution,
   onUpdateOrderStatus,
+  onFetchOrderDetails,
   onOpenQRScanner
 }) => {
   const [activeStatusFilter, setActiveStatusFilter] = useState<string>('all');
   const [activeRoleFilter, setActiveRoleFilter] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedOrderModal, setSelectedOrderModal] = useState<Order | null>(null);
+  const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
+  const [extraDetails, setExtraDetails] = useState<Order | null>(null);
 
   const safeOrders = useMemo(() => Array.isArray(orders) ? orders : [], [orders]);
+
+  const selectedOrder = useMemo(
+    () => safeOrders.find((o) => o.id === selectedOrderId) || null,
+    [safeOrders, selectedOrderId]
+  );
+
+  useEffect(() => {
+    if (selectedOrderId && onFetchOrderDetails) {
+      let cancelled = false;
+      setExtraDetails(null);
+      onFetchOrderDetails(selectedOrderId)
+        .then((d) => { if (!cancelled) setExtraDetails(d); })
+        .catch(() => { if (!cancelled) setExtraDetails(null); });
+      return () => { cancelled = true; };
+    }
+    setExtraDetails(null);
+  }, [selectedOrderId, onFetchOrderDetails]);
+
+  const viewOrder = useMemo(
+    () => (selectedOrder ? { ...selectedOrder, ...(extraDetails || {}) } : null),
+    [selectedOrder, extraDetails]
+  );
 
   const filteredOrders = useMemo(() => {
     return safeOrders.filter((o) => {
@@ -156,7 +184,6 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
 
   return (
     <div className="space-y-6 animate-fade-in font-sans">
-      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <div className="flex items-center space-x-2">
@@ -166,7 +193,7 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
             </span>
           </div>
           <p className="text-xs text-slate-400">
-            {safeOrders.length} total order{safeOrders.length !== 1 ? 's' : ''} — Real-time campus order stream with pickup verification.
+            {safeOrders.length} total order{safeOrders.length !== 1 ? 's' : ''} — Same Supabase source as Kitchen Queue.
           </p>
         </div>
 
@@ -179,7 +206,6 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
         </button>
       </div>
 
-      {/* Status Tabs & Search */}
       <div className="p-4 rounded-2xl bg-slate-900/80 border border-slate-800 shadow-xl space-y-3">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
           <div className="flex flex-wrap gap-1.5 text-xs font-semibold">
@@ -229,7 +255,6 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
         </div>
       </div>
 
-      {/* Orders Table */}
       <div className="rounded-2xl bg-slate-900/80 border border-slate-800 shadow-xl overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs text-slate-300">
@@ -270,7 +295,7 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
                         {ord.orderNumber}
                       </td>
                       <td className="px-4 py-3.5">
-                        <div className="font-bold text-slate-100">{ord.studentName || '—'}</div>
+                        <div className="font-bold text-slate-100">{ord.studentName || ''}</div>
                         <div className="text-[10px] text-slate-500">{ord.studentDepartment || ''}</div>
                       </td>
                       <td className="px-4 py-3.5">
@@ -282,7 +307,7 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
                         )}
                       </td>
                       <td className="px-4 py-3.5 text-slate-300 font-medium">
-                        {ord.pickupCounter || '—'}
+                        {ord.pickupCounter || ''}
                       </td>
                       <td className="px-4 py-3.5 font-mono text-emerald-400 font-bold">
                         ₹{(ord.totalAmount || 0).toFixed(0)}
@@ -290,7 +315,7 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
                       <td className="px-4 py-3.5 text-slate-400">
                         <div className="flex items-center gap-1">
                           <CalendarClock className="w-3 h-3" />
-                          <span>{ord.pickupTimeEstimated || '—'}</span>
+                          <span>{ord.pickupTimeEstimated || ''}</span>
                         </div>
                       </td>
                       <td className="px-4 py-3.5">
@@ -300,7 +325,7 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
                       </td>
                       <td className="px-4 py-3.5 text-right">
                         <button
-                          onClick={() => setSelectedOrderModal(ord)}
+                          onClick={() => setSelectedOrderId(ord.id)}
                           className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold border border-slate-700 transition-colors inline-flex items-center space-x-1"
                         >
                           <Eye className="w-3.5 h-3.5 text-slate-400" />
@@ -316,164 +341,146 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
         </div>
       </div>
 
-      {/* Order Details Modal */}
-      {selectedOrderModal && (
+      {viewOrder && (
         <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
           <div className="w-full max-w-lg bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl p-6 space-y-5 relative max-h-[90vh] overflow-y-auto">
             <div className="flex items-start justify-between border-b border-slate-800 pb-4">
               <div>
                 <h2 className="text-lg font-bold text-white flex items-center space-x-2">
-                  <span>Order {selectedOrderModal.orderNumber}</span>
-                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${getStatusColor(selectedOrderModal.status)}`}>
-                    {selectedOrderModal.status}
+                  <span>Order {viewOrder.orderNumber}</span>
+                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${getStatusColor(viewOrder.status)}`}>
+                    {viewOrder.status}
                   </span>
                 </h2>
-                <p className="text-xs text-slate-400 mt-1">Placed at {selectedOrderModal.orderTime || '—'}</p>
+                <p className="text-xs text-slate-400 mt-1">Placed at {viewOrder.orderTime || viewOrder.created_at || ''}</p>
               </div>
               <button
-                onClick={() => setSelectedOrderModal(null)}
+                onClick={() => setSelectedOrderId(null)}
                 className="p-1 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white"
               >
                 <XCircle className="w-5 h-5" />
               </button>
             </div>
 
-            {/* Customer Info */}
-            <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
-              <div className="text-xs font-bold text-slate-300 uppercase tracking-wider">Customer</div>
-              <div className="grid grid-cols-2 gap-2 text-xs">
+            <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2.5">
+              <div className="text-xs font-bold text-slate-300 uppercase tracking-wider">Student</div>
+              <div className="grid grid-cols-2 gap-2.5 text-xs">
                 <div className="flex items-center gap-2 text-slate-300">
                   <User className="w-3.5 h-3.5 text-slate-500" />
-                  <span className="font-semibold text-slate-200">{selectedOrderModal.studentName || '—'}</span>
+                  <span className="font-semibold text-slate-200">{viewOrder.studentName || ''}</span>
                 </div>
                 <div className="flex items-center gap-2 text-slate-300">
-                  <span className="text-sm">{getRoleBadge(selectedOrderModal.userRole)?.icon || '👤'}</span>
-                  <span className="font-semibold">{getRoleBadge(selectedOrderModal.userRole)?.label || selectedOrderModal.userRole || '—'}</span>
+                  <GraduationCap className="w-3.5 h-3.5 text-slate-500" />
+                  <span className="font-semibold">{viewOrder.studentDepartment || ''}</span>
                 </div>
                 <div className="flex items-center gap-2 text-slate-400">
                   <Mail className="w-3.5 h-3.5 text-slate-500" />
-                  <span>{selectedOrderModal.userEmail || '—'}</span>
+                  <span>{viewOrder.userEmail || ''}</span>
                 </div>
                 <div className="flex items-center gap-2 text-slate-400">
                   <Smartphone className="w-3.5 h-3.5 text-slate-500" />
-                  <span>{selectedOrderModal.userPhone || '—'}</span>
+                  <span>{viewOrder.userPhone || ''}</span>
                 </div>
-              </div>
-            </div>
-
-            {/* Order Info */}
-            <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
-              <div className="text-xs font-bold text-slate-300 uppercase tracking-wider">Order Info</div>
-              <div className="grid grid-cols-2 gap-2 text-xs">
+                <div className="flex items-center gap-2 text-slate-400">
+                  <Building2 className="w-3.5 h-3.5 text-slate-500" />
+                  <span>{(viewOrder as any).institutionName || currentInstitution?.name || ''}</span>
+                </div>
                 <div className="flex items-center gap-2 text-slate-400">
                   <Store className="w-3.5 h-3.5 text-slate-500" />
-                  <span>{selectedOrderModal.vendorName || '—'}</span>
-                </div>
-                <div className="flex items-center gap-2 text-slate-400">
-                  <CreditCard className="w-3.5 h-3.5 text-slate-500" />
-                  <span className="capitalize">{selectedOrderModal.paymentStatus || '—'}</span>
-                </div>
-                <div className="flex items-center gap-2 text-slate-400">
-                  <CalendarClock className="w-3.5 h-3.5 text-slate-500" />
-                  <span>Pickup: {selectedOrderModal.pickupTimeEstimated || '—'}</span>
-                </div>
-                <div className="flex items-center gap-2 text-slate-400 font-mono">
-                  <span className="text-amber-400 font-bold">{selectedOrderModal.pickupCounter || '—'}</span>
+                  <span>{viewOrder.vendorName || viewOrder.pickupCounter || ''}</span>
                 </div>
               </div>
             </div>
 
-            {/* Timeline */}
-            <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
-              <div className="text-xs font-bold text-slate-300 uppercase tracking-wider">Timeline</div>
-              <div className="flex items-center justify-between text-[11px] font-mono text-slate-400 relative">
-                <div className="flex flex-col items-center z-10">
-                  <div className="w-6 h-6 rounded-full bg-emerald-500 text-slate-950 flex items-center justify-center font-bold text-[10px]">✓</div>
-                  <span className="mt-1">Placed</span>
-                </div>
-                <div className="flex flex-col items-center z-10">
-                  <div className={`w-6 h-6 rounded-full flex items-center justify-center font-bold text-[10px] ${
-                    ['accepted', 'preparing', 'ready', 'completed'].includes(selectedOrderModal.status)
-                      ? 'bg-emerald-500 text-slate-950' : 'bg-slate-800 text-slate-500'
-                  }`}>2</div>
-                  <span className="mt-1">Accepted</span>
-                </div>
-                <div className="flex flex-col items-center z-10">
-                  <div className={`w-6 h-6 rounded-full flex items-center justify-center font-bold text-[10px] ${
-                    ['preparing', 'ready', 'completed'].includes(selectedOrderModal.status)
-                      ? 'bg-emerald-500 text-slate-950' : 'bg-slate-800 text-slate-500'
-                  }`}>3</div>
-                  <span className="mt-1">Preparing</span>
-                </div>
-                <div className="flex flex-col items-center z-10">
-                  <div className={`w-6 h-6 rounded-full flex items-center justify-center font-bold text-[10px] ${
-                    ['ready', 'completed'].includes(selectedOrderModal.status)
-                      ? 'bg-emerald-500 text-slate-950' : 'bg-slate-800 text-slate-500'
-                  }`}>4</div>
-                  <span className="mt-1">Ready</span>
-                </div>
-                <div className="flex flex-col items-center z-10">
-                  <div className={`w-6 h-6 rounded-full flex items-center justify-center font-bold text-[10px] ${
-                    selectedOrderModal.status === 'completed'
-                      ? 'bg-emerald-500 text-slate-950' : 'bg-slate-800 text-slate-500'
-                  }`}>5</div>
-                  <span className="mt-1">Picked Up</span>
+            <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2.5">
+              <div className="text-xs font-bold text-slate-300 uppercase tracking-wider">Order Info</div>
+              <div className="grid grid-cols-2 gap-2.5 text-xs">
+                <Detail label="Order Status" value={<span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${getStatusColor(viewOrder.status)}`}>{viewOrder.status}</span>} />
+                <Detail label="Kitchen Status" value={viewOrder.kitchenStatus || ''} />
+                <Detail label="Counter Status" value={viewOrder.counterStatus || ''} />
+                <Detail label="Payment" value={<span className="capitalize">{viewOrder.paymentStatus || ''}</span>} />
+                <Detail label="Est. Ready Time" value={viewOrder.pickupTimeEstimated || ''} />
+                <Detail label="Pickup Counter" value={viewOrder.pickupCounter || ''} />
+                <Detail label="Pickup Token" value={<span className="font-mono">{viewOrder.tokenNumber || ''}</span>} />
+                <Detail label="Pickup Code" value={<span className="font-mono">{viewOrder.pickupCode || ''}</span>} />
+              </div>
+            </div>
+
+            <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
+              <div className="text-xs font-bold text-slate-300 uppercase tracking-wider">QR Code</div>
+              <div className="p-3 rounded-xl bg-white text-slate-950 flex flex-col items-center justify-center text-center space-y-1.5 border border-slate-300">
+                <QrCode className="w-16 h-16 text-slate-950" />
+                <div className="font-mono font-black text-xs tracking-widest text-slate-900">
+                  {viewOrder.qrCodeData || viewOrder.pickupCode || ''}
                 </div>
               </div>
             </div>
 
-            {/* Items */}
-            <div className="space-y-2 text-xs">
-              <div className="font-bold text-slate-300 uppercase tracking-wider">Items</div>
-              {(Array.isArray(selectedOrderModal.items) ? selectedOrderModal.items : []).map((item, idx) => (
-                <div key={idx} className="p-2.5 rounded-lg bg-slate-950 border border-slate-800 flex justify-between">
-                  <span className="text-slate-200">{item.quantity || 0}x {item.name || 'Item'}</span>
-                  <span className="font-mono text-emerald-400 font-bold">₹{((item.quantity || 0) * (item.price || 0)).toFixed(2)}</span>
-                </div>
-              ))}
+            <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2.5">
+              <div className="text-xs font-bold text-slate-300 uppercase tracking-wider">Items & Subtotal</div>
+              {(Array.isArray(viewOrder.items) && viewOrder.items.length > 0) ? (
+                viewOrder.items.map((item, idx) => (
+                  <div key={idx} className="p-2.5 rounded-lg bg-slate-900 border border-slate-800 flex justify-between gap-2">
+                    <span className="text-slate-200">{item.quantity || 0}x {item.name || ''}</span>
+                    <span className="font-mono text-emerald-400 font-bold">₹{((item.quantity || 0) * (item.price || 0)).toFixed(2)}</span>
+                  </div>
+                ))
+              ) : (
+                <div className="text-xs text-slate-500">No items listed on this order.</div>
+              )}
+              <div className="flex justify-between pt-2 border-t border-slate-800">
+                <span className="text-xs font-bold text-slate-300 uppercase tracking-wider">Total</span>
+                <span className="font-mono font-bold text-emerald-400">₹{(viewOrder.totalAmount || 0).toFixed(2)}</span>
+              </div>
             </div>
 
-            {/* Status Change Buttons */}
             <div className="pt-3 border-t border-slate-800 flex flex-wrap gap-2">
-              {selectedOrderModal.status === 'pending' && (
+              {viewOrder.status === 'pending' && (
                 <button
-                  onClick={() => { onUpdateOrderStatus(selectedOrderModal.id, 'accepted'); setSelectedOrderModal(null); }}
+                  onClick={() => { onUpdateOrderStatus(viewOrder.id, 'accepted'); setSelectedOrderId(null); }}
                   className="flex-1 py-2 rounded-xl bg-amber-500 text-slate-950 font-bold text-xs"
                 >
                   Accept Order
                 </button>
               )}
-              {(selectedOrderModal.status === 'pending' || selectedOrderModal.status === 'accepted') && (
+              {(viewOrder.status === 'pending' || viewOrder.status === 'accepted') && (
                 <button
-                  onClick={() => { onUpdateOrderStatus(selectedOrderModal.id, 'preparing'); setSelectedOrderModal(null); }}
+                  onClick={() => { onUpdateOrderStatus(viewOrder.id, 'preparing'); setSelectedOrderId(null); }}
                   className="flex-1 py-2 rounded-xl bg-cyan-500 text-slate-950 font-bold text-xs"
                 >
                   Start Preparing
                 </button>
               )}
-              {(selectedOrderModal.status === 'preparing' || selectedOrderModal.status === 'accepted') && (
+              {(viewOrder.status === 'preparing' || viewOrder.status === 'accepted') && (
                 <button
-                  onClick={() => { onUpdateOrderStatus(selectedOrderModal.id, 'ready'); setSelectedOrderModal(null); }}
+                  onClick={() => { onUpdateOrderStatus(viewOrder.id, 'ready'); setSelectedOrderId(null); }}
                   className="flex-1 py-2 rounded-xl bg-emerald-500 text-slate-950 font-bold text-xs"
                 >
                   Mark Ready
                 </button>
               )}
-              {selectedOrderModal.status === 'ready' && (
+              {viewOrder.status === 'ready' && (
                 <button
-                  onClick={() => { onUpdateOrderStatus(selectedOrderModal.id, 'completed'); setSelectedOrderModal(null); }}
+                  onClick={() => { onUpdateOrderStatus(viewOrder.id, 'completed'); setSelectedOrderId(null); }}
                   className="flex-1 py-2 rounded-xl bg-indigo-500 text-white font-bold text-xs"
                 >
                   Complete Pickup
                 </button>
               )}
-              {!['completed', 'cancelled'].includes(selectedOrderModal.status) && (
-                <button
-                  onClick={() => { onUpdateOrderStatus(selectedOrderModal.id, 'cancelled'); setSelectedOrderModal(null); }}
-                  className="flex-1 py-2 rounded-xl bg-red-500 text-white font-bold text-xs"
-                >
-                  Cancel Order
-                </button>
+              {!['completed', 'cancelled'].includes(viewOrder.status) && (
+                isWithinCancelWindow(viewOrder) ? (
+                  <button
+                    onClick={() => { onUpdateOrderStatus(viewOrder.id, 'cancelled'); setSelectedOrderId(null); }}
+                    className="flex-1 py-2 rounded-xl bg-red-500 text-white font-bold text-xs"
+                  >
+                    Cancel Order
+                  </button>
+                ) : (
+                  <div className="flex-1 py-2 rounded-xl bg-red-500/10 text-red-400 border border-red-500/20 text-xs font-semibold flex items-center justify-center gap-1.5">
+                    <AlertTriangle className="w-3.5 h-3.5" />
+                    {CANCEL_BLOCK_MESSAGE}
+                  </div>
+                )
               )}
             </div>
           </div>
