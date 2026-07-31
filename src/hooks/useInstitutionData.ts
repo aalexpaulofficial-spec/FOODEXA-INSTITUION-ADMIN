@@ -615,22 +615,18 @@ const archiveCounter = async (counterId: string) => {
   const updateKitchenStatus = async (itemId: string, status: OrderStatus) => {
     const kqItem = kitchenQueue.find(item => item.id === itemId || item.orderId === itemId);
     const realOrderId = kqItem?.orderId || itemId;
-    const updates: { status?: OrderStatus; kitchen_status?: string } = status === 'completed'
-      ? { status: 'completed' }
-      : { kitchen_status: normalizeKitchenStatus(status) };
+    const updates: { status?: OrderStatus; kitchen_status?: string } = { status, kitchen_status: normalizeKitchenStatus(status) };
     const { error } = await supabase.from('orders').update(updates).eq('id', realOrderId).eq('institution_id', institutionId);
     if (error) console.error('[updateKitchenStatus] Error:', error);
     setKitchenQueue(prev => prev.map(item => (item.id === itemId || item.orderId === itemId) ? { ...item, status } : item));
-    setOrders(prev => prev.map(o => o.id === realOrderId ? { ...o, ...updates, status: updates.status ? normalizeOrderStatus(updates.status) : o.status, kitchenStatus: updates.kitchen_status || o.kitchenStatus } : o));
+    setOrders(prev => prev.map(o => o.id === realOrderId ? { ...o, ...updates, status: normalizeOrderStatus(updates.status), kitchenStatus: updates.kitchen_status || o.kitchenStatus } : o));
   };
 
   const updateOrderStatus = async (orderId: string, status: OrderStatus) => {
-    const updates: { status?: OrderStatus; kitchen_status?: string } = ['preparing', 'ready'].includes(status)
-      ? { kitchen_status: normalizeKitchenStatus(status) }
-      : { status };
+    const updates: { status?: OrderStatus; kitchen_status?: string } = { status, kitchen_status: normalizeKitchenStatus(status) };
     const { error } = await supabase.from('orders').update(updates).eq('id', orderId).eq('institution_id', institutionId);
     if (error) console.error('[updateOrderStatus] Error:', error);
-    setOrders(prev => prev.map(o => o.id === orderId ? { ...o, ...updates, status: updates.status ? normalizeOrderStatus(updates.status) : o.status, kitchenStatus: updates.kitchen_status || o.kitchenStatus } : o));
+    setOrders(prev => prev.map(o => o.id === orderId ? { ...o, ...updates, status: normalizeOrderStatus(updates.status), kitchenStatus: updates.kitchen_status || o.kitchenStatus } : o));
   };
 
   const ensureMenuCategory = async (name?: string, canteenId?: string): Promise<string | null> => {
