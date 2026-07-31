@@ -402,11 +402,6 @@ export function useInstitutionData(institutionId: string | null): InstitutionDat
     profilesRef.current = profiles;
   }, [profiles]);
 
-  useEffect(() => {
-    if (profiles.length > 0) {
-      setOrders(prev => enrichOrdersWithProfile(prev, profiles));
-    }
-  }, [profiles, enrichOrdersWithProfile]);
 
   useEffect(() => {
     if (!institutionId) return;
@@ -634,21 +629,6 @@ const archiveCounter = async (counterId: string) => {
       }
     }
     const updates = buildStatusUpdate(status) as any;
-    if (existing?.studentId) {
-      updates.student_id = existing.studentId;
-    }
-    void (async () => {
-      try {
-        const { error } = await supabaseAdmin
-          .from('orders')
-          .update(updates)
-          .eq('id', orderId)
-          .eq('institution_id', institutionId);
-        if (error) console.error('[updateOrderStatus] Supabase error:', error.message);
-      } catch (err) {
-        console.error('[updateOrderStatus] Unexpected error:', err);
-      }
-    })();
 
     setOrders(prev => prev.map(o => o.id === orderId ? {
       ...o,
@@ -662,6 +642,17 @@ const archiveCounter = async (counterId: string) => {
       completedAt: updates.completed_at ? String(updates.completed_at) : o.completedAt,
       cancelledAt: updates.cancelled_at ? String(updates.cancelled_at) : o.cancelledAt,
     } : o));
+
+    try {
+      const { error } = await supabaseAdmin
+        .from('orders')
+        .update(updates)
+        .eq('id', orderId)
+        .eq('institution_id', institutionId);
+      if (error) console.error('[updateOrderStatus] Supabase error:', error.message);
+    } catch (err) {
+      console.error('[updateOrderStatus] Unexpected error:', err);
+    }
   }, [orders, institutionId]);
 
   const fetchOrderDetails = useCallback(async (orderId: string): Promise<Order | null> => {

@@ -443,7 +443,7 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
                   Accept Order
                 </button>
               )}
-              {(viewOrder.status === 'pending' || viewOrder.status === 'accepted') && (
+              {viewOrder.status === 'accepted' && (
                 <button
                   onClick={() => { onUpdateOrderStatus(viewOrder.id, 'preparing'); setSelectedOrderId(null); }}
                   className="flex-1 py-2 rounded-xl bg-cyan-500 text-slate-950 font-bold text-xs"
@@ -451,7 +451,7 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
                   Start Preparing
                 </button>
               )}
-              {(viewOrder.status === 'preparing' || viewOrder.status === 'accepted') && (
+              {viewOrder.status === 'preparing' && (
                 <button
                   onClick={() => { onUpdateOrderStatus(viewOrder.id, 'ready'); setSelectedOrderId(null); }}
                   className="flex-1 py-2 rounded-xl bg-emerald-500 text-slate-950 font-bold text-xs"

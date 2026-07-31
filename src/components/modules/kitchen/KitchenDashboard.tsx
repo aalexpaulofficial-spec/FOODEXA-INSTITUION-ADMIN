@@ -52,7 +52,9 @@ export const KitchenDashboard: React.FC<KitchenDashboardProps> = ({
     return () => clearInterval(timer);
   }, []);
 
-  const incomingItems = useMemo(() => safeOrders.filter((o) => o.kitchenStatus === 'Pending'), [safeOrders]);
+  // Incoming Queue includes both Pending AND Accepted orders
+  // Per the order flow: Pending -> Accept -> Accepted (still in queue) -> Start Preparing -> Preparing
+  const incomingItems = useMemo(() => safeOrders.filter((o) => o.kitchenStatus === 'Pending' || o.kitchenStatus === 'Accepted'), [safeOrders]);
   const preparingItems = useMemo(() => safeOrders.filter((o) => o.kitchenStatus === 'Preparing'), [safeOrders]);
   const readyItems = useMemo(() => safeOrders.filter((o) => o.kitchenStatus === 'Ready'), [safeOrders]);
   const completedItems = useMemo(() => safeOrders.filter((o) => o.kitchenStatus === 'Completed'), [safeOrders]);
@@ -170,6 +172,29 @@ export const KitchenDashboard: React.FC<KitchenDashboardProps> = ({
     );
   };
 
+  const renderIncomingActions = (item: Order) => {
+    if (item.kitchenStatus === 'Accepted') {
+      return (
+        <button
+          onClick={() => onUpdateOrderStatus(item.id, 'preparing')}
+          className="w-full py-2 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-xs transition-colors flex items-center justify-center space-x-1"
+        >
+          <ChefHat className="w-3.5 h-3.5" />
+          <span>Start Preparing</span>
+        </button>
+      );
+    }
+    return (
+      <button
+        onClick={() => onUpdateOrderStatus(item.id, 'accepted')}
+        className="w-full py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs transition-colors flex items-center justify-center space-x-1"
+      >
+        <CheckCircle2 className="w-3.5 h-3.5" />
+        <span>Accept</span>
+      </button>
+    );
+  };
+
   return (
     <div className="space-y-6 animate-fade-in font-sans">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -208,28 +233,11 @@ export const KitchenDashboard: React.FC<KitchenDashboardProps> = ({
               <span className="w-2.5 h-2.5 rounded-full bg-amber-500" />
               <span className="text-xs font-extrabold uppercase tracking-wider text-amber-400">Incoming Queue ({incomingItems.length})</span>
             </div>
-            <span className="text-[10px] font-mono text-slate-500">Pending</span>
+            <span className="text-[10px] font-mono text-slate-500">Pending / Accepted</span>
           </div>
           <div className="space-y-3 min-h-[400px]">
             {incomingItems.map((item) =>
-              renderCard(item, 'amber', (
-                <div className="space-y-2">
-                  <button
-                    onClick={() => onUpdateOrderStatus(item.id, 'accepted')}
-                    className="w-full py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs transition-colors flex items-center justify-center space-x-1"
-                  >
-                    <CheckCircle2 className="w-3.5 h-3.5" />
-                    <span>Accept</span>
-                  </button>
-                  <button
-                    onClick={() => onUpdateOrderStatus(item.id, 'preparing')}
-                    className="w-full py-2 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-xs transition-colors flex items-center justify-center space-x-1"
-                  >
-                    <ChefHat className="w-3.5 h-3.5" />
-                    <span>Start Preparing</span>
-                  </button>
-                </div>
-              ))
+              renderCard(item, 'amber', renderIncomingActions(item))
             )}
             {incomingItems.length === 0 && <div className="py-16 text-center text-slate-500 text-xs italic">No pending orders.</div>}
           </div>
