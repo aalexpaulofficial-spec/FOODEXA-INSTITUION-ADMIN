@@ -115,6 +115,37 @@ export interface MenuCategory {
 
 export type OrderStatus = 'pending' | 'accepted' | 'preparing' | 'ready' | 'completed' | 'cancelled';
 
+export type KitchenStatus = 'Pending' | 'Accepted' | 'Preparing' | 'Ready' | 'Completed' | 'Cancelled';
+export type CounterStatus = 'Pending' | 'Accepted' | 'Preparing' | 'Ready' | 'Picked Up' | 'Completed' | 'Cancelled' | 'Invoice Ready' | 'Order Collected';
+export type OrderStatusText = 'Incoming' | 'Order Confirmed' | 'Preparing' | 'Ready at Counter' | 'Order Collected' | 'Invoice Ready';
+
+export interface OrderItem {
+  id: string;
+  order_id: string;
+  menu_item_id?: string;
+  item_name: string;
+  quantity: number;
+  unit_price: number;
+  total_price: number;
+  special_instructions?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface Notification {
+  id: string;
+  institution_id?: string;
+  user_id?: string;
+  order_id?: string;
+  type: string;
+  title: string;
+  message: string;
+  read: boolean;
+  is_read?: boolean;
+  data?: Record<string, unknown>;
+  created_at: string;
+}
+
 export interface Counter {
   id: string;
   institution_id?: string;
@@ -163,20 +194,26 @@ export interface Order {
   readyAt?: string;
   completedAt?: string;
   cancelledAt?: string;
-  pickupTimeEstimated: string;
-  pickupCode: string;
-  tokenNumber?: string;
-  paymentMethod: 'Razorpay UPI' | 'Razorpay Card' | 'Student Wallet' | 'UPI' | 'Card' | 'Meal Voucher';
-  paymentStatus: 'paid' | 'pending' | 'cancelled' | 'refunded';
-  notes?: string;
-  isPriority?: boolean;
-  qrCodeData?: string;
-  userRole?: string;
-  userEmail?: string;
-  userPhone?: string;
-}
+   pickupTimeEstimated: string;
+   estimatedReadyTime?: string;
+   pickupCode: string;
+   tokenNumber?: string;
+   orderItems?: OrderItem[];
+   qrCodeData?: string;
+   institutionName?: string;
+   canteenName?: string;
+   studentAvatar?: string;
+   paymentMethod: 'Razorpay UPI' | 'Razorpay Card' | 'Student Wallet' | 'UPI' | 'Card' | 'Meal Voucher';
+   paymentStatus: 'paid' | 'pending' | 'cancelled' | 'refunded';
+   notes?: string;
+   isPriority?: boolean;
+   userRole?: string;
+   userEmail?: string;
+   userPhone?: string;
+   updatedAt?: string;
+  }
 
-export interface StaffMember {
+ export interface StaffMember {
   id: string;
   name: string;
   email: string;

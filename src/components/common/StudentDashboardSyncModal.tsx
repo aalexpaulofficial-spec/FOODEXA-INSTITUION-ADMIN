@@ -15,6 +15,7 @@ import {
   RotateCw
 } from 'lucide-react';
 import { MenuItem, Order, Announcement } from '../../types';
+import { getStudentViewStatus } from '../../lib/orderUtils';
 
 interface StudentDashboardSyncModalProps {
   isOpen: boolean;
@@ -136,10 +137,12 @@ export const StudentDashboardSyncModal: React.FC<StudentDashboardSyncModalProps>
                         ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 animate-pulse'
                         : activeStudentOrder.status === 'preparing'
                         ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
-                        : 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/30'
+                        : activeStudentOrder.status === 'accepted'
+                        ? 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/30'
+                        : 'bg-slate-500/20 text-slate-400 border border-slate-500/30'
                     }`}
                   >
-                    {activeStudentOrder.status === 'completed' ? 'COLLECTED' : activeStudentOrder.status.toUpperCase()}
+                    {getStudentViewStatus(activeStudentOrder.status)}
                   </span>
                 </div>
 
@@ -197,7 +200,7 @@ export const StudentDashboardSyncModal: React.FC<StudentDashboardSyncModalProps>
                           : 'bg-slate-900 text-slate-600 border-slate-800'
                       }`}
                     >
-                      Incoming
+                      Placed
                     </div>
                     <div
                       className={`p-1.5 rounded-lg border ${
@@ -206,7 +209,7 @@ export const StudentDashboardSyncModal: React.FC<StudentDashboardSyncModalProps>
                           : 'bg-slate-900 text-slate-600 border-slate-800'
                       }`}
                     >
-                      Accepted
+                      Order Confirmed
                     </div>
                     <div
                       className={`p-1.5 rounded-lg border ${
@@ -224,7 +227,7 @@ export const StudentDashboardSyncModal: React.FC<StudentDashboardSyncModalProps>
                           : 'bg-slate-900 text-slate-600 border-slate-800'
                       }`}
                     >
-                      Ready
+                      Ready at Counter
                     </div>
                   </div>
                 </div>

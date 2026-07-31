@@ -10,8 +10,11 @@ import {
   Timer,
   User,
   ChefHat,
+  XCircle,
+  AlertTriangle,
 } from 'lucide-react';
 import { Order, OrderStatus } from '../../../types';
+import { getCancelRemainingMs, CANCEL_BLOCK_MESSAGE } from '../../../lib/orderUtils';
 
 interface KitchenDashboardProps {
   orders: Order[];
@@ -173,18 +176,15 @@ export const KitchenDashboard: React.FC<KitchenDashboardProps> = ({
   };
 
   const renderIncomingActions = (item: Order) => {
-    if (item.kitchenStatus === 'Accepted') {
-      return (
-        <button
-          onClick={() => onUpdateOrderStatus(item.id, 'preparing')}
-          className="w-full py-2 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-xs transition-colors flex items-center justify-center space-x-1"
-        >
-          <ChefHat className="w-3.5 h-3.5" />
-          <span>Start Preparing</span>
-        </button>
-      );
-    }
-    return (
+    const primaryAction = item.kitchenStatus === 'Accepted' ? (
+      <button
+        onClick={() => onUpdateOrderStatus(item.id, 'preparing')}
+        className="w-full py-2 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-xs transition-colors flex items-center justify-center space-x-1"
+      >
+        <ChefHat className="w-3.5 h-3.5" />
+        <span>Start Preparing</span>
+      </button>
+    ) : (
       <button
         onClick={() => onUpdateOrderStatus(item.id, 'accepted')}
         className="w-full py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs transition-colors flex items-center justify-center space-x-1"
@@ -192,6 +192,32 @@ export const KitchenDashboard: React.FC<KitchenDashboardProps> = ({
         <CheckCircle2 className="w-3.5 h-3.5" />
         <span>Accept</span>
       </button>
+    );
+
+    const cancelRemainingMs = getCancelRemainingMs(item);
+    const cancelAction = cancelRemainingMs > 0 ? (
+      <button
+        onClick={() => onUpdateOrderStatus(item.id, 'cancelled')}
+        className="w-full py-2 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 font-bold text-xs transition-colors flex items-center justify-center space-x-1.5"
+      >
+        <XCircle className="w-3.5 h-3.5" />
+        <span>Cancel Order</span>
+        <span className="px-1.5 py-0.5 rounded bg-red-500/20 font-mono text-[10px]">
+          {Math.ceil(cancelRemainingMs / 1000)}s
+        </span>
+      </button>
+    ) : (
+      <div className="w-full py-2 rounded-xl bg-red-500/5 text-red-400/70 border border-red-500/10 text-[10px] font-semibold flex items-center justify-center space-x-1.5">
+        <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+        <span>{CANCEL_BLOCK_MESSAGE}</span>
+      </div>
+    );
+
+    return (
+      <div className="space-y-2">
+        {primaryAction}
+        {cancelAction}
+      </div>
     );
   };
 

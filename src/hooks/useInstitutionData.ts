@@ -1,10 +1,10 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { supabase, supabaseAdmin } from '../lib/supabaseClient';
+import { supabase } from '../lib/supabaseClient';
 import {
   Institution, Student, Vendor, Order, MenuItem,
   CampusBlock, StaffMember, Announcement, AuditLog, Counter, MenuCategory, OrderStatus,
 } from '../types';
-import { buildStatusUpdate, isWithinCancelWindow } from '../lib/orderUtils';
+import { useOrderRealtime } from './useOrderRealtime';
 
 const DATA_FETCH_TIMEOUT_MS = 15000;
 
@@ -47,7 +47,7 @@ interface InstitutionData {
   restoreCounter: (counterId: string) => Promise<void>;
   updateCounterStatus: (counterId: string, status: string) => Promise<void>;
   toggleCounterAvailability: (counterId: string) => Promise<void>;
-  updateOrderStatus: (orderId: string, status: OrderStatus) => Promise<void>;
+  updateOrderStatus: (orderId: string, status: OrderStatus) => Promise<boolean>;
   fetchOrderDetails: (orderId: string) => Promise<Order | null>;
   addMenuItem: (item: MenuItem) => Promise<string | null>;
   updateMenuItem: (itemId: string, updates: Partial<MenuItem>) => Promise<void>;
@@ -154,81 +154,11 @@ function mapMenuItemToDb(item: MenuItem, institutionId: string | null): any {
   };
 }
 
-function normalizeOrderStatus(value: unknown): OrderStatus {
-  const status = String(value || '').toLowerCase();
-  if (['pending', 'accepted', 'preparing', 'ready', 'completed', 'cancelled'].includes(status)) {
-    return status as OrderStatus;
-  }
-  return 'pending';
-}
-
-function normalizeKitchenStatus(value: unknown): string {
-  const status = String(value || '').toLowerCase();
-  if (status === 'accepted') return 'Accepted';
-  if (status === 'preparing') return 'Preparing';
-  if (status === 'ready') return 'Ready';
-  if (status === 'completed') return 'Completed';
-  if (status === 'cancelled') return 'Cancelled';
-  return 'Pending';
-}
-
-function normalizeOrderItems(items: unknown): Order['items'] {
-  if (!Array.isArray(items)) return [];
-  return items.map((item: any) => ({
-    menuItemId: item.menuItemId || item.menu_item_id || item.id || '',
-    name: item.name || item.food_name || item.item_name || 'Item',
-    quantity: Number(item.quantity || item.qty || 0),
-    price: Number(item.price || item.unit_price || 0),
-  }));
-}
-
-function mapDbOrderToOrder(db: any): Order {
-  const orderTime = db.order_time || db.orderTime || db.created_at || '';
-  const pickupTime = db.pickup_time_estimated || db.pickupTimeEstimated || db.pickup_time || '';
-
-  return {
-    ...db,
-    id: db.id,
-    institutionId: db.institution_id || db.institutionId,
-    orderNumber: db.order_number || db.orderNumber || db.order_no || '',
-    studentId: db.student_id || db.studentId || db.user_id || '',
-    studentName: db.student_name || db.studentName || db.customer_name || '',
-    studentDepartment: db.student_department || db.studentDepartment || db.department || '',
-    vendorId: db.vendor_id || db.vendorId || db.canteen_id || '',
-    vendorName: db.vendor_name || db.vendorName || db.canteen_name || '',
-    pickupCounter: db.pickup_counter || db.pickupCounter || db.counter_number || '',
-    pickupNumber: db.pickup_number || db.pickupNumber || db.token_number || db.tokenNumber || '',
-    tokenNumber: db.token_number || db.tokenNumber || db.pickup_number || db.pickupNumber || '',
-    estimatedWaitMins: Number(db.estimated_wait_mins || db.estimatedWaitMins || 0),
-    items: normalizeOrderItems(db.items),
-    totalAmount: Number(db.total_amount || db.totalAmount || db.amount || 0),
-    status: normalizeOrderStatus(db.status),
-    kitchenStatus: normalizeKitchenStatus(db.kitchen_status || db.kitchenStatus),
-    counterStatus: db.counter_status || db.counterStatus || '',
-    orderTime,
-    created_at: db.created_at || db.createdAt,
-    createdAt: db.created_at || db.createdAt,
-    acceptedAt: db.accepted_at || db.acceptedAt || '',
-    preparingAt: db.preparing_at || db.preparingAt || '',
-    readyAt: db.ready_at || db.readyAt || '',
-    completedAt: db.completed_at || db.completedAt || '',
-    cancelledAt: db.cancelled_at || db.cancelledAt || '',
-    pickupTimeEstimated: pickupTime,
-    pickupCode: db.pickup_code || db.pickupCode || '',
-    paymentMethod: db.payment_method || db.paymentMethod || 'UPI',
-    paymentStatus: db.payment_status || db.paymentStatus || 'pending',
-    notes: db.notes || '',
-    isPriority: db.is_priority || db.isPriority || false,
-    qrCodeData: db.qr_code_data || db.qrCodeData || db.pickup_code || db.pickupCode || '',
-  } as Order;
-}
-
 export function useInstitutionData(institutionId: string | null): InstitutionData {
   const [institution, setInstitution] = useState<Institution | null>(null);
   const [students, setStudents] = useState<Student[]>([]);
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [counters, setCounters] = useState<Counter[]>([]);
-  const [orders, setOrders] = useState<Order[]>([]);
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [menuCategories, setMenuCategories] = useState<MenuCategory[]>([]);
   const [campusBlocks, setCampusBlocks] = useState<CampusBlock[]>([]);
@@ -238,42 +168,15 @@ export function useInstitutionData(institutionId: string | null): InstitutionDat
   const [profiles, setProfiles] = useState<{ user_id: string; role: string; full_name?: string; email?: string; phone?: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [ordersRealtimeStatus, setOrdersRealtimeStatus] = useState<string>('');
   const fetchedInstIdRef = useRef<string | null>(null);
-  const profilesRef = useRef(profiles);
 
-  const enrichOrdersWithProfile = useCallback((rawOrders: any[], profileList: { user_id: string; role: string; full_name?: string; email?: string; phone?: string }[]) => {
-    const profileMap = new Map(profileList.map(p => [p.user_id, p]));
-    return rawOrders.map(o => {
-      const mappedOrder = mapDbOrderToOrder(o);
-      const studentId = mappedOrder.studentId;
-      const profile = studentId ? profileMap.get(studentId) : undefined;
-      return {
-        ...mappedOrder,
-        studentName: profile?.full_name || mappedOrder.studentName,
-        userRole: profile?.role || o.user_role || o.userRole || '',
-        userEmail: profile?.email || o.user_email || o.userEmail || '',
-        userPhone: profile?.phone || o.user_phone || o.userPhone || '',
-      } as Order;
-    });
-  }, []);
-
-  const handleOrderRealtime = useCallback((payload: any) => {
-    const eventType = payload?.eventType;
-    const record = payload?.new || payload?.old;
-    if (!record || !record.id) return;
-    if (eventType === 'DELETE') {
-      setOrders(prev => prev.filter(o => o.id !== record.id));
-      return;
-    }
-    const enriched = enrichOrdersWithProfile([record], profilesRef.current || [])[0];
-    if (!enriched) return;
-    setOrders(prev => {
-      const exists = prev.some(o => o.id === record.id);
-      if (!exists) return [enriched, ...prev];
-      return prev.map(o => o.id === record.id ? enriched : o);
-    });
-  }, [enrichOrdersWithProfile]);
+  const orderRealtime = useOrderRealtime(institutionId, profiles);
+  const orders = orderRealtime.orders;
+  const ordersLoading = orderRealtime.loading;
+  const ordersError = orderRealtime.error;
+  const ordersRealtimeStatus = orderRealtime.realtimeStatus;
+  const updateOrderStatus = orderRealtime.updateOrderStatus;
+  const fetchOrderDetails = orderRealtime.fetchOrderDetails;
 
   const fetchAll = useCallback(async () => {
     if (!institutionId) {
@@ -289,7 +192,6 @@ export function useInstitutionData(institutionId: string | null): InstitutionDat
         { data: instData, error: instErr },
         { data: studentsData },
         { data: canteensData, error: canteensErr },
-        { data: ordersData },
         { data: menuItemsData },
         { data: menuCatsData },
         { data: staffData },
@@ -300,7 +202,6 @@ export function useInstitutionData(institutionId: string | null): InstitutionDat
         withTimeout(supabase.from('institutions').select('*').eq('id', institutionId).single(), DATA_FETCH_TIMEOUT_MS, 'Institutions fetch'),
         withTimeout(supabase.from('profiles').select('*').eq('institution_id', institutionId).eq('role', 'student'), DATA_FETCH_TIMEOUT_MS, 'Students fetch'),
         withTimeout(supabase.from('canteens').select('*').eq('institution_id', institutionId), DATA_FETCH_TIMEOUT_MS, 'Canteens fetch'),
-        withTimeout(supabase.from('orders').select('*').eq('institution_id', institutionId), DATA_FETCH_TIMEOUT_MS, 'Orders fetch'),
         withTimeout(supabase.from('menu_items').select('*, menu_categories(name)').eq('institution_id', institutionId), DATA_FETCH_TIMEOUT_MS, 'Menu items fetch'),
         withTimeout(supabase.from('menu_categories').select('*').eq('institution_id', institutionId), DATA_FETCH_TIMEOUT_MS, 'Menu categories fetch'),
         withTimeout(supabase.from('profiles').select('*').eq('institution_id', institutionId).neq('role', 'student').neq('role', 'super_admin'), DATA_FETCH_TIMEOUT_MS, 'Staff fetch'),
@@ -354,10 +255,6 @@ export function useInstitutionData(institutionId: string | null): InstitutionDat
         setCounters((canteensData as any[]).map(mapDbCounterToCounter));
       }
       if (profilesData) setProfiles(profilesData as any);
-      if (ordersData) {
-        const enriched = enrichOrdersWithProfile(ordersData as any[], (profilesData as any[]) || []);
-        setOrders(enriched);
-      }
       if (menuItemsData) setMenuItems((menuItemsData as any[]).map(mapDbMenuItemToMenuItem));
       if (menuCatsData) setMenuCategories((menuCatsData as any[]) as MenuCategory[]);
 
@@ -387,7 +284,7 @@ export function useInstitutionData(institutionId: string | null): InstitutionDat
     } finally {
       setLoading(false);
     }
-  }, [institutionId, enrichOrdersWithProfile]);
+  }, [institutionId]);
 
   useEffect(() => {
     if (institutionId) {
@@ -397,10 +294,6 @@ export function useInstitutionData(institutionId: string | null): InstitutionDat
       setLoading(false);
     }
   }, [institutionId, fetchAll]);
-
-  useEffect(() => {
-    profilesRef.current = profiles;
-  }, [profiles]);
 
 
   useEffect(() => {
@@ -442,20 +335,6 @@ export function useInstitutionData(institutionId: string | null): InstitutionDat
       })
       .subscribe();
 
-    const ordersChannelSub = supabase
-      .channel(`orders_realtime_${institutionId}`)
-      .on('postgres_changes', {
-        event: '*',
-        schema: 'public',
-        table: 'orders',
-        filter: `institution_id=eq.${institutionId}`,
-      }, (payload) => {
-        handleOrderRealtime(payload);
-      })
-      .subscribe((status) => {
-        setOrdersRealtimeStatus(status);
-      });
-
     const profilesChannelSub = supabase
       .channel(`profiles_realtime_${institutionId}`)
       .on('postgres_changes', {
@@ -481,10 +360,9 @@ export function useInstitutionData(institutionId: string | null): InstitutionDat
       supabase.removeChannel(menuChannel);
       supabase.removeChannel(categoryChannel);
       supabase.removeChannel(canteenChannel);
-      supabase.removeChannel(ordersChannelSub);
       supabase.removeChannel(profilesChannelSub);
     };
-  }, [institutionId, fetchAll, handleOrderRealtime]);
+  }, [institutionId, fetchAll]);
 
   const uploadImage = async (file: File, path: string): Promise<string | null> => {
     try {
@@ -617,69 +495,8 @@ const archiveCounter = async (counterId: string) => {
        setError(`Failed to toggle counter: ${error.message}`);
        return;
      }
-     setCounters(prev => prev.map(c => c.id === counterId ? { ...c, isAvailable: newAvailable, status: newStatus } : c));
+      setCounters(prev => prev.map(c => c.id === counterId ? { ...c, isAvailable: newAvailable, status: newStatus } : c));
    };
-
-  const updateOrderStatus = useCallback(async (orderId: string, status: OrderStatus) => {
-    const existing = orders.find(o => o.id === orderId);
-    if (status === 'cancelled') {
-      if (!existing || !isWithinCancelWindow(existing)) {
-        setError('Cannot cancel because kitchen processing has started.');
-        return;
-      }
-    }
-    const updates = buildStatusUpdate(status) as any;
-
-    setOrders(prev => prev.map(o => o.id === orderId ? {
-      ...o,
-      ...updates,
-      status: normalizeOrderStatus(updates.status),
-      kitchenStatus: String(updates.kitchen_status || o.kitchenStatus || 'Pending'),
-      counterStatus: String(updates.counter_status || o.counterStatus || ''),
-      acceptedAt: updates.accepted_at ? String(updates.accepted_at) : o.acceptedAt,
-      preparingAt: updates.preparing_at ? String(updates.preparing_at) : o.preparingAt,
-      readyAt: updates.ready_at ? String(updates.ready_at) : o.readyAt,
-      completedAt: updates.completed_at ? String(updates.completed_at) : o.completedAt,
-      cancelledAt: updates.cancelled_at ? String(updates.cancelled_at) : o.cancelledAt,
-    } : o));
-
-    try {
-      const { error } = await supabaseAdmin
-        .from('orders')
-        .update(updates)
-        .eq('id', orderId)
-        .eq('institution_id', institutionId);
-      if (error) console.error('[updateOrderStatus] Supabase error:', error.message);
-    } catch (err) {
-      console.error('[updateOrderStatus] Unexpected error:', err);
-    }
-  }, [orders, institutionId]);
-
-  const fetchOrderDetails = useCallback(async (orderId: string): Promise<Order | null> => {
-    const fallback = orders.find(o => o.id === orderId) || null;
-    try {
-      const { data, error } = await supabase
-        .from('orders')
-        .select('*, profiles!orders_student_id_fkey(*), institutions(*), canteens(*), order_items(*, menu_items(*))')
-        .eq('id', orderId)
-        .single();
-      if (error || !data) return fallback;
-      const enriched = enrichOrdersWithProfile([data], profilesRef.current || [])[0] || fallback;
-      const profile = Array.isArray(data.profiles) ? data.profiles[0] : data.profiles;
-      const institution = Array.isArray(data.institutions) ? data.institutions[0] : data.institutions;
-      const canteen = Array.isArray(data.canteens) ? data.canteens[0] : data.canteens;
-      return {
-        ...enriched,
-        studentName: profile?.full_name || enriched.studentName,
-        userEmail: profile?.email || enriched.userEmail,
-        userPhone: profile?.phone || enriched.userPhone,
-        vendorName: canteen?.name || enriched.vendorName,
-        institutionName: institution?.name || '',
-      } as Order;
-    } catch {
-      return fallback;
-    }
-  }, [orders, enrichOrdersWithProfile]);
 
   const ensureMenuCategory = async (name?: string, canteenId?: string): Promise<string | null> => {
     const cleanName = (name || '').trim();
@@ -947,7 +764,8 @@ const toggleStaffPermission = async (staffId: string, permKey: string) => {
   return {
     institution,
     students, vendors, counters, orders, menuItems, menuCategories, campusBlocks, staff, announcements, auditLogs, profiles,
-    loading, error,
+    loading: loading || ordersLoading,
+    error: error || ordersError,
     ordersRealtimeStatus,
     refresh: fetchAll,
     updateStudentStatus, approveVendor, rejectVendor, suspendVendor,

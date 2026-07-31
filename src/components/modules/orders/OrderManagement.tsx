@@ -23,7 +23,7 @@ import {
   AlertTriangle
 } from 'lucide-react';
 import { Order, OrderStatus } from '../../../types';
-import { isWithinCancelWindow, CANCEL_BLOCK_MESSAGE } from '../../../lib/orderUtils';
+import { isWithinCancelWindow, getCancelRemainingMs, CANCEL_BLOCK_MESSAGE } from '../../../lib/orderUtils';
 
 interface OrderManagementProps {
   orders: Order[];
@@ -88,6 +88,12 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const [extraDetails, setExtraDetails] = useState<Order | null>(null);
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   const safeOrders = useMemo(() => Array.isArray(orders) ? orders : [], [orders]);
 
@@ -323,14 +329,26 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
                           {ord.status}
                         </span>
                       </td>
-                      <td className="px-4 py-3.5 text-right">
-                        <button
-                          onClick={() => setSelectedOrderId(ord.id)}
-                          className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold border border-slate-700 transition-colors inline-flex items-center space-x-1"
-                        >
-                          <Eye className="w-3.5 h-3.5 text-slate-400" />
-                          <span>View</span>
-                        </button>
+                      <td className="px-4 py-3.5 text-right whitespace-nowrap">
+                        <div className="flex items-center justify-end gap-1.5">
+                          {!['completed', 'cancelled'].includes(ord.status) && getCancelRemainingMs(ord) > 0 && (
+                            <button
+                              onClick={() => { onUpdateOrderStatus(ord.id, 'cancelled'); }}
+                              className="px-2.5 py-1.5 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 text-xs font-semibold border border-red-500/20 transition-colors inline-flex items-center space-x-1"
+                              title="Cancel within the 30 second window"
+                            >
+                              <XCircle className="w-3.5 h-3.5" />
+                              <span className="font-mono">{Math.ceil(getCancelRemainingMs(ord) / 1000)}s</span>
+                            </button>
+                          )}
+                          <button
+                            onClick={() => setSelectedOrderId(ord.id)}
+                            className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold border border-slate-700 transition-colors inline-flex items-center space-x-1"
+                          >
+                            <Eye className="w-3.5 h-3.5 text-slate-400" />
+                            <span>View</span>
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -471,9 +489,13 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
                 isWithinCancelWindow(viewOrder) ? (
                   <button
                     onClick={() => { onUpdateOrderStatus(viewOrder.id, 'cancelled'); setSelectedOrderId(null); }}
-                    className="flex-1 py-2 rounded-xl bg-red-500 text-white font-bold text-xs"
+                    className="flex-1 py-2 rounded-xl bg-red-500 text-white font-bold text-xs flex items-center justify-center space-x-1.5"
                   >
-                    Cancel Order
+                    <XCircle className="w-4 h-4" />
+                    <span>Cancel Order</span>
+                    <span className="px-1.5 py-0.5 rounded bg-white/20 font-mono text-[10px]">
+                      {Math.ceil(getCancelRemainingMs(viewOrder) / 1000)}s
+                    </span>
                   </button>
                 ) : (
                   <div className="flex-1 py-2 rounded-xl bg-red-500/10 text-red-400 border border-red-500/20 text-xs font-semibold flex items-center justify-center gap-1.5">
