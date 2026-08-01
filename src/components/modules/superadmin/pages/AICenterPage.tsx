@@ -6,6 +6,7 @@ import {
   ArrowUpRight, ArrowDownRight, Loader2
 } from 'lucide-react';
 import { useSuperAdminData } from './components/SuperAdminDataProvider';
+import { supabase } from '../../../../lib/supabaseClient';
 
 export const AICenterPage: React.FC = () => {
   const {
@@ -59,32 +60,29 @@ export const AICenterPage: React.FC = () => {
     setChatHistory((prev) => [...prev, { role: 'user', text: userText }]);
     setIsAiLoading(true);
 
-    const contextData = `
-FOODEXA Platform Context:
-- Total Institutions: ${platformStats.totalInstitutions}
-- Active Institutions: ${platformStats.activeInstitutions}
-- Suspended: ${platformStats.suspendedInstitutions}
-- Pending Requests: ${platformStats.pendingRequests}
-- Total Students: ${platformStats.totalStudents}
-- Total Orders: ${platformStats.totalOrders}
-- Total Vendors: ${platformStats.totalVendors}
-- Total Revenue: ₹${platformStats.totalRevenue}
-- Avg Revenue/Institution: ₹${platformStats.avgRevenuePerInstitution}
-- Health Score: ${healthScore}/100
-- Predicted Revenue: ₹${revenuePrediction}
-`;
-
     try {
-      const response = await fetch('/api/ai/generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt: userText, context: contextData }),
+      const { data, error } = await supabase.functions.invoke<{ success: boolean; text: string }>('foodexa-ai', {
+        body: {
+          feature: 'Super Admin Platform Assistant',
+          prompt: userText,
+          context: {
+            totalInstitutions: platformStats.totalInstitutions,
+            activeInstitutions: platformStats.activeInstitutions,
+            suspendedInstitutions: platformStats.suspendedInstitutions,
+            pendingRequests: platformStats.pendingRequests,
+            totalStudents: platformStats.totalStudents,
+            totalOrders: platformStats.totalOrders,
+            totalVendors: platformStats.totalVendors,
+            totalRevenue: platformStats.totalRevenue,
+            avgRevenuePerInstitution: platformStats.avgRevenuePerInstitution,
+            healthScore: healthScore,
+            predictedRevenue: revenuePrediction,
+          }
+        }
       });
       let aiText = 'I am analyzing the platform data. Based on current metrics, the platform is performing well with strong growth trends.';
-      if (response.ok) {
-        const data = await response.json();
-        aiText = data.text || data.response || aiText;
-      }
+      if (error) throw error;
+      aiText = data?.text || aiText;
       setChatHistory((prev) => [...prev, { role: 'assistant', text: aiText }]);
     } catch {
       setChatHistory((prev) => [...prev, { role: 'assistant', text: 'I am analyzing the platform data. Based on current metrics, the platform is performing well with strong growth trends.' }]);

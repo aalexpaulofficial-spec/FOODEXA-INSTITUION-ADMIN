@@ -1,51 +1,20 @@
 import { supabase } from './supabaseClient';
 
-const API_BASE = '/api/admin';
+/**
+ * Invokes a Supabase Edge Function with the current session's access token.
+ * All admin operations are executed server-side with the service role key,
+ * so secrets (Resend API key, admin auth API) never touch the browser.
+ */
+async function invokeEdge<T>(functionName: string, payload: unknown): Promise<T> {
+  const { data, error } = await supabase.functions.invoke<T>(functionName, { body: payload });
 
-const abortControllers = new Map<string, AbortController>();
-
-function getController(key: string): AbortController {
-  if (abortControllers.has(key)) {
-    abortControllers.get(key)!.abort();
-  }
-  const controller = new AbortController();
-  abortControllers.set(key, controller);
-  return controller;
-}
-
-async function apiCall<T>(endpoint: string, payload: unknown): Promise<T> {
-  const controller = getController(endpoint);
-
-  const { data: { session } } = await supabase.auth.getSession();
-  const token = session?.access_token;
-
-  if (!token) {
-    throw new Error('Authentication required. Please log in again.');
+  if (error) {
+    const ctx = (error as any)?.context;
+    const message = ctx?.error || error?.message || `Edge function "${functionName}" failed.`;
+    throw new Error(message);
   }
 
-  const response = await fetch(`${API_BASE}${endpoint}`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${token}`,
-    },
-    body: JSON.stringify(payload),
-    signal: controller.signal,
-  });
-
-  let json: any = {};
-  try {
-    json = await response.json();
-  } catch {
-    throw new Error('Network error. Please check your connection and try again.');
-  }
-
-  if (!response.ok) {
-    const errorMessage = json?.error || `Request failed (HTTP ${response.status})`;
-    throw new Error(errorMessage);
-  }
-
-  return json as T;
+  return data as T;
 }
 
 export interface CheckEmailResult {
@@ -98,38 +67,38 @@ export interface GlobalSearchResultItem {
 
 export const adminApi = {
   checkEmail(email: string) {
-    return apiCall<CheckEmailResult>('/check-email', { email });
+    return invokeEdge<CheckEmailResult>('admin-check-email', { email });
   },
 
   approveInstitution(payload: ApproveInstitutionPayload) {
-    return apiCall<ApproveInstitutionResult>('/approve-institution', payload);
+    return invokeEdge<ApproveInstitutionResult>('admin-approve-institution', payload);
   },
 
   disableInstitution(institution_id: string) {
-    return apiCall<{ success: boolean }>('/disable-institution', { institution_id });
+    return invokeEdge<{ success: boolean }>('admin-disable-institution', { institution_id });
   },
 
   enableInstitution(institution_id: string) {
-    return apiCall<{ success: boolean }>('/enable-institution', { institution_id });
+    return invokeEdge<{ success: boolean }>('admin-enable-institution', { institution_id });
   },
 
   resetPassword(payload: { email: string; institution_name?: string; institution_code?: string; contact_person?: string }) {
-    return apiCall<ResetPasswordResult>('/reset-password', payload);
+    return invokeEdge<ResetPasswordResult>('admin-reset-password', payload);
   },
 
   resendCredentials(payload: ResendCredentialsPayload) {
-    return apiCall<{ success: boolean }>('/resend-credentials', payload);
+    return invokeEdge<{ success: boolean }>('admin-resend-credentials', payload);
   },
 
   search(term: string) {
-    return apiCall<GlobalSearchResultItem[]>('/search', { term });
+    return invokeEdge<GlobalSearchResultItem[]>('admin-search', { term });
   },
 
   rejectRequest(request_id: string, reason: string) {
-    return apiCall<{ success: boolean }>('/reject-request', { request_id, reason });
+    return invokeEdge<{ success: boolean }>('admin-reject-request', { request_id, reason });
   },
 
   requestChanges(request_id: string, notes: string) {
-    return apiCall<{ success: boolean }>('/request-changes', { request_id, notes });
+    return invokeEdge<{ success: boolean }>('admin-request-changes', { request_id, notes });
   },
 };

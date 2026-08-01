@@ -1,8 +1,9 @@
 import React, { useState, useMemo } from 'react';
 import {
-  BrainCircuit, Sparkles, TrendingUp, AlertTriangle, Send, RefreshCw, Bot
+  BrainCircuit, Sparkles, TrendingUp, AlertTriangle, Send, Bot
 } from 'lucide-react';
 import { Institution, MenuItem, Order } from '../../../types';
+import { supabase } from '../../../lib/supabaseClient';
 
 interface AICenterViewProps {
   currentInstitution: Institution;
@@ -44,15 +45,23 @@ export const AICenterView: React.FC<AICenterViewProps> = ({
     setIsAiLoading(true);
 
     try {
-      const response = await fetch('/api/ai/generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          prompt: `FOODEXA AI for ${currentInstitution.name}. ${userText}`
-        })
+      const { data, error } = await supabase.functions.invoke<{ success: boolean; text: string }>('foodexa-ai', {
+        body: {
+          feature: 'Institution AI Assistant',
+          prompt: `FOODEXA AI for ${currentInstitution.name}. ${userText}`,
+          context: {
+            institution: currentInstitution.name,
+            totalOrders: liveStats.totalOrders,
+            totalRevenue: liveStats.totalRevenue,
+            pendingOrders: liveStats.pendingOrders,
+            preparingOrders: liveStats.preparingOrders,
+            topItem: liveStats.topItem,
+            menuItems: menuItems.length,
+          }
+        }
       });
-      const data = await response.json();
-      const aiReply = data.text || 'AI response generated.';
+      if (error) throw error;
+      const aiReply = data?.text || 'AI response generated.';
       setChatHistory((prev) => [...prev, { role: 'assistant', text: aiReply }]);
     } catch {
       setChatHistory((prev) => [

@@ -32,7 +32,7 @@ export interface Vendor {
   outletType: string;
   seatingCapacity: number;
   openingHours: string;
-  status: 'approved' | 'pending' | 'suspended';
+  status: 'approved' | 'pending' | 'suspended' | 'rejected';
   rating: number;
   monthlyRevenue: number;
   ordersCount: number;
