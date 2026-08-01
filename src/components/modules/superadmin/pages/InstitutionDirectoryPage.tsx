@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import {
   Search, Building2, Building, Users, Store, TrendingUp, DollarSign, Clock, CheckCircle2, XCircle,
   Loader2, MapPin, Calendar, CreditCard, Edit3, Trash2, Eye, ExternalLink, Phone, Globe, Layers, Tag,
-  Sparkles, RefreshCw, Check, Plus, Mail, UserCheck, Ban, Activity, ChevronRight
+  Sparkles, RefreshCw, Check, Plus, Mail, UserCheck, Ban, Activity, ChevronRight, KeyRound
 } from 'lucide-react';
 import { useSuperAdminData } from './components/SuperAdminDataProvider';
 import { InstitutionLogo, StatusBadge, SkeletonCard, Modal } from './components/SuperAdminShared';
@@ -11,7 +11,7 @@ import { supabase } from '../../../../lib/supabaseClient';
 export const InstitutionDirectoryPage: React.FC = () => {
   const {
     approvedInstitutions, loading, error, adminAccessOk, isRealtime,
-    suspendInstitution, activateInstitution, disableInstitution, enableInstitution, deleteInstitution, updateInstitution, createAuditLog,
+    suspendInstitution, activateInstitution, disableInstitution, enableInstitution, deleteInstitution, updateInstitution, resetPassword, createAuditLog,
     refresh,
   } = useSuperAdminData();
 
@@ -21,6 +21,8 @@ export const InstitutionDirectoryPage: React.FC = () => {
   const [deleteConfirm, setDeleteConfirm] = useState<any>(null);
   const [selectedInstitution, setSelectedInstitution] = useState<any>(null);
   const [disableConfirm, setDisableConfirm] = useState<any>(null);
+  const [resetModal, setResetModal] = useState<any>(null);
+  const [newPassword, setNewPassword] = useState<string | null>(null);
 
   const [toasts, setToasts] = useState<{ id: string; msg: string; type?: string }[]>([]);
   const addToast = (msg: string, type: string = 'success') => {
@@ -99,6 +101,26 @@ export const InstitutionDirectoryPage: React.FC = () => {
       addToast(`Activated: ${name}`);
     } catch (err: any) {
       addToast(err.message || 'Failed to activate institution.', 'error');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleResetPassword = async () => {
+    if (!resetModal) return;
+    setActionLoading('reset');
+    setNewPassword(null);
+    try {
+      await resetPassword(
+        resetModal.email || resetModal.institution_email,
+        resetModal.name,
+        resetModal.institution_code,
+        resetModal.contact_person
+      );
+      addToast(`Password reset email sent to ${resetModal.email || resetModal.institution_email}`);
+      setResetModal(null);
+    } catch (err: any) {
+      addToast(err.message || 'Failed to reset password.', 'error');
     } finally {
       setActionLoading(null);
     }
@@ -280,6 +302,10 @@ export const InstitutionDirectoryPage: React.FC = () => {
                   className="px-3 py-1.5 rounded-lg bg-indigo-500/10 border border-indigo-500/30 text-indigo-400 hover:bg-indigo-500/20 text-[11px] font-semibold transition-all flex items-center gap-1">
                   <ExternalLink className="w-3 h-3" /> Open Dashboard
                 </button>
+                <button onClick={() => setResetModal(inst)}
+                  className="px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-800 text-slate-400 hover:text-amber-400 text-[11px] font-semibold transition-all flex items-center gap-1">
+                  <KeyRound className="w-3 h-3" /> Reset Password
+                </button>
               </div>
             </div>
           ))}
@@ -374,6 +400,28 @@ export const InstitutionDirectoryPage: React.FC = () => {
               <button onClick={handleDisable}
                 className="flex-1 py-2.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-400 text-xs font-bold flex items-center justify-center gap-2">
                 <Ban className="w-4 h-4" /> Disable
+              </button>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      <Modal open={!!resetModal} onClose={() => { setResetModal(null); setNewPassword(null); }} title="Reset Institution Password">
+        {resetModal && (
+          <div className="space-y-4">
+            <p className="text-xs text-slate-400">
+              Reset the password for <strong className="text-white">{resetModal.name}</strong> ({resetModal.email || resetModal.institution_email || 'no email'}).
+              A new temporary password will be generated and emailed to the institution admin.
+            </p>
+            <div className="flex gap-3">
+              <button onClick={() => { setResetModal(null); setNewPassword(null); }}
+                className="flex-1 py-2.5 rounded-xl bg-slate-900 border border-slate-800 text-slate-300 text-xs font-bold">
+                Cancel
+              </button>
+              <button onClick={handleResetPassword} disabled={actionLoading === 'reset'}
+                className="flex-1 py-2.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-400 text-xs font-bold flex items-center justify-center gap-2 disabled:opacity-50">
+                {actionLoading === 'reset' ? <Loader2 className="w-4 h-4 animate-spin" /> : <KeyRound className="w-4 h-4" />}
+                Reset &amp; Email
               </button>
             </div>
           </div>

@@ -17,6 +17,7 @@ export interface SuperAdminContextType {
   unreadCount: number;
   prepareApproval: (id: string) => Promise<ApprovalDraft>;
   approveRequest: (id: string, credentials?: ApprovalCredentials) => Promise<ApprovalResult>;
+  resetPassword: (email: string, institutionName?: string, institutionCode?: string, contactPerson?: string) => Promise<void>;
   rejectRequest: (id: string, reason?: string) => Promise<void>;
   requestChanges: (id: string, notes: string) => Promise<void>;
   disableInstitution: (id: string) => Promise<void>;

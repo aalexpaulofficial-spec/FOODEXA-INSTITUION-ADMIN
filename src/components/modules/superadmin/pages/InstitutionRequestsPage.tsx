@@ -8,6 +8,7 @@ import {
 import { useSuperAdminData } from './components/SuperAdminDataProvider';
 import { InstitutionLogo, StatusBadge, SkeletonCard, Modal, downloadRequestPDF } from './components/SuperAdminShared';
 import { ApprovalDraft, ApprovalResult } from '../../../../hooks/useSupabaseData';
+import { adminApi } from '../../../../lib/adminApi';
 
 export const InstitutionRequestsPage: React.FC = () => {
   const {
@@ -164,44 +165,17 @@ export const InstitutionRequestsPage: React.FC = () => {
   const handleSendEmailAgain = async () => {
     if (!approvalResult) return;
     try {
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-      const response = await fetch(`${supabaseUrl}/functions/v1/approve-institution`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${supabaseAnonKey}`,
-        },
-        body: JSON.stringify({
-          institution_name: approvalResult.institution_name,
-          institution_email: approvalResult.generated_email,
-          institution_code: approvalResult.institution_code,
-          login_email: approvalResult.generated_email,
-          temp_password: approvalResult.generated_password,
-          portal_url: 'https://foodexa-institution-platform.vercel.app',
-          contact_person: '',
-          first_login_instructions: 'Please log in using the credentials above. You will be prompted to change your password on first login.',
-          password_change_reminder: 'For security, please change your temporary password after your first login.',
-        }),
+      await adminApi.resendCredentials({
+        institution_name: approvalResult.institution_name,
+        institution_email: approvalResult.generated_email,
+        institution_code: approvalResult.institution_code,
+        login_email: approvalResult.generated_email,
+        password: approvalResult.generated_password,
       });
-      if (response.ok) {
-        addToast('Email sent successfully');
-      } else if (response.status === 404) {
-        console.warn('[Email] approve-institution Edge Function is not deployed. Deploy it via `supabase functions deploy approve-institution`.');
-        addToast('Email function not deployed. Deploy approve-institution Edge Function first.', 'error');
-      } else {
-        const body = await response.text();
-        console.error('[Email] Resend failed:', response.status, body);
-        addToast(`Failed to send email (HTTP ${response.status}). Check console for details.`, 'error');
-      }
+      addToast('Email sent successfully');
     } catch (err: any) {
-      if (err?.message?.includes('Failed to fetch') || err?.name === 'TypeError') {
-        console.warn('[Email] approve-institution Edge Function is not available. Deploy it via `supabase functions deploy approve-institution`.');
-        addToast('Email function not available. Deploy approve-institution Edge Function first.', 'error');
-      } else {
-        console.error('[Email] Resend error:', err);
-        addToast('Failed to send email. Check console for details.', 'error');
-      }
+      console.error('[Email] Resend failed:', err);
+      addToast(err.message || 'Failed to send email. Check console for details.', 'error');
     }
   };
 

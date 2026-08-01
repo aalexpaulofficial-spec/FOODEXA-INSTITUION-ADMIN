@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabaseClient';
+import { adminApi } from '../lib/adminApi';
 
 // ---------------------------------------------------------------
 // Types for Supabase rows
@@ -137,6 +138,7 @@ export interface UseSupabaseDataReturn {
   unreadCount: number;
   prepareApproval: (id: string) => Promise<ApprovalDraft>;
   approveRequest: (id: string, credentials?: ApprovalCredentials) => Promise<ApprovalResult>;
+  resetPassword: (email: string, institutionName?: string, institutionCode?: string, contactPerson?: string) => Promise<void>;
   rejectRequest: (id: string, reason?: string) => Promise<void>;
   requestChanges: (id: string, notes: string) => Promise<void>;
   disableInstitution: (id: string) => Promise<void>;
@@ -226,9 +228,8 @@ export function useSupabaseData(): UseSupabaseDataReturn {
           checkErr.message?.toLowerCase().includes('policy')
         ) {
           setError(
-            'Supabase admin access denied. The service role key is invalid, expired, or not set. ' +
-            'Check your Supabase project settings and ensure the key has the service_role claim. ' +
-            'Without it, RLS policies block all write operations. ' +
+            'Access denied while reading the institution requests table. ' +
+            'Your account may not be a Super Admin, or RLS policies are misconfigured. ' +
             `Raw error: ${checkErr.message}`
           );
         } else {
@@ -468,18 +469,11 @@ export function useSupabaseData(): UseSupabaseDataReturn {
     let existingUserId: string | undefined;
 
     try {
-      const { data: allUsers, error: listError } = await supabase.auth.admin.listUsers();
-
-      if (listError) {
-        console.error('[prepareApproval] Failed to list auth users:', listError);
-      } else {
-        const users = (allUsers?.users || []) as Array<{ id: string; email?: string }>;
-        const match = users.find((u) => u.email === email);
-        if (match) {
-          emailAlreadyExists = true;
-          existingUserId = match.id;
-          console.log(`[prepareApproval] Email "${email}" already exists with user ID: ${existingUserId}`);
-        }
+      const result = await adminApi.checkEmail(email);
+      emailAlreadyExists = result.exists;
+      existingUserId = result.user_id || undefined;
+      if (emailAlreadyExists) {
+        console.log(`[prepareApproval] Email "${email}" already exists with user ID: ${existingUserId}`);
       }
     } catch (checkErr) {
       console.error('[prepareApproval] Error checking existing email:', checkErr);
@@ -496,8 +490,7 @@ export function useSupabaseData(): UseSupabaseDataReturn {
   };
 
   // ---------------------------------------------------------------
-  // Approve a request: full workflow
-  // Steps: 1) Auth account  2) Insert institutions  3) Update requests
+  // Approve a request: full workflow (server-side via edge function)
   // ---------------------------------------------------------------
   const approveRequest = async (id: string, credentials?: ApprovalCredentials): Promise<ApprovalResult> => {
     const request = institutionRequests.find((r) => r.id === id);
@@ -505,233 +498,43 @@ export function useSupabaseData(): UseSupabaseDataReturn {
       throw new Error('Institution request not found. Please refresh and try again.');
     }
 
-    const approvedAt = new Date().toISOString();
-
-    // Get the authenticated Super Admin
-    const { data: { user: adminUser }, error: userError } = await supabase.auth.getUser();
-    if (userError) {
-      throw new Error(`Failed to verify admin session: ${userError.message}`);
-    }
-    if (!adminUser?.id) {
-      throw new Error('Not authenticated as Super Admin. Please sign in again.');
-    }
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-    if (!uuidRegex.test(adminUser.id)) {
-      throw new Error('Invalid admin user session. Please sign out and sign in again.');
-    }
-    const approvedBy = adminUser.id;
-
-    // Generate credentials
     const institutionCode = (credentials?.institution_code || await generateInstitutionCode(request.institution_name)).trim().toUpperCase();
-    const password = credentials?.generated_password || generatePassword();
     const generatedEmail = credentials?.generated_email || request.institution_email;
 
-    // Validate institution code availability
-    await ensureInstitutionCodeAvailable(institutionCode, id);
-
-    // Check if Institution Admin email already exists in auth
-    let emailAlreadyExisted = false;
-    let existingUserId: string | null = null;
-
-    try {
-      const { data: allUsers, error: listError } = await supabase.auth.admin.listUsers();
-      if (listError) {
-        throw new Error(`Failed to check existing auth users: ${listError.message}`);
-      }
-      const users = (allUsers?.users || []) as Array<{ id: string; email?: string }>;
-      const match = users.find((u) => u.email === generatedEmail);
-      if (match) {
-        emailAlreadyExisted = true;
-        existingUserId = match.id;
-      }
-    } catch (checkErr) {
-      if (checkErr instanceof Error && checkErr.message.startsWith('Failed to check existing auth users')) {
-        throw checkErr;
-      }
-      throw new Error(`Error checking existing email: ${checkErr instanceof Error ? checkErr.message : 'Unknown error'}`);
-    }
-
-    // Step 1: Create Institution Admin auth account (or use existing)
-    let authUserId: string;
-
-    if (emailAlreadyExisted && existingUserId) {
-      authUserId = existingUserId;
-    } else {
-      const { data: authData, error: authError } = await supabase.auth.admin.createUser({
-        email: generatedEmail,
-password: password,
-        email_confirm: true,
-        user_metadata: {
-          role: 'institution_admin',
-          institution_name: request.institution_name,
-        },
-      });
-      if (authError || !authData?.user) {
-        throw new Error(`Failed to create Institution Admin auth account: ${authError?.message || 'No user returned'}`);
-      }
-      authUserId = authData.user.id;
-    }
-
-    // Step 2: Insert into institutions table
-    const institutionRecord = {
-      name: request.institution_name,
-      institution_type: request.role || 'University',
-      campus: request.campus || null,
-      city: request.city || null,
-      state: request.state || null,
-      country: request.country || null,
-      contact_person: request.contact_person || null,
-      institution_email: request.institution_email || null,
-      role: request.role || null,
-      institution_website: request.institution_website || null,
-      student_population: parseInt(request.student_population || '0', 10) || 0,
-      food_courts: typeof request.food_courts === 'number' ? request.food_courts : parseInt(request.food_courts_count || '0', 10) || 0,
-      vendors: typeof request.vendors === 'number' ? request.vendors : parseInt(request.vendors_count || '0', 10) || 0,
-      message: request.message || null,
-      phone: request.phone_number || null,
-      email: generatedEmail,
+    // The server-side edge function runs the whole transaction:
+    // create auth user, insert institutions, update requests,
+    // upsert profiles, audit log, notification, and credentials email.
+    const result = await adminApi.approveInstitution({
+      request_id: id,
       institution_code: institutionCode,
       generated_email: generatedEmail,
-      generated_password: password,
-      approved_by: approvedBy,
-      approved_at: approvedAt,
-      status: 'active',
-    };
+      generated_password: credentials?.generated_password || generatePassword(),
+    });
 
-    const { data: instData, error: instError } = await supabase
-      .from(INSTITUTIONS_TABLE)
-      .insert(institutionRecord)
-      .select('id')
-      .single();
-
-    if (instError) {
-      if (instError.message?.toLowerCase().includes('row-level security') || instError.message?.toLowerCase().includes('policy')) {
-        throw new Error(
-          'RLS policy blocked institution insert. The Supabase service role key is likely invalid or not set. ' +
-          'Go to Supabase Dashboard → Project Settings → API → service_role key and update the environment variable. ' +
-          `Raw error: ${instError.message}`
-        );
-      }
-      if (instError.code === '23505') {
-        throw new Error(`Institution code "${institutionCode}" is already taken. Please go back and use a different code.`);
-      }
-      throw new Error(`Failed to create institution record: ${instError.message}`);
-    }
-
-    // Step 3: Update institution_requests — save code, email, password, status → approved
-    const { error: updateReqError } = await supabase
-      .from(REQUESTS_TABLE)
-      .update({
-        status: 'approved',
-        institution_code: institutionCode,
-        generated_email: generatedEmail,
-generated_password: password,
-        approved_at: approvedAt,
-        approved_by: approvedBy,
-      })
-      .eq('id', id);
-
-    if (updateReqError) {
-      throw new Error(`Institution was created but failed to mark request as approved: ${updateReqError.message}. Please check institution_requests table.`);
-    }
-
-    // Step 4: Create or update user profile
-    if (emailAlreadyExisted) {
-      const { error: profileError } = await supabase
-        .from('profiles')
-        .update({ institution_id: instData.id })
-        .eq('user_id', authUserId);
-      if (profileError) {
-        console.error('[approveRequest] Failed to update existing user profile:', profileError);
-      }
-    } else {
-      const { error: profileError } = await supabase
-        .from('profiles')
-        .insert({
-          user_id: authUserId,
-          role: 'institution_admin',
-          institution_id: instData.id,
-        });
-      if (profileError) {
-        console.error('[approveRequest] Failed to create user profile:', profileError);
-      }
-    }
-
-    // Step 5: Audit log
-    await createAuditLog(
-      'Institution Approved',
-      request.institution_name,
-      id,
-      `Code: ${institutionCode} | Approved by: ${approvedBy}${emailAlreadyExisted ? ' | Email already existed' : ''}`
-    );
-
-    // Step 6: Notification
-    try {
-      const { error: notifError } = await supabase.from(NOTIFICATIONS_TABLE).insert({
-        type: 'success',
-        title: 'Institution Approved',
-        message: `${request.institution_name} has been approved and activated on the platform. Code: ${institutionCode}`,
-        read: false,
-      });
-      if (notifError) console.error('[approveRequest] Failed to create notification:', notifError);
-    } catch {
-      console.warn('[approveRequest] notifications table may not have expected columns');
-    }
-
-    // Step 7: Refresh from Supabase (source of truth)
     await fetchAll();
 
-    // Step 8: Send onboarding email (non-blocking — approval already succeeded)
-    let emailSent = false;
-    try {
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-      const portalUrl = 'https://foodexa-institution-platform.vercel.app';
-
-      const emailResponse = await fetch(`${supabaseUrl}/functions/v1/approve-institution`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${supabaseAnonKey}`,
-        },
-        body: JSON.stringify({
-          institution_name: request.institution_name,
-          institution_email: generatedEmail,
-          institution_code: institutionCode,
-          login_email: generatedEmail,
-          password: password,
-          portal_url: portalUrl,
-          contact_person: request.contact_person,
-          first_login_instructions: 'Please log in using the credentials above. You will be prompted to change your password on first login.',
-          password_change_reminder: 'For security, please change your generated password after your first login.',
-        }),
-      });
-
-      if (emailResponse.ok) {
-        emailSent = true;
-      } else if (emailResponse.status === 404) {
-        console.warn('[approveRequest] approve-institution Edge Function is not deployed (404).');
-      } else {
-        const emailBody = await emailResponse.text();
-        console.error(`[approveRequest] Email send failed (HTTP ${emailResponse.status}):`, emailBody);
-      }
-    } catch (emailErr: any) {
-      if (emailErr?.message?.includes('Failed to fetch') || emailErr?.name === 'TypeError') {
-        console.warn('[approveRequest] approve-institution Edge Function is not available.');
-      } else {
-        console.error('[approveRequest] Email send error:', emailErr);
-      }
-    }
-
     return {
-      institution_name: request.institution_name,
-      institution_code: institutionCode,
-      generated_email: generatedEmail,
-      generated_password: password,
-      approved_at: approvedAt,
-      email_already_existed: emailAlreadyExisted,
-      email_sent: emailSent,
+      institution_name: result.institution_name,
+      institution_code: result.institution_code,
+      generated_email: result.generated_email,
+      generated_password: result.generated_password,
+      approved_at: result.approved_at,
+      email_already_existed: result.email_already_existed,
+      email_sent: result.email_sent,
     };
+  };
+
+  // ---------------------------------------------------------------
+  // Reset password (server-side via edge function)
+  // ---------------------------------------------------------------
+  const resetPassword = async (email: string, institutionName?: string, institutionCode?: string, contactPerson?: string) => {
+    const result = await adminApi.resetPassword({
+      email,
+      institution_name: institutionName,
+      institution_code: institutionCode,
+      contact_person: contactPerson,
+    });
+    console.log(`[resetPassword] New password generated for ${email} (email_sent=${result.email_sent})`);
   };
 
   // ---------------------------------------------------------------
@@ -754,7 +557,7 @@ generated_password: password,
     if (updateErr) {
       if (updateErr.message?.toLowerCase().includes('row-level security') || updateErr.message?.toLowerCase().includes('policy')) {
         throw new Error(
-          'RLS policy blocked the update. The Supabase service role key is invalid or not set. ' +
+          'RLS policy blocked the update. Your account may not have permission. ' +
           `Raw error: ${updateErr.message}`
         );
       }
@@ -839,7 +642,7 @@ generated_password: password,
     if (updateErr) {
       if (updateErr.message?.toLowerCase().includes('row-level security') || updateErr.message?.toLowerCase().includes('policy')) {
         throw new Error(
-          'RLS policy blocked the update. The Supabase service role key is invalid or not set. ' +
+          'RLS policy blocked the update. Your account may not have permission. ' +
           `Raw error: ${updateErr.message}`
         );
       }
@@ -861,91 +664,18 @@ generated_password: password,
   };
 
   // ---------------------------------------------------------------
-  // Disable an institution (blocks login until re-enabled)
+  // Disable an institution (blocks login until re-enabled) — server-side
   // ---------------------------------------------------------------
   const disableInstitution = async (id: string) => {
-    const inst = approvedInstitutions.find((i) => i.id === id);
-
-    const { error: instErr } = await supabase
-      .from(INSTITUTIONS_TABLE)
-      .update({ status: 'disabled' })
-      .eq('id', id);
-
-    if (instErr) {
-      if (instErr.message?.toLowerCase().includes('row-level security') || instErr.message?.toLowerCase().includes('policy')) {
-        throw new Error(
-          'RLS policy blocked the update. The Supabase service role key is invalid or not set. ' +
-          `Raw error: ${instErr.message}`
-        );
-      }
-      throw new Error(`Failed to disable institution: ${instErr.message}`);
-    }
-
-    // Also update the original request status
-    const request = institutionRequests.find((r) => r.institution_code === inst?.institution_code);
-    if (request) {
-      const { error: reqErr } = await supabase
-        .from(REQUESTS_TABLE)
-        .update({ status: 'disabled' })
-        .eq('id', request.id);
-      if (reqErr) {
-        console.error('[disableInstitution] Failed to update institution_requests:', reqErr);
-      }
-    }
-
-    await createAuditLog('Institution Disabled', inst?.name || id, id);
-    await supabase.from(NOTIFICATIONS_TABLE).insert({
-      type: 'warning',
-      title: 'Institution Disabled',
-      message: `${inst?.name || 'An institution'} has been disabled. Admin can no longer log in.`,
-      read: false,
-    });
-
+    await adminApi.disableInstitution(id);
     await fetchAll();
   };
 
   // ---------------------------------------------------------------
-  // Enable a disabled institution (re-enable login)
+  // Enable a disabled institution (re-enable login) — server-side
   // ---------------------------------------------------------------
   const enableInstitution = async (id: string) => {
-    const inst = approvedInstitutions.find((i) => i.id === id);
-    if (!inst) throw new Error('Institution not found. Please refresh and try again.');
-
-    const { error: instErr } = await supabase
-      .from(INSTITUTIONS_TABLE)
-      .update({ status: 'active' })
-      .eq('id', id);
-
-    if (instErr) {
-      if (instErr.message?.toLowerCase().includes('row-level security') || instErr.message?.toLowerCase().includes('policy')) {
-        throw new Error(
-          'RLS policy blocked the update. The Supabase service role key is invalid or not set. ' +
-          `Raw error: ${instErr.message}`
-        );
-      }
-      throw new Error(`Failed to enable institution: ${instErr.message}`);
-    }
-
-    // Also update the original request status
-    const request = institutionRequests.find((r) => r.institution_code === inst?.institution_code);
-    if (request) {
-      const { error: reqErr } = await supabase
-        .from(REQUESTS_TABLE)
-        .update({ status: 'active' })
-        .eq('id', request.id);
-      if (reqErr) {
-        console.error('[enableInstitution] Failed to update institution_requests:', reqErr);
-      }
-    }
-
-    await createAuditLog('Institution Re-enabled', inst.name, id);
-    await supabase.from(NOTIFICATIONS_TABLE).insert({
-      type: 'success',
-      title: 'Institution Re-enabled',
-      message: `${inst.name} has been re-enabled. Admin can now log in again.`,
-      read: false,
-    });
-
+    await adminApi.enableInstitution(id);
     await fetchAll();
   };
 
@@ -959,7 +689,7 @@ generated_password: password,
     const { error } = await supabase.from(REQUESTS_TABLE).update(updates).eq('id', id);
     if (error) {
       if (error.message?.toLowerCase().includes('row-level security') || error.message?.toLowerCase().includes('policy')) {
-        throw new Error(`RLS policy blocked the update. Invalid service role key. Raw: ${error.message}`);
+        throw new Error(`RLS policy blocked the update. Your account may not have permission. Raw: ${error.message}`);
       }
       throw new Error(`Failed to update request: ${error.message}`);
     }
@@ -976,7 +706,7 @@ generated_password: password,
     const { error } = await supabase.from(INSTITUTIONS_TABLE).update({ status: 'suspended' }).eq('id', id);
     if (error) {
       if (error.message?.toLowerCase().includes('row-level security') || error.message?.toLowerCase().includes('policy')) {
-        throw new Error(`RLS policy blocked the update. Invalid service role key. Raw: ${error.message}`);
+        throw new Error(`RLS policy blocked the update. Your account may not have permission. Raw: ${error.message}`);
       }
       throw new Error(`Failed to suspend institution: ${error.message}`);
     }
@@ -998,7 +728,7 @@ generated_password: password,
     const { error } = await supabase.from(INSTITUTIONS_TABLE).update({ status: 'active' }).eq('id', id);
     if (error) {
       if (error.message?.toLowerCase().includes('row-level security') || error.message?.toLowerCase().includes('policy')) {
-        throw new Error(`RLS policy blocked the update. Invalid service role key. Raw: ${error.message}`);
+        throw new Error(`RLS policy blocked the update. Your account may not have permission. Raw: ${error.message}`);
       }
       throw new Error(`Failed to activate institution: ${error.message}`);
     }
@@ -1020,7 +750,7 @@ generated_password: password,
     const { error } = await supabase.from(INSTITUTIONS_TABLE).delete().eq('id', id);
     if (error) {
       if (error.message?.toLowerCase().includes('row-level security') || error.message?.toLowerCase().includes('policy')) {
-        throw new Error(`RLS policy blocked deletion. Invalid service role key. Raw: ${error.message}`);
+        throw new Error(`RLS policy blocked deletion. Your account may not have permission. Raw: ${error.message}`);
       }
       throw new Error(`Failed to delete institution: ${error.message}`);
     }
@@ -1042,7 +772,7 @@ generated_password: password,
     const { error } = await supabase.from(INSTITUTIONS_TABLE).update(updates).eq('id', id);
     if (error) {
       if (error.message?.toLowerCase().includes('row-level security') || error.message?.toLowerCase().includes('policy')) {
-        throw new Error(`RLS policy blocked the update. Invalid service role key. Raw: ${error.message}`);
+        throw new Error(`RLS policy blocked the update. Your account may not have permission. Raw: ${error.message}`);
       }
       throw new Error(`Failed to update institution: ${error.message}`);
     }
@@ -1080,50 +810,57 @@ generated_password: password,
   };
 
   // ---------------------------------------------------------------
-  // Global Search
+  // Global Search (server-side PostgreSQL ILIKE via edge function)
   // ---------------------------------------------------------------
   const globalSearch = async (term: string): Promise<GlobalSearchResult[]> => {
     if (!term || term.length < 2) return [];
-    const q = term.toLowerCase();
-    const results: GlobalSearchResult[] = [];
-
-    // Search institutions
-    approvedInstitutions.forEach((inst) => {
-      if (
-        inst.name?.toLowerCase().includes(q) ||
-        inst.email?.toLowerCase().includes(q) ||
-        inst.institution_code?.toLowerCase().includes(q) ||
-        inst.contact_person?.toLowerCase().includes(q) ||
-        inst.phone?.toLowerCase().includes(q)
-      ) {
-        results.push({
-          type: 'institution',
-          id: inst.id,
-          name: inst.name,
-          subtitle: `${inst.institution_code || 'N/A'} • ${inst.email || 'N/A'}`,
-          status: inst.status,
-        });
-      }
-    });
-
-    // Search requests
-    institutionRequests.forEach((req) => {
-      if (
-        req.institution_name?.toLowerCase().includes(q) ||
-        req.institution_email?.toLowerCase().includes(q) ||
-        req.contact_person?.toLowerCase().includes(q)
-      ) {
-        results.push({
-          type: 'request',
-          id: req.id,
-          name: req.institution_name,
-          subtitle: `${req.institution_email} • ${req.status}`,
-          status: req.status,
-        });
-      }
-    });
-
-    return results.slice(0, 20);
+    try {
+      const items = await adminApi.search(term);
+      return (items || []).map((i) => ({
+        type: i.type,
+        id: i.id,
+        name: i.name,
+        subtitle: i.subtitle,
+        status: i.status,
+      }));
+    } catch (err) {
+      console.error('[globalSearch] Backend search failed, falling back to local data:', err);
+      const q = term.toLowerCase();
+      const results: GlobalSearchResult[] = [];
+      approvedInstitutions.forEach((inst) => {
+        if (
+          inst.name?.toLowerCase().includes(q) ||
+          inst.email?.toLowerCase().includes(q) ||
+          inst.institution_code?.toLowerCase().includes(q) ||
+          inst.contact_person?.toLowerCase().includes(q) ||
+          inst.phone?.toLowerCase().includes(q)
+        ) {
+          results.push({
+            type: 'institution',
+            id: inst.id,
+            name: inst.name,
+            subtitle: `${inst.institution_code || 'N/A'} • ${inst.email || 'N/A'}`,
+            status: inst.status,
+          });
+        }
+      });
+      institutionRequests.forEach((req) => {
+        if (
+          req.institution_name?.toLowerCase().includes(q) ||
+          req.institution_email?.toLowerCase().includes(q) ||
+          req.contact_person?.toLowerCase().includes(q)
+        ) {
+          results.push({
+            type: 'request',
+            id: req.id,
+            name: req.institution_name,
+            subtitle: `${req.institution_email} • ${req.status}`,
+            status: req.status,
+          });
+        }
+      });
+      return results.slice(0, 20);
+    }
   };
 
   return {
@@ -1142,6 +879,7 @@ generated_password: password,
     unreadCount,
     prepareApproval,
     approveRequest,
+    resetPassword,
     rejectRequest,
     requestChanges,
     disableInstitution,
