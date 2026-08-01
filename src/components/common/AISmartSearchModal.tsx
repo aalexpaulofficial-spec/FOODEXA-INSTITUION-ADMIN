@@ -39,9 +39,9 @@ export const AISmartSearchModal: React.FC<AISmartSearchModalProps> = ({
   const filteredOrders = q
     ? orders.filter(
         (o) =>
-          o.orderNumber.toLowerCase().includes(q) ||
-          o.studentName.toLowerCase().includes(q) ||
-          o.pickupCode.includes(q)
+          (o.orderNumber || '').toLowerCase().includes(q) ||
+          (o.studentName || '').toLowerCase().includes(q) ||
+          (o.pickupCode || '').includes(q)
       )
     : orders.slice(0, 2);
 
@@ -49,8 +49,8 @@ export const AISmartSearchModal: React.FC<AISmartSearchModalProps> = ({
     ? vendors.filter(
         (v) =>
           v.name.toLowerCase().includes(q) ||
-          v.campusBlock.toLowerCase().includes(q) ||
-          v.outletType.toLowerCase().includes(q)
+          (v.campusBlock || '').toLowerCase().includes(q) ||
+          (v.outletType || '').toLowerCase().includes(q)
       )
     : vendors.slice(0, 2);
 
@@ -58,8 +58,8 @@ export const AISmartSearchModal: React.FC<AISmartSearchModalProps> = ({
     ? menuItems.filter(
         (m) =>
           m.name.toLowerCase().includes(q) ||
-          m.category.toLowerCase().includes(q) ||
-          m.vendorName.toLowerCase().includes(q)
+          (m.category || '').toLowerCase().includes(q) ||
+          (m.vendorName || '').toLowerCase().includes(q)
       )
     : menuItems.slice(0, 2);
 
@@ -149,7 +149,7 @@ export const AISmartSearchModal: React.FC<AISmartSearchModalProps> = ({
                           Pickup QR: {ord.pickupCode}
                         </span>
                       </div>
-                      <div className="text-[11px] text-slate-400">{ord.studentName} • {ord.vendorName} • ${ord.totalAmount.toFixed(2)}</div>
+                      <div className="text-[11px] text-slate-400">{ord.studentName} • {ord.vendorName} • ₹{(ord.totalAmount || 0).toFixed(2)}</div>
                     </div>
                     <ArrowRight className="w-4 h-4 text-slate-600 group-hover:text-cyan-400 transition-colors" />
                   </button>

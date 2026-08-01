@@ -2,7 +2,7 @@ import React, { useState, useMemo, useCallback } from 'react';
 import {
   UtensilsCrossed, Plus, Search, Sparkles, Flame, CheckCircle2, XCircle,
   FileUp, Tag, Clock, Copy, Archive, Eye, FileText, Keyboard, TrendingUp,
-  Filter, SlidersHorizontal, X, AlertCircle, Check, Edit3, Trash2, Layers, DollarSign,
+  Filter, SlidersHorizontal, X, AlertCircle, Check, Edit3, Trash2, Layers,
   Dumbbell, Package, Star
 } from 'lucide-react';
 import { MenuItem, MenuStatus, MenuCategory, Counter } from '../../../types';
@@ -430,7 +430,7 @@ export const MenuManagement: React.FC<MenuManagementProps> = ({
                 <p className="text-xs text-zinc-400 line-clamp-2 leading-relaxed">{item.description}</p>
               </div>
               <div className="text-right shrink-0">
-                <span className="text-lg font-black text-emerald-400 font-mono">₹{item.price.toFixed(2)}</span>
+                <span className="text-lg font-black text-emerald-400 font-mono">₹{(item.price || 0).toFixed(2)}</span>
                 {item.discountPrice && (
                   <span className="block text-[10px] text-zinc-500 line-through font-mono">₹{item.discountPrice.toFixed(2)}</span>
                 )}

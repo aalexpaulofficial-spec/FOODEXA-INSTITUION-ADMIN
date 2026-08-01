@@ -33,7 +33,7 @@ export const AICenterView: React.FC<AICenterViewProps> = ({
     const topItems: Record<string, number> = {};
     orders.forEach(o => o.items.forEach(i => { topItems[i.name] = (topItems[i.name] || 0) + i.quantity; }));
     const topItem = Object.entries(topItems).sort((a, b) => b[1] - a[1])[0];
-    return { totalOrders, totalRevenue, pendingOrders, preparingOrders, topItem: topItem?.[0] || 'N/A', topItemCount: topItem?.[1] || 0 };
+    return { totalOrders, totalRevenue, pendingOrders, preparingOrders, topItem: topItem?.[0] || 'No live data available', topItemCount: topItem?.[1] || 0 };
   }, [orders, menuItems]);
 
   const handleSendChat = async (e: React.FormEvent) => {
@@ -66,7 +66,7 @@ export const AICenterView: React.FC<AICenterViewProps> = ({
     } catch {
       setChatHistory((prev) => [
         ...prev,
-        { role: 'assistant', text: `Based on live data: ${liveStats.totalOrders} total orders, ${liveStats.totalRevenue.toFixed(2)} revenue. Top item: ${liveStats.topItem}.` }
+        { role: 'assistant', text: `Based on live data: ${liveStats.totalOrders} total orders, ₹${liveStats.totalRevenue.toFixed(2)} revenue. Top item: ${liveStats.topItem}.` }
       ]);
     } finally {
       setIsAiLoading(false);
@@ -106,7 +106,7 @@ export const AICenterView: React.FC<AICenterViewProps> = ({
               </div>
               <div className="p-3 rounded-lg bg-slate-950 border border-slate-800">
                 <div className="text-[10px] text-slate-400 uppercase font-semibold">Revenue</div>
-                <div className="text-lg font-black text-emerald-400 font-mono mt-1">${liveStats.totalRevenue.toFixed(2)}</div>
+                <div className="text-lg font-black text-emerald-400 font-mono mt-1">₹{liveStats.totalRevenue.toFixed(2)}</div>
               </div>
               <div className="p-3 rounded-lg bg-slate-950 border border-slate-800">
                 <div className="text-[10px] text-slate-400 uppercase font-semibold">Preparing</div>

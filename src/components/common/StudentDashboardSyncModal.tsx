@@ -236,10 +236,10 @@ export const StudentDashboardSyncModal: React.FC<StudentDashboardSyncModalProps>
                 <div className="text-slate-300 pt-2 border-t border-slate-800 flex justify-between items-center">
                   <span>
                     Items:{' '}
-                    {activeStudentOrder.items.map((i) => `${i.quantity}x ${i.name}`).join(', ')}
+                    {(activeStudentOrder.items || []).map((i) => `${i.quantity}x ${i.name}`).join(', ')}
                   </span>
                   <span className="font-mono font-bold text-amber-400">
-                    ₹{activeStudentOrder.totalAmount.toFixed(2)} ({activeStudentOrder.paymentStatus.toUpperCase()})
+                    ₹{(activeStudentOrder.totalAmount || 0).toFixed(2)} ({(activeStudentOrder.paymentStatus || 'N/A').toUpperCase()})
                   </span>
                 </div>
               </div>
@@ -299,7 +299,7 @@ export const StudentDashboardSyncModal: React.FC<StudentDashboardSyncModalProps>
 
                     <div className="text-right shrink-0">
                       <div className="font-mono font-bold text-emerald-400 text-xs">
-                        ₹{item.price.toFixed(2)}
+                        ₹{(item.price || 0).toFixed(2)}
                       </div>
                       {item.isAvailable ? (
                         <span className="mt-1 inline-block px-2.5 py-1 rounded-lg bg-emerald-500/20 text-emerald-400 text-[10px] font-bold">

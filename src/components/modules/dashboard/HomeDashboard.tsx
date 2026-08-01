@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { ShoppingBag, DollarSign, Users, Utensils, PlusCircle, UserCheck, Bell, FileSpreadsheet, BrainCircuit, Sparkles, QrCode, ArrowRight } from 'lucide-react';
+import { ShoppingBag, Users, Utensils, PlusCircle, UserCheck, Bell, FileSpreadsheet, BrainCircuit, Sparkles, QrCode, ArrowRight } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { Institution, Order, Vendor } from '../../../types';
 

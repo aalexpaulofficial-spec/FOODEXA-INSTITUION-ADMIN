@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { TrendingUp, Flame, Star, Eye, ShoppingBag, DollarSign, GripVertical, ArrowUp, ArrowDown, Sparkles } from 'lucide-react';
+import { TrendingUp, Flame, Star, Eye, ShoppingBag, IndianRupee, GripVertical, ArrowUp, ArrowDown, Sparkles } from 'lucide-react';
 import {
   AreaChart,
   Area,
@@ -114,7 +114,7 @@ export const RevenueGrowthChart: React.FC<RevenueGrowthChartProps> = ({ menuItem
         <div className="p-4 rounded-2xl bg-zinc-900/60 border border-zinc-800">
           <div className="flex items-center justify-between text-zinc-400 mb-1">
             <span className="text-[11px] font-semibold">Total Revenue</span>
-            <DollarSign className="w-4 h-4 text-amber-400" />
+            <IndianRupee className="w-4 h-4 text-amber-400" />
           </div>
            <div className="text-xl font-bold text-white font-mono">₹{totalRevenue.toLocaleString()}</div>
            {totalRevenue > 0 && (

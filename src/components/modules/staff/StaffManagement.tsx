@@ -164,11 +164,11 @@ export const StaffManagement: React.FC<StaffManagementProps> = ({
                       <button
                         onClick={() => onTogglePermission(s.id, perm.key)}
                         className={`p-1 rounded-md text-xs font-bold ${
-                          s.permissions[perm.key] ? 'bg-emerald-500/20 text-emerald-400' : 'bg-slate-800 text-slate-600'
+                          s.permissions?.[perm.key] ? 'bg-emerald-500/20 text-emerald-400' : 'bg-slate-800 text-slate-600'
                         }`}
                         title={`Toggle ${perm.label}`}
                       >
-                        {s.permissions[perm.key] ? <Check className="w-3.5 h-3.5" /> : <X className="w-3.5 h-3.5" />}
+                        {s.permissions?.[perm.key] ? <Check className="w-3.5 h-3.5" /> : <X className="w-3.5 h-3.5" />}
                       </button>
                     </td>
                   ))}

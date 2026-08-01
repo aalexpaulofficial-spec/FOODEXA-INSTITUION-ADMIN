@@ -165,7 +165,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                   </td>
                   <td className="px-4 py-3.5 text-slate-400">{student.campusBlock}</td>
                   <td className="px-4 py-3.5 font-mono text-emerald-400 font-bold">
-                    ₹{student.walletBalance.toFixed(2)}
+                    ₹{(student.walletBalance || 0).toFixed(2)}
                   </td>
                   <td className="px-4 py-3.5">
                     <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded bg-cyan-500/10 text-cyan-300 text-[11px] font-mono border border-cyan-500/20">
@@ -270,7 +270,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
               <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800">
                 <div className="text-[10px] text-slate-500 uppercase font-semibold">Meal Wallet Balance</div>
                 <div className="text-lg font-black text-emerald-400 font-mono mt-1">
-                     ₹{activeStudentDrawer.walletBalance.toFixed(2)}
+                     ₹{(activeStudentDrawer.walletBalance || 0).toFixed(2)}
                 </div>
               </div>
               <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800">
@@ -285,8 +285,8 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
             <div>
               <label className="text-xs font-semibold text-slate-400 block mb-2">Dietary Preferences</label>
               <div className="flex flex-wrap gap-1.5">
-                {activeStudentDrawer.dietaryPreference.length > 0 ? (
-                  activeStudentDrawer.dietaryPreference.map((pref) => (
+                {(activeStudentDrawer.dietaryPreference || []).length > 0 ? (
+                  (activeStudentDrawer.dietaryPreference || []).map((pref) => (
                     <span
                       key={pref}
                       className="px-2.5 py-1 rounded-lg bg-amber-500/10 text-amber-300 border border-amber-500/20 text-xs font-medium"
@@ -321,7 +321,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                         <div className="text-[10px] text-indigo-300 font-semibold mt-0.5">{roleBadge}</div>
                       </div>
                       <div className="text-right">
-                        <div className="font-mono font-bold text-emerald-400">${ord.totalAmount.toFixed(2)}</div>
+                        <div className="font-mono font-bold text-emerald-400">₹{(ord.totalAmount || 0).toFixed(2)}</div>
                         <div className="text-[10px] text-slate-400 uppercase font-semibold">{ord.status}</div>
                       </div>
                     </div>

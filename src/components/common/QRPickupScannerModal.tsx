@@ -124,7 +124,7 @@ export const QRPickupScannerModal: React.FC<QRPickupScannerModalProps> = ({
                 }}
                 className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-mono text-[11px] border border-slate-700"
               >
-                {o.pickupCode} ({o.studentName.split(' ')[0]})
+                {o.pickupCode} ({(o.studentName || '').split(' ')[0]})
               </button>
             ))}
           </div>

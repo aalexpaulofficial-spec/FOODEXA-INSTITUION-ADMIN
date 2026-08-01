@@ -9,7 +9,6 @@ import {
   Flame,
   Clock,
   Utensils,
-  DollarSign,
   RefreshCw,
   Check,
   ImageOff,

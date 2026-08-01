@@ -9,7 +9,6 @@ import {
   Eye,
   User,
   Store,
-  DollarSign,
   GraduationCap,
   Mail,
   Smartphone,

@@ -231,7 +231,7 @@ export function App() {
 
                     {currentTab === 'reports' && <ReportsView />}
 
-                    {currentTab === 'campus' && <CampusManagement campusBlocks={campusBlocks} />}
+                    {currentTab === 'campus' && <CampusManagement campusBlocks={campusBlocks} currentInstitution={institution} vendors={vendors} counters={counters} staff={staff} />}
 
                     {currentTab === 'staff' && (
                       <StaffManagement staff={staff} onTogglePermission={toggleStaffPermission} onAddStaff={addStaff} onUpdateStaff={updateStaff} onDeleteStaff={deleteStaff} />

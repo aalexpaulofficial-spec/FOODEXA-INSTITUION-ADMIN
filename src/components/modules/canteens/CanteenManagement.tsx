@@ -230,7 +230,7 @@ export const CanteenManagement: React.FC<CanteenManagementProps> = ({
   const handleEditCounterOpen = useCallback((counter: Counter) => {
     setEditingCounter(counter);
     setNewCounterName(counter.name);
-    setNewAssignedStaff(counter.assignedStaff.join(', '));
+    setNewAssignedStaff(counter.assignedStaff?.join(', ') || '');
     setCounterError(null);
     setIsEditCounterOpen(true);
   }, []);
@@ -472,7 +472,7 @@ export const CanteenManagement: React.FC<CanteenManagementProps> = ({
                     Assigned Menu Categories:
                   </div>
                   <div className="flex flex-wrap gap-1.5">
-                    {counter.categories.map((cat) => (
+                    {(counter.categories || []).map((cat) => (
                       <span
                         key={cat}
                         className="px-2.5 py-0.5 rounded-lg bg-slate-950 text-amber-300 border border-amber-500/20 text-[11px] font-medium"
@@ -509,7 +509,7 @@ export const CanteenManagement: React.FC<CanteenManagementProps> = ({
                     <Users className="w-3.5 h-3.5 text-slate-500" />
                     <span>Assigned Kitchen Staff:</span>
                   </span>
-                  <span className="text-slate-200 font-semibold">{counter.assignedStaff.join(', ') || 'N/A'}</span>
+                  <span className="text-slate-200 font-semibold">{counter.assignedStaff?.join(', ') || 'N/A'}</span>
                 </div>
               </div>
             </div>
@@ -677,7 +677,7 @@ export const CanteenManagement: React.FC<CanteenManagementProps> = ({
                 <div className="p-3 rounded-xl bg-slate-950 border border-slate-800">
                   <div className="text-[10px] text-slate-500 uppercase font-semibold">Monthly Sales Revenue</div>
                   <div className="text-sm font-bold text-emerald-400 font-mono mt-1">
-                    ₹{selectedVendorModal.monthlyRevenue.toLocaleString()}
+                    ₹{(selectedVendorModal.monthlyRevenue || 0).toLocaleString()}
                   </div>
                 </div>
               </div>
