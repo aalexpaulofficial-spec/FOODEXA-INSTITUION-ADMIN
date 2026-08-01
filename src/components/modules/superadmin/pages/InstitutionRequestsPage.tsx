@@ -224,7 +224,7 @@ export const InstitutionRequestsPage: React.FC = () => {
         <div className="p-4 rounded-2xl bg-red-950/50 border border-red-500/40 text-red-400 text-xs space-y-2">
           <p className="font-bold text-sm">Supabase Admin Access Error</p>
           <p>{error}</p>
-          <p className="text-red-300/70">All database operations will fail until this is fixed. Check your VITE_SUPABASE_SERVICE_ROLE_KEY environment variable.</p>
+          <p className="text-red-300/70">All database operations will fail until this is fixed. Check your Supabase service role key configuration.</p>
           <button onClick={refresh} className="px-3 py-1.5 rounded-lg bg-red-500/20 border border-red-500/40 text-red-300 text-xs font-bold">
             Retry Connection
           </button>

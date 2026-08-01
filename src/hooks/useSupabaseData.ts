@@ -226,7 +226,7 @@ export function useSupabaseData(): UseSupabaseDataReturn {
           checkErr.message?.toLowerCase().includes('policy')
         ) {
           setError(
-            'Supabase admin access denied. The service role key (VITE_SUPABASE_SERVICE_ROLE_KEY) is invalid, expired, or not set. ' +
+            'Supabase admin access denied. The service role key is invalid, expired, or not set. ' +
             'Check your Supabase project settings and ensure the key has the service_role claim. ' +
             'Without it, RLS policies block all write operations. ' +
             `Raw error: ${checkErr.message}`
@@ -607,7 +607,7 @@ password: password,
     if (instError) {
       if (instError.message?.toLowerCase().includes('row-level security') || instError.message?.toLowerCase().includes('policy')) {
         throw new Error(
-          'RLS policy blocked institution insert. The Supabase service role key (VITE_SUPABASE_SERVICE_ROLE_KEY) is likely invalid or not set. ' +
+          'RLS policy blocked institution insert. The Supabase service role key is likely invalid or not set. ' +
           'Go to Supabase Dashboard → Project Settings → API → service_role key and update the environment variable. ' +
           `Raw error: ${instError.message}`
         );

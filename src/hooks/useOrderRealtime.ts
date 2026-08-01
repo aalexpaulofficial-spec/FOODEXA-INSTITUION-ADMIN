@@ -115,6 +115,7 @@ export function useOrderRealtime(
   const [isRealtime, setIsRealtime] = useState(false);
   const profilesRef = useRef(profiles);
   const channelRef = useRef<any>(null);
+  const isEnrichingRef = useRef(false);
 
   useEffect(() => {
     profilesRef.current = profiles;
@@ -425,54 +426,65 @@ export function useOrderRealtime(
   }, [fetchOrders]);
 
   useEffect(() => {
-    if (profiles.length > 0 && orders.length > 0) {
-      const reEnriched = enrichOrdersWithProfile(
-        orders.map((o) => {
-          const raw: any = {
-            id: o.id,
-            institution_id: o.institutionId,
-            order_number: o.orderNumber,
-            student_id: o.studentId,
-            student_name: o.studentName,
-            student_department: o.studentDepartment,
-            vendor_id: o.vendorId,
-            vendor_name: o.vendorName,
-            canteen_name: o.canteenName,
-            pickup_counter: o.pickupCounter,
-            pickup_number: o.pickupNumber,
-            token_number: o.tokenNumber,
-            estimated_wait_mins: o.estimatedWaitMins,
-            items: o.items,
-            order_items: o.orderItems,
-            total_amount: o.totalAmount,
-            status: o.status,
-            order_status: o.orderStatus,
-            kitchen_status: o.kitchenStatus,
-            counter_status: o.counterStatus,
-            created_at: o.created_at,
-            updated_at: o.updatedAt,
-            accepted_at: o.acceptedAt,
-            preparing_at: o.preparingAt,
-            ready_at: o.readyAt,
-            completed_at: o.completedAt,
-            cancelled_at: o.cancelledAt,
-            pickup_time_estimated: o.pickupTimeEstimated,
-            pickup_code: o.pickupCode,
-            qr_code_data: o.qrCodeData,
-            payment_method: o.paymentMethod,
-            payment_status: o.paymentStatus,
-            notes: o.notes,
-            is_priority: o.isPriority,
-            user_role: o.userRole,
-            user_email: o.userEmail,
-            user_phone: o.userPhone,
-          };
-          return raw;
-        })
-      );
-      setOrders(reEnriched);
-    }
-  }, [profiles, enrichOrdersWithProfile, orders]);
+    if (profiles.length === 0 || orders.length === 0 || isEnrichingRef.current) return;
+    isEnrichingRef.current = true;
+
+    const reEnriched = enrichOrdersWithProfile(
+      orders.map((o) => {
+        const raw: any = {
+          id: o.id,
+          institution_id: o.institutionId,
+          order_number: o.orderNumber,
+          student_id: o.studentId,
+          student_name: o.studentName,
+          student_department: o.studentDepartment,
+          vendor_id: o.vendorId,
+          vendor_name: o.vendorName,
+          canteen_name: o.canteenName,
+          pickup_counter: o.pickupCounter,
+          pickup_number: o.pickupNumber,
+          token_number: o.tokenNumber,
+          estimated_wait_mins: o.estimatedWaitMins,
+          items: o.items,
+          order_items: o.orderItems,
+          total_amount: o.totalAmount,
+          status: o.status,
+          order_status: o.orderStatus,
+          kitchen_status: o.kitchenStatus,
+          counter_status: o.counterStatus,
+          created_at: o.created_at,
+          updated_at: o.updatedAt,
+          accepted_at: o.acceptedAt,
+          preparing_at: o.preparingAt,
+          ready_at: o.readyAt,
+          completed_at: o.completedAt,
+          cancelled_at: o.cancelledAt,
+          pickup_time_estimated: o.pickupTimeEstimated,
+          pickup_code: o.pickupCode,
+          qr_code_data: o.qrCodeData,
+          payment_method: o.paymentMethod,
+          payment_status: o.paymentStatus,
+          notes: o.notes,
+          is_priority: o.isPriority,
+          user_role: o.userRole,
+          user_email: o.userEmail,
+          user_phone: o.userPhone,
+        };
+        return raw;
+      })
+    );
+
+    setOrders(reEnriched);
+
+    const timer = setTimeout(() => {
+      isEnrichingRef.current = false;
+    }, 500);
+
+    return () => {
+      clearTimeout(timer);
+      isEnrichingRef.current = false;
+    };
+  }, [profiles, enrichOrdersWithProfile]);
 
   return {
     orders,

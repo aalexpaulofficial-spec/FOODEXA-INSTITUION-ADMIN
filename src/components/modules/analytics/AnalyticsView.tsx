@@ -41,7 +41,7 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({ orders = [], stude
     const dailyRevenueData = Object.entries(daily).map(([day, data]) => ({ day, revenue: data.revenue, orders: data.orders }));
     const popularMealsData = Object.entries(meals).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([name, sales]) => ({ name, sales }));
     const total = Object.values(meals).reduce((a, b) => a + b, 0);
-    const departmentShareData = Object.entries(depts).map(([name, value], i) => ({ name, value: Math.round((value / orders.length) * 100), color: COLORS[i % COLORS.length] }));
+    const departmentShareData = Object.entries(depts).map(([name, value], i) => ({ name, value: orders.length > 0 ? Math.round((value / orders.length) * 100) : 0, color: COLORS[i % COLORS.length] }));
     const roleBreakdownData = Object.entries(roles).map(([name, value], i) => ({ name, value, color: COLORS[i % COLORS.length] }));
 
     return { dailyRevenue: dailyRevenueData, popularMeals: popularMealsData, departmentShare: departmentShareData, totalRevenue: rev, totalMeals: mealsCount, roleBreakdown: roleBreakdownData };

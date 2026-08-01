@@ -1,4 +1,5 @@
 import React, { useState, useEffect, ErrorInfo, ReactNode } from 'react';
+import { AlertCircle } from 'lucide-react';
 
 interface ErrorBoundaryState {
   hasError: boolean;
