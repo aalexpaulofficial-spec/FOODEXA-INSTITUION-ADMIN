@@ -490,7 +490,7 @@ export function useSupabaseData(): UseSupabaseDataReturn {
   };
 
   // ---------------------------------------------------------------
-  // Approve a request: full workflow (server-side via edge function)
+  // Approve a request: full workflow (server-side via Express API)
   // ---------------------------------------------------------------
   const approveRequest = async (id: string, credentials?: ApprovalCredentials): Promise<ApprovalResult> => {
     const request = institutionRequests.find((r) => r.id === id);
@@ -501,7 +501,7 @@ export function useSupabaseData(): UseSupabaseDataReturn {
     const institutionCode = (credentials?.institution_code || await generateInstitutionCode(request.institution_name)).trim().toUpperCase();
     const generatedEmail = credentials?.generated_email || request.institution_email;
 
-    // The server-side edge function runs the whole transaction:
+    // The Express server runs the whole transaction:
     // create auth user, insert institutions, update requests,
     // upsert profiles, audit log, notification, and credentials email.
     const result = await adminApi.approveInstitution({
@@ -525,7 +525,7 @@ export function useSupabaseData(): UseSupabaseDataReturn {
   };
 
   // ---------------------------------------------------------------
-  // Reset password (server-side via edge function)
+  // Reset password (server-side via Express API)
   // ---------------------------------------------------------------
   const resetPassword = async (email: string, institutionName?: string, institutionCode?: string, contactPerson?: string) => {
     const result = await adminApi.resetPassword({
@@ -538,127 +538,26 @@ export function useSupabaseData(): UseSupabaseDataReturn {
   };
 
   // ---------------------------------------------------------------
-  // Reject a request with reason
+  // Reject a request with reason (server-side via Express API)
   // ---------------------------------------------------------------
   const rejectRequest = async (id: string, reason?: string) => {
     const request = institutionRequests.find((r) => r.id === id);
     if (!request) throw new Error('Institution request not found. Please refresh and try again.');
 
-    const updateData: Partial<InstitutionRequest> = {
-      status: 'rejected',
-      rejection_reason: reason || null,
-    };
-
-    const { error: updateErr } = await supabase
-      .from(REQUESTS_TABLE)
-      .update(updateData)
-      .eq('id', id);
-
-    if (updateErr) {
-      if (updateErr.message?.toLowerCase().includes('row-level security') || updateErr.message?.toLowerCase().includes('policy')) {
-        throw new Error(
-          'RLS policy blocked the update. Your account may not have permission. ' +
-          `Raw error: ${updateErr.message}`
-        );
-      }
-      throw new Error(`Failed to reject request: ${updateErr.message}`);
-    }
-
-    // Non-blocking email attempt
-    try {
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-      const emailResponse = await fetch(`${supabaseUrl}/functions/v1/send-rejection-email`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${supabaseAnonKey}` },
-        body: JSON.stringify({
-          institution_name: request.institution_name,
-          institution_email: request.institution_email,
-          rejection_reason: reason || 'No specific reason provided.',
-        }),
-      });
-      if (!emailResponse.ok && emailResponse.status !== 404) {
-        const body = await emailResponse.text();
-        console.error(`[rejectRequest] Rejection email failed (HTTP ${emailResponse.status}):`, body);
-      }
-    } catch (emailErr: any) {
-      if (!emailErr?.message?.includes('Failed to fetch') && emailErr?.name !== 'TypeError') {
-        console.error('[rejectRequest] Failed to send rejection email:', emailErr);
-      }
-    }
-
-    await createAuditLog('Institution Rejected', request.institution_name, id, reason || 'No reason provided');
-
-    await supabase.from(NOTIFICATIONS_TABLE).insert({
-      type: 'warning',
-      title: 'Institution Rejected',
-      message: `${request.institution_name} registration has been rejected.${reason ? ` Reason: ${reason}` : ''}`,
-      read: false,
-    });
+    await adminApi.rejectRequest(id, reason || '');
 
     await fetchAll();
   };
 
-  const sendChangesEmailNotification = async (institutionName: string, institutionEmail: string, notes: string) => {
-    try {
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-      const emailResponse = await fetch(`${supabaseUrl}/functions/v1/send-rejection-email`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${supabaseAnonKey}` },
-        body: JSON.stringify({
-          institution_name: institutionName,
-          institution_email: institutionEmail,
-          rejection_reason: `Changes requested: ${notes}. Please resubmit your registration with the requested changes.`,
-        }),
-      });
-      if (!emailResponse.ok && emailResponse.status !== 404) {
-        const body = await emailResponse.text();
-        console.error(`[sendChangesEmailNotification] Changes email failed (HTTP ${emailResponse.status}):`, body);
-      }
-    } catch (emailErr: any) {
-      if (!emailErr?.message?.includes('Failed to fetch') && emailErr?.name !== 'TypeError') {
-        console.error('[sendChangesEmailNotification] Failed to send changes-requested email:', emailErr);
-      }
-    }
-  };
-
   // ---------------------------------------------------------------
-  // Request changes
+  // Request changes (server-side via Express API)
   // ---------------------------------------------------------------
   const requestChanges = async (id: string, notes: string) => {
     if (!notes.trim()) throw new Error('Please provide notes describing the changes needed.');
     const request = institutionRequests.find((r) => r.id === id);
     if (!request) throw new Error('Institution request not found. Please refresh and try again.');
 
-    const { error: updateErr } = await supabase
-      .from(REQUESTS_TABLE)
-      .update({
-        status: 'changes_requested',
-        admin_notes: notes,
-      })
-      .eq('id', id);
-
-    if (updateErr) {
-      if (updateErr.message?.toLowerCase().includes('row-level security') || updateErr.message?.toLowerCase().includes('policy')) {
-        throw new Error(
-          'RLS policy blocked the update. Your account may not have permission. ' +
-          `Raw error: ${updateErr.message}`
-        );
-      }
-      throw new Error(`Failed to request changes: ${updateErr.message}`);
-    }
-
-    await sendChangesEmailNotification(request.institution_name, request.institution_email, notes);
-
-    await createAuditLog('Changes Requested', request.institution_name, id, notes);
-
-    await supabase.from(NOTIFICATIONS_TABLE).insert({
-      type: 'info',
-      title: 'Changes Requested',
-      message: `Changes requested for ${request.institution_name}: ${notes}`,
-      read: false,
-    });
+    await adminApi.requestChanges(id, notes);
 
     await fetchAll();
   };
@@ -810,7 +709,7 @@ export function useSupabaseData(): UseSupabaseDataReturn {
   };
 
   // ---------------------------------------------------------------
-  // Global Search (server-side PostgreSQL ILIKE via edge function)
+  // Global Search (server-side PostgreSQL ILIKE via Express API)
   // ---------------------------------------------------------------
   const globalSearch = async (term: string): Promise<GlobalSearchResult[]> => {
     if (!term || term.length < 2) return [];
