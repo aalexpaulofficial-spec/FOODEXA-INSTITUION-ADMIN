@@ -388,8 +388,8 @@ async function startServer() {
       const email = generatedEmail || request.institution_email;
 
       const [reqCode, instCode] = await Promise.all([
-        serverSupabase.from('institution_requests').select('id').eq('institution_code', institutionCode).neq('id', requestId).maybeSingle(),
-        serverSupabase.from('institutions').select('id').eq('institution_code', institutionCode).maybeSingle(),
+        serverSupabase.from('institution_requests').select('id').eq('institution_code', institutionCode).neq('id', requestId).limit(1).maybeSingle(),
+        serverSupabase.from('institutions').select('id').eq('institution_code', institutionCode).limit(1).maybeSingle(),
       ]);
 
       if (reqCode.data || instCode.data) {

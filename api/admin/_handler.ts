@@ -207,11 +207,13 @@ async function approveInstitution(req: any, res: any) {
       .select('id')
       .eq('institution_code', institutionCode)
       .neq('id', requestId)
+      .limit(1)
       .maybeSingle(),
     admin
       .from('institutions')
       .select('id')
       .eq('institution_code', institutionCode)
+      .limit(1)
       .maybeSingle(),
   ]);
 
