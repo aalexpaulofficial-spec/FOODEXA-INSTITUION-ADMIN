@@ -706,7 +706,7 @@ export const InstitutionRequestsPage: React.FC = () => {
                 ) : approvalResult.email_sent ? (
                   <span className="text-xs text-emerald-400 font-bold flex items-center gap-1"><CheckCircle className="w-3 h-3" /> Sent Successfully</span>
                 ) : (
-                  <span className="text-xs text-orange-400 font-bold flex items-center gap-1"><XCircle className="w-3 h-3" /> Not Sent (Function not deployed)</span>
+                  <span className="text-xs text-orange-400 font-bold flex items-center gap-1"><XCircle className="w-3 h-3" /> Not Sent</span>
                 )}
               </div>
             </div>
@@ -754,3 +754,4 @@ export const InstitutionRequestsPage: React.FC = () => {
 };
 
 export default InstitutionRequestsPage;
+

@@ -3,6 +3,7 @@ import ErrorBoundary from './context/ErrorBoundary';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
 import { PortalRole, OrderStatus } from './types';
+import { AlertCircle } from 'lucide-react';
 
 import { LoginView } from './components/modules/auth/LoginView';
 import { Header } from './components/common/Header';
@@ -72,13 +73,18 @@ export function App() {
   if (authLoading) {
     return (
       <div className="min-h-screen bg-[#09090B] text-[#FAFAFA] flex items-center justify-center">
-        <div className="flex flex-col items-center space-y-4">
-          <div className="w-12 h-12 rounded-full border-2 border-indigo-500 border-t-transparent animate-spin" />
-          <p className="text-sm text-zinc-400">Loading...</p>
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-14 h-14 bg-gradient-to-br from-indigo-500 to-indigo-600 rounded-2xl flex items-center justify-center shadow-lg shadow-indigo-500/20 animate-pulse-glow">
+            <span className="font-black text-white text-sm tracking-tight">FX</span>
+          </div>
+          <div className="flex flex-col items-center gap-2">
+            <div className="w-8 h-8 rounded-full border-2 border-indigo-500 border-t-transparent animate-spin" />
+            <p className="text-xs text-zinc-500 font-medium">Loading FOODEXA...</p>
+          </div>
         </div>
       </div>
     );
-}
+  }
 
   if (!user) {
     return <LoginView />;
@@ -87,19 +93,22 @@ export function App() {
   if (role === 'institution_admin' && !authInstId) {
     return (
       <div className="min-h-screen bg-[#09090B] text-[#FAFAFA] flex items-center justify-center">
-        <div className="max-w-md w-full p-8 bg-[#0C0C0E] rounded-2xl border border-zinc-800 text-center">
-          <h2 className="text-xl font-bold mb-4 text-red-500">Access Error</h2>
-          <p className="text-zinc-400 mb-6">You are logged in but not associated with an institution. Please contact support or sign in with a different account.</p>
+        <div className="max-w-sm w-full p-8 bg-[#0C0C0E] rounded-3xl border border-zinc-800 text-center">
+          <div className="w-14 h-14 rounded-2xl bg-red-500/10 border border-red-500/20 flex items-center justify-center mx-auto mb-4">
+            <AlertCircle className="w-7 h-7 text-red-400" />
+          </div>
+          <h2 className="text-lg font-bold mb-2 text-white">Access Error</h2>
+          <p className="text-sm text-zinc-400 mb-6 leading-relaxed">You are logged in but not associated with an institution. Please contact support or sign in with a different account.</p>
           <button
             onClick={signOut}
-            className="px-6 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-semibold transition-colors"
+            className="foodexa-btn foodexa-btn-primary w-full"
           >
             Sign Out
           </button>
         </div>
       </div>
     );
-}
+  }
 
   const handleUpdateOrderStatus = (orderId: string, status: OrderStatus) => {
     updateOrderStatus(orderId, status);
@@ -131,8 +140,8 @@ export function App() {
           onCloseMobileMenu={() => setIsMobileMenuOpen(false)}
         />
 
-        <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 bg-[#09090B]">
-          <div className="max-w-7xl mx-auto">
+        <main className="flex-1 overflow-y-auto bg-[#09090B]">
+          <div className="max-w-7xl mx-auto p-4 sm:p-6 lg:p-8">
             {role === 'super_admin' ? (
               <SuperAdminDataProvider>
                 <Routes>
@@ -150,9 +159,9 @@ export function App() {
               <>
                 {dataLoading ? (
                   <div className="flex items-center justify-center py-32">
-                    <div className="flex flex-col items-center space-y-4">
+                    <div className="flex flex-col items-center gap-3">
                       <div className="w-10 h-10 rounded-full border-2 border-indigo-500 border-t-transparent animate-spin" />
-                      <p className="text-xs text-zinc-500">Loading institution data...</p>
+                      <p className="text-xs text-zinc-500 font-medium">Loading institution data...</p>
                     </div>
                   </div>
                 ) : (

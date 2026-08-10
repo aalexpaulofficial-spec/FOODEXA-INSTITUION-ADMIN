@@ -1,7 +1,8 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { handleCors, jsonResponse } from "../_shared/cors.ts";
 import { requireSuperAdmin, generatePassword } from "../_shared/admin.ts";
-import { sendCredentialsEmail } from "../_shared/email.ts";
+import { sendCredentialsEmail } from '../_shared/email.ts';
+import { getPortalUrl } from '../_shared/env.ts';
 
 serve(async (req: Request) => {
   const cors = handleCors(req);
@@ -45,7 +46,7 @@ serve(async (req: Request) => {
       type: "recovery",
       email,
       options: {
-        redirectTo: "https://foodexa-institution-platform.vercel.app/login",
+        redirectTo: `${getPortalUrl()}/login`,
       },
     });
 
@@ -56,7 +57,7 @@ serve(async (req: Request) => {
       institution_code: institutionCode || "N/A",
       login_email: email,
       password: newPassword,
-      portal_url: "https://foodexa-institution-platform.vercel.app",
+      portal_url: getPortalUrl(),
       contact_person: contactPerson,
       first_login_instructions:
         "Your password has been reset. Use the temporary password below to sign in, then change it after your first login.",
@@ -91,3 +92,6 @@ serve(async (req: Request) => {
     );
   }
 });
+
+
+

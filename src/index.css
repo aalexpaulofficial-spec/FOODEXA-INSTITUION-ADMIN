@@ -1,93 +1,197 @@
 @import "tailwindcss";
 
-@keyframes slideInLeft {
-  from {
-    transform: translateX(-100%);
-  }
-  to {
-    transform: translateX(0);
-  }
+@theme {
+  --font-sans: "SF Pro Display", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-mono: "SF Mono", "Fira Code", "Fira Mono", "Roboto Mono", Menlo, Monaco, Consolas, monospace;
 }
 
+/* ========================================
+   FOODEXA Apple-Style Design System
+   Premium SaaS Visual Language
+   ======================================== */
+
+/* Keyframe Animations */
 @keyframes fadeIn {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
-.animate-slide-in-left {
-  animation: slideInLeft 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
-.animate-fade-in {
-  animation: fadeIn 0.2s ease-out forwards;
+@keyframes fadeInDown {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.96); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes slideInLeft {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(0); }
+}
+
+@keyframes slideInRight {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+@keyframes pulseGlow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0); }
+  50% { box-shadow: 0 0 20px 4px rgba(99, 102, 241, 0.15); }
+}
+
+@keyframes flowPulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 1; }
 }
 
 @keyframes bounceShort {
   0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-6px); }
+  50% { transform: translateY(-4px); }
+}
+
+/* Animation Utility Classes */
+.animate-fade-in {
+  animation: fadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-fade-in-up {
+  animation: fadeInUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-fade-in-down {
+  animation: fadeInDown 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-scale-in {
+  animation: scaleIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-slide-in-left {
+  animation: slideInLeft 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-shimmer {
+  background: linear-gradient(90deg, transparent 0%, rgba(99, 102, 241, 0.06) 50%, transparent 100%);
+  background-size: 200% 100%;
+  animation: shimmer 2s infinite;
+}
+
+.animate-pulse-glow {
+  animation: pulseGlow 3s ease-in-out infinite;
 }
 
 .animate-bounce-short {
   animation: bounceShort 0.4s ease-out;
 }
 
+/* Staggered animation delays */
+.stagger-1 { animation-delay: 0.05s; }
+.stagger-2 { animation-delay: 0.1s; }
+.stagger-3 { animation-delay: 0.15s; }
+.stagger-4 { animation-delay: 0.2s; }
+.stagger-5 { animation-delay: 0.25s; }
+.stagger-6 { animation-delay: 0.3s; }
+
 /* Universal Smooth Theme Transitions */
 html, body, div, span, header, aside, main, nav, section, article, button, input, select, textarea, table, th, td, tr {
-  transition: background-color 0.25s cubic-bezier(0.4, 0, 0.2, 1),
-              border-color 0.25s cubic-bezier(0.4, 0, 0.2, 1),
-              color 0.25s cubic-bezier(0.4, 0, 0.2, 1),
-              box-shadow 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: background-color 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+              border-color 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+              color 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+              box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+              opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-/* Light Mode Variables & Base Overrides */
-html.light,
-html:not(.dark) {
-  color-scheme: light;
-  --bg-page: #f8fafc;
-  --bg-card: #ffffff;
-  --border-card: #e2e8f0;
-  --text-main: #0f172a;
-  --text-muted: #475569;
-}
+/* ========================================
+   CSS Custom Properties - Theme Tokens
+   ======================================== */
 
 html.dark {
   color-scheme: dark;
   --bg-page: #09090b;
   --bg-card: #0c0c0e;
+  --bg-elevated: #111113;
+  --bg-surface: #161618;
+  --bg-hover: #1c1c1f;
   --border-card: #27272a;
+  --border-subtle: #1e1e22;
   --text-main: #f8fafc;
-  --text-muted: #a1a1aa;
+  --text-secondary: #a1a1aa;
+  --text-muted: #71717a;
+  --accent-primary: #6366f1;
+  --accent-glow: rgba(99, 102, 241, 0.25);
+  --shadow-card: 0 1px 3px 0 rgba(0, 0, 0, 0.4), 0 1px 2px -1px rgba(0, 0, 0, 0.3);
+  --shadow-elevated: 0 4px 16px -2px rgba(0, 0, 0, 0.5), 0 2px 8px -2px rgba(0, 0, 0, 0.4);
+  --glass-bg: rgba(12, 12, 14, 0.8);
+  --glass-border: rgba(39, 39, 42, 0.5);
+  --glass-blur: 20px;
 }
 
-/* Light Mode Page Background */
+html.light,
+html:not(.dark) {
+  color-scheme: light;
+  --bg-page: #f8fafc;
+  --bg-card: #ffffff;
+  --bg-elevated: #ffffff;
+  --bg-surface: #f1f5f9;
+  --bg-hover: #f1f5f9;
+  --border-card: #e2e8f0;
+  --border-subtle: #f1f5f9;
+  --text-main: #0f172a;
+  --text-secondary: #475569;
+  --text-muted: #94a3b8;
+  --accent-primary: #4f46e5;
+  --accent-glow: rgba(79, 70, 229, 0.15);
+  --shadow-card: 0 1px 3px 0 rgba(0, 0, 0, 0.06), 0 1px 2px -1px rgba(0, 0, 0, 0.04);
+  --shadow-elevated: 0 4px 16px -2px rgba(0, 0, 0, 0.08), 0 2px 8px -2px rgba(0, 0, 0, 0.04);
+  --glass-bg: rgba(255, 255, 255, 0.85);
+  --glass-border: rgba(226, 232, 240, 0.6);
+  --glass-blur: 20px;
+}
+
+/* ========================================
+   Light Mode Base Overrides
+   ======================================== */
+
 html.light body,
 html:not(.dark) body {
   background-color: #f8fafc !important;
   color: #0f172a !important;
 }
 
-/* Header & Navigation in Light Mode */
+/* Header in Light Mode */
 html.light header,
 html:not(.dark) header {
-  background-color: #ffffff !important;
+  background-color: rgba(255, 255, 255, 0.85) !important;
+  backdrop-filter: blur(20px) saturate(180%) !important;
+  -webkit-backdrop-filter: blur(20px) saturate(180%) !important;
   border-color: #e2e8f0 !important;
   color: #0f172a !important;
-  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.04) !important;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.04) !important;
 }
 
 /* Sidebar in Light Mode */
 html.light aside,
 html:not(.dark) aside {
-  background-color: #ffffff !important;
+  background-color: rgba(255, 255, 255, 0.9) !important;
+  backdrop-filter: blur(20px) saturate(180%) !important;
+  -webkit-backdrop-filter: blur(20px) saturate(180%) !important;
   border-color: #e2e8f0 !important;
   box-shadow: 1px 0 3px 0 rgba(0, 0, 0, 0.02) !important;
 }
 
-/* Cards, Panels, Modules in Light Mode */
+/* Cards in Light Mode */
 html.light .bg-\[\#09090B\],
 html.light .bg-\[\#0C0C0E\],
 html.light .bg-\[\#0C0C0E\]\/50,
@@ -114,10 +218,10 @@ html:not(.dark) .bg-zinc-900\/60,
 html:not(.dark) .bg-zinc-900\/50 {
   background-color: #ffffff !important;
   border-color: #e2e8f0 !important;
-  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05), 0 1px 2px -1px rgba(0, 0, 0, 0.05) !important;
+  box-shadow: var(--shadow-card) !important;
 }
 
-/* Deep Container Elements (e.g. inner code boxes, input wraps, sub-cards) */
+/* Deep Container Elements */
 html.light .bg-slate-950,
 html.light .bg-slate-950\/80,
 html.light .bg-slate-950\/90,
@@ -130,11 +234,11 @@ html:not(.dark) .bg-slate-950\/90,
 html:not(.dark) .bg-zinc-950,
 html:not(.dark) .bg-zinc-950\/80,
 html:not(.dark) .bg-zinc-950\/90 {
-  background-color: #f1f5f9 !important; /* bg-slate-100 */
-  border-color: #cbd5e1 !important;
+  background-color: #f8fafc !important;
+  border-color: #e2e8f0 !important;
 }
 
-/* Typography Overrides in Light Mode */
+/* Typography in Light Mode */
 html.light .text-white,
 html.light .text-slate-100,
 html.light .text-slate-200,
@@ -147,7 +251,7 @@ html:not(.dark) .text-slate-200,
 html:not(.dark) .text-zinc-100,
 html:not(.dark) .text-zinc-200,
 html:not(.dark) .text-\[\#FAFAFA\] {
-  color: #0f172a !important; /* text-slate-900 */
+  color: #0f172a !important;
 }
 
 html.light .text-slate-300,
@@ -158,17 +262,17 @@ html:not(.dark) .text-slate-300,
 html:not(.dark) .text-zinc-300,
 html:not(.dark) .text-slate-400,
 html:not(.dark) .text-zinc-400 {
-  color: #334155 !important; /* text-slate-700 */
+  color: #475569 !important;
 }
 
 html.light .text-slate-500,
 html.light .text-zinc-500,
 html:not(.dark) .text-slate-500,
 html:not(.dark) .text-zinc-500 {
-  color: #64748b !important; /* text-slate-500 */
+  color: #94a3b8 !important;
 }
 
-/* High Contrast Accent Text in Light Mode */
+/* Accent Text in Light Mode */
 html.light .text-indigo-400,
 html:not(.dark) .text-indigo-400 {
   color: #4f46e5 !important;
@@ -189,7 +293,12 @@ html:not(.dark) .text-cyan-400 {
   color: #0891b2 !important;
 }
 
-/* High Contrast Badge Backgrounds in Light Mode */
+html.light .text-purple-400,
+html:not(.dark) .text-purple-400 {
+  color: #7c3aed !important;
+}
+
+/* Badge Backgrounds in Light Mode */
 html.light .bg-indigo-500\/10,
 html:not(.dark) .bg-indigo-500\/10 {
   background-color: #eef2ff !important;
@@ -225,6 +334,13 @@ html:not(.dark) .bg-cyan-500\/10 {
   border-color: #a5f3fc !important;
 }
 
+html.light .bg-purple-500\/10,
+html:not(.dark) .bg-purple-500\/10 {
+  background-color: #faf5ff !important;
+  color: #7c3aed !important;
+  border-color: #e9d5ff !important;
+}
+
 /* Borders in Light Mode */
 html.light .border-slate-800,
 html.light .border-zinc-800,
@@ -241,7 +357,7 @@ html:not(.dark) .border-zinc-700 {
   border-color: #e2e8f0 !important;
 }
 
-/* Inputs, Selects & Textareas in Light Mode */
+/* Inputs in Light Mode */
 html.light input,
 html.light select,
 html.light textarea,
@@ -250,7 +366,7 @@ html:not(.dark) select,
 html:not(.dark) textarea {
   background-color: #ffffff !important;
   color: #0f172a !important;
-  border-color: #cbd5e1 !important;
+  border-color: #e2e8f0 !important;
 }
 
 html.light input::placeholder,
@@ -260,7 +376,7 @@ html:not(.dark) textarea::placeholder {
   color: #94a3b8 !important;
 }
 
-/* Hover effects in Light Mode */
+/* Hover Effects in Light Mode */
 html.light .hover\:bg-zinc-800:hover,
 html.light .hover\:bg-slate-800:hover,
 html.light .hover\:bg-zinc-800\/40:hover,
@@ -271,7 +387,7 @@ html:not(.dark) .hover\:bg-zinc-800\/40:hover {
   color: #0f172a !important;
 }
 
-/* Table Light Mode Overrides */
+/* Tables in Light Mode */
 html.light table,
 html:not(.dark) table {
   background-color: #ffffff !important;
@@ -280,7 +396,7 @@ html:not(.dark) table {
 html.light th,
 html:not(.dark) th {
   background-color: #f8fafc !important;
-  color: #475569 !important;
+  color: #64748b !important;
   border-bottom: 1px solid #e2e8f0 !important;
 }
 
@@ -302,5 +418,243 @@ html.light .bg-slate-950\/90,
 html:not(.dark) .bg-slate-950\/80,
 html:not(.dark) .bg-slate-950\/85,
 html:not(.dark) .bg-slate-950\/90 {
-  background-color: rgba(15, 23, 42, 0.45) !important;
+  background-color: rgba(15, 23, 42, 0.35) !important;
+}
+
+/* ========================================
+   FOODEXA Premium Component Classes
+   ======================================== */
+
+/* Glass Surface */
+.foodexa-glass {
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur)) saturate(180%);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(180%);
+  border: 1px solid var(--glass-border);
+}
+
+/* Premium Card */
+.foodexa-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-card);
+  border-radius: 16px;
+  box-shadow: var(--shadow-card);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.foodexa-card:hover {
+  box-shadow: var(--shadow-elevated);
+  border-color: rgba(99, 102, 241, 0.15);
+}
+
+/* Elevated Card */
+.foodexa-card-elevated {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-card);
+  border-radius: 20px;
+  box-shadow: var(--shadow-elevated);
+}
+
+/* Metric Card */
+.foodexa-metric {
+  background: var(--bg-card);
+  border: 1px solid var(--border-card);
+  border-radius: 16px;
+  padding: 20px 24px;
+  box-shadow: var(--shadow-card);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.foodexa-metric:hover {
+  border-color: rgba(99, 102, 241, 0.2);
+  box-shadow: var(--shadow-elevated), 0 0 0 1px rgba(99, 102, 241, 0.1);
+  transform: translateY(-1px);
+}
+
+/* Premium Button */
+.foodexa-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 20px;
+  border-radius: 12px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.foodexa-btn-primary {
+  background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+  color: white;
+  box-shadow: 0 1px 3px rgba(99, 102, 241, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+.foodexa-btn-primary:hover {
+  background: linear-gradient(135deg, #818cf8 0%, #6366f1 100%);
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.15);
+  transform: translateY(-1px);
+}
+
+.foodexa-btn-secondary {
+  background: var(--bg-surface);
+  color: var(--text-main);
+  border: 1px solid var(--border-card);
+}
+
+.foodexa-btn-secondary:hover {
+  background: var(--bg-hover);
+  border-color: rgba(99, 102, 241, 0.2);
+}
+
+/* Status Badges */
+.foodexa-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+.foodexa-badge-success {
+  background: rgba(16, 185, 129, 0.1);
+  color: #10b981;
+  border: 1px solid rgba(16, 185, 129, 0.2);
+}
+
+.foodexa-badge-warning {
+  background: rgba(245, 158, 11, 0.1);
+  color: #f59e0b;
+  border: 1px solid rgba(245, 158, 11, 0.2);
+}
+
+.foodexa-badge-danger {
+  background: rgba(239, 68, 68, 0.1);
+  color: #ef4444;
+  border: 1px solid rgba(239, 68, 68, 0.2);
+}
+
+.foodexa-badge-info {
+  background: rgba(99, 102, 241, 0.1);
+  color: #6366f1;
+  border: 1px solid rgba(99, 102, 241, 0.2);
+}
+
+.foodexa-badge-neutral {
+  background: var(--bg-surface);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-card);
+}
+
+/* Section Headers */
+.foodexa-section-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-muted);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+/* Page Title */
+.foodexa-page-title {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--text-main);
+  letter-spacing: -0.025em;
+  line-height: 1.2;
+}
+
+/* Subtitle */
+.foodexa-subtitle {
+  font-size: 15px;
+  font-weight: 400;
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+/* Separator */
+.foodexa-separator {
+  height: 1px;
+  background: var(--border-card);
+  border: none;
+  margin: 0;
+}
+
+/* Empty State */
+.foodexa-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 24px;
+  text-align: center;
+}
+
+.foodexa-empty-icon {
+  width: 56px;
+  height: 56px;
+  border-radius: 16px;
+  background: var(--bg-surface);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 16px;
+  color: var(--text-muted);
+}
+
+/* Skeleton Loading */
+.foodexa-skeleton {
+  background: linear-gradient(90deg, var(--bg-surface) 25%, var(--bg-hover) 50%, var(--bg-surface) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+  border-radius: 8px;
+}
+
+/* Scrollbar */
+.foodexa-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+
+.foodexa-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.foodexa-scroll::-webkit-scrollbar-thumb {
+  background: var(--border-card);
+  border-radius: 3px;
+}
+
+.foodexa-scroll::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}
+
+/* Flow indicator */
+.foodexa-flow-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  position: relative;
+}
+
+.foodexa-flow-dot::after {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border-radius: 50%;
+  border: 2px solid currentColor;
+  opacity: 0.2;
+}
+
+/* Gradient Text */
+.foodexa-gradient-text {
+  background: linear-gradient(135deg, #6366f1, #8b5cf6, #a78bfa);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }

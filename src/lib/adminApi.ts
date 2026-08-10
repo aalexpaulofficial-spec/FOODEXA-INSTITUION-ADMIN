@@ -6,15 +6,33 @@ import { supabase } from './supabaseClient';
  * so secrets (Resend API key, admin auth API) never touch the browser.
  */
 async function invokeEdge<T>(functionName: string, payload: unknown): Promise<T> {
-  const { data, error } = await supabase.functions.invoke<T>(functionName, { body: payload });
+  try {
+    const { data, error } = await supabase.functions.invoke<T>(functionName, {
+      body: payload,
+    });
 
-  if (error) {
-    const ctx = (error as any)?.context;
-    const message = ctx?.error || error?.message || `Edge function "${functionName}" failed.`;
-    throw new Error(message);
+    if (error) {
+      const ctx = (error as any)?.context;
+      const message = ctx?.error || error?.message || `Edge function "${functionName}" failed.`;
+      throw new Error(message);
+    }
+
+    if (data && typeof data === 'object' && 'error' in data && typeof (data as any).error === 'string') {
+      const errMsg = (data as any).error || `Edge function "${functionName}" returned an error.`;
+      throw new Error(errMsg);
+    }
+
+    if (data === null || data === undefined) {
+      throw new Error(`Edge function "${functionName}" returned no data. The function may not be deployed.`);
+    }
+
+    return data as T;
+  } catch (err) {
+    if (err instanceof Error) {
+      throw err;
+    }
+    throw new Error(`Network error calling "${functionName}". The Edge Function may not be deployed or CORS is misconfigured.`);
   }
-
-  return data as T;
 }
 
 export interface CheckEmailResult {

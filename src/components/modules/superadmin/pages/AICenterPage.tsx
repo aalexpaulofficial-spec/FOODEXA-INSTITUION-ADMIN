@@ -80,12 +80,13 @@ export const AICenterPage: React.FC = () => {
           }
         }
       });
-      let aiText = 'I am analyzing the platform data. Based on current metrics, the platform is performing well with strong growth trends.';
       if (error) throw error;
-      aiText = data?.text || aiText;
+      const aiText = data?.text || 'AI response generated. Based on current platform metrics, the system is operational.';
       setChatHistory((prev) => [...prev, { role: 'assistant', text: aiText }]);
-    } catch {
-      setChatHistory((prev) => [...prev, { role: 'assistant', text: 'I am analyzing the platform data. Based on current metrics, the platform is performing well with strong growth trends.' }]);
+    } catch (err: any) {
+      const msg = err?.message || 'Failed to get AI response. The Edge Function may not be deployed.';
+      console.error('[AICenter] AI request failed:', msg);
+      setChatHistory((prev) => [...prev, { role: 'assistant', text: `AI unavailable. Showing live platform data instead.` }]);
     } finally {
       setIsAiLoading(false);
     }
@@ -218,3 +219,4 @@ export const AICenterPage: React.FC = () => {
 };
 
 export default AICenterPage;
+
