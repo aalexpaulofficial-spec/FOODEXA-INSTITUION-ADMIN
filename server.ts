@@ -420,6 +420,10 @@ async function startServer() {
 
       const approvedAt = new Date().toISOString();
 
+      const validPlans = ['free', 'premium', 'enterprise'];
+      const requestedPlan = (request.plan || '').toLowerCase();
+      const plan = validPlans.includes(requestedPlan) ? requestedPlan : 'free';
+
       const institutionRecord = {
         name: request.institution_name,
         institution_type: request.role || 'University',
@@ -443,7 +447,7 @@ async function startServer() {
         approved_by: auth.userId,
         approved_at: approvedAt,
         status: 'active',
-        plan: request.plan || 'Basic',
+        plan: plan,
       };
 
       const { data: instData, error: instErr } = await serverSupabase
