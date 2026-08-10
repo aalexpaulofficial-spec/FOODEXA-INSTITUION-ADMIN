@@ -323,7 +323,6 @@ async function approveInstitution(req: any, res: any) {
   }
 
   const profileRecord = {
-    id: authUserId,
     user_id: authUserId,
     role: 'institution_admin',
     institution_id: institution.id,
@@ -333,7 +332,7 @@ async function approveInstitution(req: any, res: any) {
 
   const { error: profileError } = await admin
     .from('profiles')
-    .upsert(profileRecord, { onConflict: 'id' });
+    .upsert(profileRecord, { onConflict: 'user_id' });
 
   if (profileError) {
     await admin.from('institutions').delete().eq('id', institution.id);

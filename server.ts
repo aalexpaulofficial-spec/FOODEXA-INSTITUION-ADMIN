@@ -479,7 +479,6 @@ async function startServer() {
       }
 
       const profileRecord = {
-        id: authUserId,
         user_id: authUserId,
         role: 'institution_admin',
         institution_id: instData.id,
@@ -489,7 +488,7 @@ async function startServer() {
 
       const { error: profileErr } = await serverSupabase
         .from('profiles')
-        .upsert(profileRecord, { onConflict: 'id' });
+        .upsert(profileRecord, { onConflict: 'user_id' });
 
       if (profileErr) {
         console.error('[approve] Profile upsert failed:', profileErr);
