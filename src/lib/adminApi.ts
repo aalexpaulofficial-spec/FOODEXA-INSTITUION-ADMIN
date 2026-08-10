@@ -1,5 +1,51 @@
 import { supabase } from './supabaseClient';
 
+async function getAccessToken(): Promise<string> {
+  const { data, error } = await supabase.auth.getSession();
+  if (error || !data.session?.access_token) {
+    throw new Error('Your session expired. Please sign in again.');
+  }
+  return data.session.access_token;
+}
+
+async function parseApiResponse<T>(response: Response): Promise<T> {
+  const payload = await response.json().catch(() => null);
+  const normalized =
+    payload &&
+    typeof payload === 'object' &&
+    typeof (payload as any).body === 'string'
+      ? JSON.parse((payload as any).body)
+      : payload;
+
+  if (!response.ok) {
+    throw new Error(
+      normalized?.error ||
+        normalized?.message ||
+        `Admin API request failed with status ${response.status}.`
+    );
+  }
+
+  if (normalized?.error) {
+    throw new Error(normalized.error);
+  }
+
+  return normalized as T;
+}
+
+async function invokeAdminRoute<T>(action: string, payload: unknown): Promise<T> {
+  const token = await getAccessToken();
+  const response = await fetch(`/api/admin/${action}`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+
+  return parseApiResponse<T>(response);
+}
+
 /**
  * Invokes a Supabase Edge Function with the current session's access token.
  * All admin operations are executed server-side with the service role key,
@@ -85,11 +131,11 @@ export interface GlobalSearchResultItem {
 
 export const adminApi = {
   checkEmail(email: string) {
-    return invokeEdge<CheckEmailResult>('admin-check-email', { email });
+    return invokeAdminRoute<CheckEmailResult>('check-email', { email });
   },
 
   approveInstitution(payload: ApproveInstitutionPayload) {
-    return invokeEdge<ApproveInstitutionResult>('admin-approve-institution', payload);
+    return invokeAdminRoute<ApproveInstitutionResult>('approve-institution', payload);
   },
 
   disableInstitution(institution_id: string) {
