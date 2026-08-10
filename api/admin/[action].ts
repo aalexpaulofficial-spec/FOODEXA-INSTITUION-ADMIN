@@ -13,12 +13,14 @@ function getAdmin(): any {
     throw new HttpError(500, 'Supabase admin environment variables are not configured.');
   }
 
-  adminClient ??= createClient(supabaseUrl, supabaseServiceRoleKey, {
-    auth: {
-      persistSession: false,
-      autoRefreshToken: false,
-    },
-  });
+  if (!adminClient) {
+    adminClient = createClient(supabaseUrl, supabaseServiceRoleKey, {
+      auth: {
+        persistSession: false,
+        autoRefreshToken: false,
+      },
+    });
+  }
 
   return adminClient;
 }
@@ -46,9 +48,21 @@ function send(res: any, status: number, body: unknown) {
 function generatePassword(): string {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*';
   const length = 14 + Math.floor(Math.random() * 3);
-  const values = new Uint32Array(length);
-  crypto.getRandomValues(values);
-  return Array.from(values, (value) => chars[value % chars.length]).join('');
+  let password = '';
+  
+  if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
+    const values = new Uint32Array(length);
+    crypto.getRandomValues(values);
+    for (let i = 0; i < length; i++) {
+      password += chars.charAt(values[i] % chars.length);
+    }
+  } else {
+    for (let i = 0; i < length; i++) {
+      password += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+  }
+  
+  return password;
 }
 
 async function requireSuperAdmin(req: any): Promise<{ userId: string; userEmail: string }> {
@@ -364,14 +378,14 @@ async function approveInstitution(req: any, res: any) {
   });
 }
 
-export default async function handler(req: any, res: any) {
+export default async function handler(req: any, res: any, forcedAction?: string) {
   setCors(res);
 
   if (req.method === 'OPTIONS') return res.status(200).json({ ok: true });
   if (req.method !== 'POST') return send(res, 405, { error: 'Method not allowed.' });
 
   try {
-    const action = String(req.query.action || '');
+    const action = forcedAction || String(req.query?.action || '');
     if (action === 'check-email') return await checkEmail(req, res);
     if (action === 'approve-institution') return await approveInstitution(req, res);
     return send(res, 404, { error: 'Unknown admin action.' });
