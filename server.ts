@@ -464,6 +464,7 @@ async function startServer() {
       }
 
       const profileRecord = {
+        id: authUserId,
         user_id: authUserId,
         role: 'institution_admin',
         institution_id: instData.id,
@@ -471,19 +472,12 @@ async function startServer() {
         email,
       };
 
-      if (emailAlreadyExisted) {
-        const { error: profileErr } = await serverSupabase
-          .from('profiles')
-          .update({ institution_id: instData.id, role: 'institution_admin', full_name: request.contact_person || null, email })
-          .eq('user_id', authUserId);
-        if (profileErr) {
-          console.error('[approve] Profile update failed:', profileErr);
-        }
-      } else {
-        const { error: profileErr } = await serverSupabase.from('profiles').insert(profileRecord);
-        if (profileErr) {
-          console.error('[approve] Profile insert failed:', profileErr);
-        }
+      const { error: profileErr } = await serverSupabase
+        .from('profiles')
+        .upsert(profileRecord, { onConflict: 'id' });
+
+      if (profileErr) {
+        console.error('[approve] Profile upsert failed:', profileErr);
       }
 
       const { error: updateReqError } = await serverSupabase

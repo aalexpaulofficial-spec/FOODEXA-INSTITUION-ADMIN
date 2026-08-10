@@ -294,6 +294,7 @@ async function approveInstitution(req: any, res: any) {
   }
 
   const profileRecord = {
+    id: authUserId,
     user_id: authUserId,
     role: 'institution_admin',
     institution_id: institution.id,
@@ -301,17 +302,9 @@ async function approveInstitution(req: any, res: any) {
     email,
   };
 
-  const { error: profileError } = emailAlreadyExisted
-    ? await admin
-        .from('profiles')
-        .update({
-          institution_id: institution.id,
-          role: 'institution_admin',
-          full_name: request.contact_person || null,
-          email,
-        })
-        .eq('user_id', authUserId)
-    : await admin.from('profiles').insert(profileRecord);
+  const { error: profileError } = await admin
+    .from('profiles')
+    .upsert(profileRecord, { onConflict: 'id' });
 
   if (profileError) {
     await admin.from('institutions').delete().eq('id', institution.id);
