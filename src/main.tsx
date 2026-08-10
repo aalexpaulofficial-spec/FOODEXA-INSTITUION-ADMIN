@@ -5,6 +5,7 @@ import App from './App.tsx';
 import './index.css';
 import { ThemeProvider } from './context/ThemeContext.tsx';
 import { AuthProvider } from './context/AuthContext.tsx';
+import { LanguageProvider } from './context/LanguageContext.tsx';
 import ErrorBoundary from './context/ErrorBoundary.tsx';
 
 createRoot(document.getElementById('root')!).render(
@@ -12,9 +13,11 @@ createRoot(document.getElementById('root')!).render(
     <BrowserRouter>
       <AuthProvider>
         <ThemeProvider>
-          <ErrorBoundary>
-            <App />
-          </ErrorBoundary>
+          <LanguageProvider>
+            <ErrorBoundary>
+              <App />
+            </ErrorBoundary>
+          </LanguageProvider>
         </ThemeProvider>
       </AuthProvider>
     </BrowserRouter>

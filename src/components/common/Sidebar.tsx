@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { PortalRole } from '../../types';
+import { useLanguage } from '../../context/LanguageContext';
 
 interface SidebarProps {
   currentPortal: PortalRole;
@@ -29,6 +30,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 }) => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { t } = useLanguage();
 
   const superAdminRoutes: Record<string, string> = {
     'institution-requests': '/super-admin/institution-requests',
@@ -43,19 +45,19 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const isActiveRoute = (routePath: string) => location.pathname === routePath;
 
   const institutionNav: { id: string; label: string; icon: any; badge?: string | null; badgeColor?: string; section?: string }[] = [
-    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, section: 'Overview' },
-    { id: 'students', label: 'Students', icon: Users, section: 'Management' },
-    { id: 'canteens', label: 'Canteens', icon: Store, badge: pendingVendorCount > 0 ? `${pendingVendorCount}` : null, badgeColor: 'bg-amber-500/10 text-amber-400', section: 'Management' },
-    { id: 'kitchen', label: 'Kitchen Queue', icon: ChefHat, section: 'Operations' },
-    { id: 'orders', label: 'Orders', icon: ShoppingBag, badge: activeKitchenOrdersCount > 0 ? `${activeKitchenOrdersCount}` : null, badgeColor: 'bg-indigo-500/10 text-indigo-400', section: 'Operations' },
-    { id: 'menus', label: 'Menu', icon: UtensilsCrossed, section: 'Operations' },
-    { id: 'analytics', label: 'Analytics', icon: TrendingUp, section: 'Intelligence' },
-    { id: 'reports', label: 'Reports', icon: FileText, section: 'Intelligence' },
-    { id: 'campus', label: 'Campus', icon: Building, section: 'Administration' },
-    { id: 'staff', label: 'Staff & Roles', icon: UserCheck, section: 'Administration' },
-    { id: 'notifications', label: 'Announcements', icon: Bell, section: 'Administration' },
-    { id: 'ai_center', label: 'AI Center', icon: Sparkles, section: 'Intelligence' },
-    { id: 'settings', label: 'Settings', icon: Settings, section: 'Administration' }
+    { id: 'dashboard', label: t('nav.dashboard'), icon: LayoutDashboard, section: 'Overview' },
+    { id: 'students', label: t('nav.students'), icon: Users, section: 'Management' },
+    { id: 'canteens', label: t('nav.canteens'), icon: Store, badge: pendingVendorCount > 0 ? `${pendingVendorCount}` : null, badgeColor: 'bg-amber-500/10 text-amber-400', section: 'Management' },
+    { id: 'kitchen', label: t('nav.kitchen'), icon: ChefHat, section: 'Operations' },
+    { id: 'orders', label: t('nav.orders'), icon: ShoppingBag, badge: activeKitchenOrdersCount > 0 ? `${activeKitchenOrdersCount}` : null, badgeColor: 'bg-indigo-500/10 text-indigo-400', section: 'Operations' },
+    { id: 'menus', label: t('nav.menu'), icon: UtensilsCrossed, section: 'Operations' },
+    { id: 'analytics', label: t('nav.analytics'), icon: TrendingUp, section: 'Intelligence' },
+    { id: 'reports', label: t('nav.reports'), icon: FileText, section: 'Intelligence' },
+    { id: 'campus', label: t('nav.campus'), icon: Building, section: 'Administration' },
+    { id: 'staff', label: t('nav.staff'), icon: UserCheck, section: 'Administration' },
+    { id: 'notifications', label: t('nav.notifications'), icon: Bell, section: 'Administration' },
+    { id: 'ai_center', label: t('nav.ai_center'), icon: Sparkles, section: 'Intelligence' },
+    { id: 'settings', label: t('nav.settings'), icon: Settings, section: 'Administration' }
   ];
 
   const superAdminNav: { id: string; label: string; icon: any; path: string; section?: string }[] = [
@@ -161,7 +163,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <div className="absolute -top-6 -right-6 w-16 h-16 bg-indigo-600/10 blur-[30px] pointer-events-none" />
             <div className="flex items-center justify-center gap-1.5 mb-2">
               <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
-              <span className="text-[11px] font-bold text-zinc-200">AI Center</span>
+              <span className="text-[11px] font-bold text-zinc-200">{t('nav.ai_center')}</span>
             </div>
             <p className="text-[10px] text-zinc-500 mb-3 leading-relaxed">Intelligent insights for your campus</p>
             <button

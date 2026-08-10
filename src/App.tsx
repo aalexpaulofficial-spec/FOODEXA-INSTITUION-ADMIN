@@ -61,6 +61,8 @@ export function App() {
     institution, students, vendors, counters, orders, menuItems, menuCategories,
     campusBlocks, staff, announcements, auditLogs,
     loading: dataLoading,
+    error: dataError,
+    ordersRealtimeStatus,
     refresh,
     updateStudentStatus, approveVendor, rejectVendor, suspendVendor,
     addCounter, updateCounter, deleteCounter, archiveCounter, restoreCounter, updateCounterStatus, toggleCounterAvailability,
@@ -127,6 +129,7 @@ export function App() {
         onLogout={signOut}
         isMobileMenuOpen={isMobileMenuOpen}
         onToggleMobileMenu={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+        realtimeStatus={ordersRealtimeStatus}
       />
 
       <div className="flex flex-1 overflow-hidden">

@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { Order, OrderStatus } from '../../../types';
 import { getCancelRemainingMs, CANCEL_BLOCK_MESSAGE } from '../../../lib/orderUtils';
+import { useLanguage } from '../../../context/LanguageContext';
 
 interface KitchenDashboardProps {
   orders: Order[];
@@ -47,6 +48,7 @@ export const KitchenDashboard: React.FC<KitchenDashboardProps> = ({
   orders,
   onUpdateOrderStatus,
 }) => {
+  const { t } = useLanguage();
   const safeOrders = useMemo(() => (Array.isArray(orders) ? orders : []), [orders]);
 
   const [now, setNow] = useState(() => Date.now());
@@ -226,28 +228,28 @@ export const KitchenDashboard: React.FC<KitchenDashboardProps> = ({
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <div className="flex items-center space-x-2">
-            <h1 className="text-xl font-extrabold text-white">Kitchen Queue Display System</h1>
+            <h1 className="text-xl font-extrabold text-white">{t('kitchen.title')}</h1>
             <span className="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[10px] font-mono font-bold animate-pulse">
-              LIVE
+              {t('kitchen.live')}
             </span>
           </div>
           <p className="text-xs text-slate-400">
-            Supabase Realtime orders for the logged-in institution. Same source as Order Management.
+            {t('kitchen.subtitle')}
           </p>
         </div>
 
         <div className="flex items-center space-x-3 text-xs">
           <div className="px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-800 text-slate-300">
-            Queue: <strong className="text-amber-400">{incomingItems.length}</strong>
+            {t('kitchen.queue')}: <strong className="text-amber-400">{incomingItems.length}</strong>
           </div>
           <div className="px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-800 text-slate-300">
-            Preparing: <strong className="text-cyan-400 font-mono">{preparingItems.length}</strong>
+            {t('kitchen.preparing')}: <strong className="text-cyan-400 font-mono">{preparingItems.length}</strong>
           </div>
           <div className="px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-800 text-slate-300">
-            Ready: <strong className="text-emerald-400 font-mono">{readyItems.length}</strong>
+            {t('kitchen.ready')}: <strong className="text-emerald-400 font-mono">{readyItems.length}</strong>
           </div>
           <div className="px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-800 text-slate-300">
-            Cancelled: <strong className="text-red-400 font-mono">{cancelledItems.length}</strong>
+            {t('kitchen.cancelled')}: <strong className="text-red-400 font-mono">{cancelledItems.length}</strong>
           </div>
         </div>
       </div>
@@ -257,15 +259,15 @@ export const KitchenDashboard: React.FC<KitchenDashboardProps> = ({
           <div className="flex items-center justify-between pb-2 border-b border-slate-800">
             <div className="flex items-center space-x-2">
               <span className="w-2.5 h-2.5 rounded-full bg-amber-500" />
-              <span className="text-xs font-extrabold uppercase tracking-wider text-amber-400">Incoming Queue ({incomingItems.length})</span>
+              <span className="text-xs font-extrabold uppercase tracking-wider text-amber-400">{t('kitchen.incoming_queue')} ({incomingItems.length})</span>
             </div>
-            <span className="text-[10px] font-mono text-slate-500">Pending / Accepted</span>
+            <span className="text-[10px] font-mono text-slate-500">{t('kitchen.pending_accepted')}</span>
           </div>
           <div className="space-y-3 min-h-[400px]">
             {incomingItems.map((item) =>
               renderCard(item, 'amber', renderIncomingActions(item))
             )}
-            {incomingItems.length === 0 && <div className="py-16 text-center text-slate-500 text-xs italic">No pending orders.</div>}
+            {incomingItems.length === 0 && <div className="py-16 text-center text-slate-500 text-xs italic">{t('kitchen.no_pending_orders')}</div>}
           </div>
         </section>
 
@@ -273,9 +275,9 @@ export const KitchenDashboard: React.FC<KitchenDashboardProps> = ({
           <div className="flex items-center justify-between pb-2 border-b border-slate-800">
             <div className="flex items-center space-x-2">
               <span className="w-2.5 h-2.5 rounded-full bg-cyan-400" />
-              <span className="text-xs font-extrabold uppercase tracking-wider text-cyan-400">Preparing ({preparingItems.length})</span>
+              <span className="text-xs font-extrabold uppercase tracking-wider text-cyan-400">{t('kitchen.preparing')} ({preparingItems.length})</span>
             </div>
-            <span className="text-[10px] font-mono text-slate-500">Live Timer</span>
+            <span className="text-[10px] font-mono text-slate-500">{t('kitchen.live_timer')}</span>
           </div>
           <div className="space-y-3 min-h-[400px]">
             {preparingItems.map((item) => {
@@ -298,12 +300,12 @@ export const KitchenDashboard: React.FC<KitchenDashboardProps> = ({
                     className="w-full py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs transition-colors flex items-center justify-center space-x-1.5"
                   >
                     <CheckCircle2 className="w-4 h-4" />
-                    <span>Ready</span>
+                    <span>{t('kitchen.ready')}</span>
                   </button>
                 </div>
               ));
             })}
-            {preparingItems.length === 0 && <div className="py-16 text-center text-slate-500 text-xs italic">No orders preparing.</div>}
+            {preparingItems.length === 0 && <div className="py-16 text-center text-slate-500 text-xs italic">{t('kitchen.no_orders_preparing')}</div>}
           </div>
         </section>
 
@@ -311,9 +313,9 @@ export const KitchenDashboard: React.FC<KitchenDashboardProps> = ({
           <div className="flex items-center justify-between pb-2 border-b border-slate-800">
             <div className="flex items-center space-x-2">
               <span className="w-2.5 h-2.5 rounded-full bg-emerald-400" />
-              <span className="text-xs font-extrabold uppercase tracking-wider text-emerald-400">Ready Counter ({readyItems.length})</span>
+              <span className="text-xs font-extrabold uppercase tracking-wider text-emerald-400">{t('kitchen.ready_counter')} ({readyItems.length})</span>
             </div>
-            <span className="text-[10px] font-mono text-slate-500">Ready</span>
+            <span className="text-[10px] font-mono text-slate-500">{t('kitchen.ready')}</span>
           </div>
           <div className="space-y-3 min-h-[400px]">
             {readyItems.map((item) =>
@@ -323,11 +325,11 @@ export const KitchenDashboard: React.FC<KitchenDashboardProps> = ({
                   className="w-full py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-bold text-xs transition-colors flex items-center justify-center space-x-1.5"
                 >
                   <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                  <span>Picked Up</span>
+                  <span>{t('kitchen.picked_up_btn')}</span>
                 </button>
               ))
             )}
-            {readyItems.length === 0 && <div className="py-16 text-center text-slate-500 text-xs italic">No orders ready.</div>}
+            {readyItems.length === 0 && <div className="py-16 text-center text-slate-500 text-xs italic">{t('kitchen.no_orders_ready')}</div>}
           </div>
         </section>
 
@@ -335,13 +337,13 @@ export const KitchenDashboard: React.FC<KitchenDashboardProps> = ({
           <div className="flex items-center justify-between pb-2 border-b border-slate-800">
             <div className="flex items-center space-x-2">
               <span className="w-2.5 h-2.5 rounded-full bg-green-400" />
-              <span className="text-xs font-extrabold uppercase tracking-wider text-green-400">Completed ({completedItems.length})</span>
+              <span className="text-xs font-extrabold uppercase tracking-wider text-green-400">{t('kitchen.completed')} ({completedItems.length})</span>
             </div>
-            <span className="text-[10px] font-mono text-slate-500">Picked Up</span>
+            <span className="text-[10px] font-mono text-slate-500">{t('kitchen.picked_up')}</span>
           </div>
           <div className="space-y-3 min-h-[400px]">
             {completedItems.map((item) => renderCard(item, 'green'))}
-            {completedItems.length === 0 && <div className="py-16 text-center text-slate-500 text-xs italic">No completed pickups.</div>}
+            {completedItems.length === 0 && <div className="py-16 text-center text-slate-500 text-xs italic">{t('kitchen.no_completed_pickups')}</div>}
           </div>
         </section>
       </div>
@@ -350,14 +352,14 @@ export const KitchenDashboard: React.FC<KitchenDashboardProps> = ({
         <div className="flex items-center justify-between pb-2 border-b border-slate-800">
           <div className="flex items-center space-x-2">
             <span className="w-2.5 h-2.5 rounded-full bg-red-400" />
-            <span className="text-xs font-extrabold uppercase tracking-wider text-red-400">Cancelled ({cancelledItems.length})</span>
+            <span className="text-xs font-extrabold uppercase tracking-wider text-red-400">{t('kitchen.cancelled')} ({cancelledItems.length})</span>
           </div>
-          <span className="text-[10px] font-mono text-slate-500">Cancelled</span>
+          <span className="text-[10px] font-mono text-slate-500">{t('kitchen.cancelled')}</span>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
           {cancelledItems.map((item) => renderCard(item, 'red'))}
           {cancelledItems.length === 0 && (
-            <div className="col-span-full py-16 text-center text-slate-500 text-xs italic">No cancelled orders.</div>
+            <div className="col-span-full py-16 text-center text-slate-500 text-xs italic">{t('kitchen.no_cancelled_orders')}</div>
           )}
         </div>
       </section>

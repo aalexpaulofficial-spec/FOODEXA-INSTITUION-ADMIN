@@ -5,6 +5,7 @@ import {
   Timer, AlertCircle, UtensilsCrossed
 } from 'lucide-react';
 import { Institution, Order, Vendor } from '../../../types';
+import { useLanguage } from '../../../context/LanguageContext';
 
 interface HomeDashboardProps {
   currentInstitution: Institution;
@@ -21,11 +22,13 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
   onNavigate,
   onOpenQRScanner
 }) => {
+  const { t } = useLanguage();
+
   const getGreeting = () => {
     const hour = new Date().getHours();
-    if (hour < 12) return 'Good morning';
-    if (hour < 17) return 'Good afternoon';
-    return 'Good evening';
+    if (hour < 12) return t('dashboard.greeting.morning');
+    if (hour < 17) return t('dashboard.greeting.afternoon');
+    return t('dashboard.greeting.evening');
   };
 
   const todayStr = new Date().toLocaleDateString('en-US', {
@@ -91,7 +94,7 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
   // Metrics configuration
   const metrics = [
     {
-      label: "Today's Orders",
+      label: t('dashboard.todays_orders'),
       value: todayOrders.length,
       icon: ShoppingBag,
       color: 'text-indigo-400',
@@ -99,7 +102,7 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
       borderColor: 'border-indigo-500/20',
     },
     {
-      label: "Today's Revenue",
+      label: t('dashboard.todays_revenue'),
       value: `₹${todaysRevenue.toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`,
       icon: IndianRupee,
       color: 'text-emerald-400',
@@ -107,7 +110,7 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
       borderColor: 'border-emerald-500/20',
     },
     {
-      label: 'Preparing',
+      label: t('dashboard.preparing'),
       value: preparingCount,
       icon: ChefHat,
       color: 'text-amber-400',
@@ -115,7 +118,7 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
       borderColor: 'border-amber-500/20',
     },
     {
-      label: 'Ready',
+      label: t('dashboard.ready'),
       value: readyCount,
       icon: CheckCircle2,
       color: 'text-emerald-400',
@@ -123,7 +126,7 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
       borderColor: 'border-emerald-500/20',
     },
     {
-      label: 'Completed',
+      label: t('dashboard.completed'),
       value: completedToday,
       icon: Package,
       color: 'text-purple-400',
@@ -131,7 +134,7 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
       borderColor: 'border-purple-500/20',
     },
     {
-      label: 'Active Canteens',
+      label: t('dashboard.active_canteens'),
       value: activeCanteens,
       icon: Store,
       color: 'text-cyan-400',
@@ -213,14 +216,14 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
       <section className="foodexa-card p-6">
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h2 className="text-base font-semibold text-white tracking-tight">Live Operations</h2>
-            <p className="text-xs text-zinc-500 mt-0.5">Real-time order pipeline</p>
+            <h2 className="text-base font-semibold text-white tracking-tight">{t('dashboard.live_operations')}</h2>
+            <p className="text-xs text-zinc-500 mt-0.5">{t('dashboard.realtime_pipeline')}</p>
           </div>
           <button
             onClick={() => onNavigate('kitchen')}
             className="text-xs text-indigo-400 hover:text-indigo-300 font-medium flex items-center gap-1 transition-colors"
           >
-            View Kitchen
+            {t('dashboard.view_kitchen')}
             <ArrowRight className="w-3.5 h-3.5" />
           </button>
         </div>
@@ -251,14 +254,14 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
         <div className="lg:col-span-8 foodexa-card overflow-hidden">
           <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-800/50">
             <div>
-              <h2 className="text-base font-semibold text-white tracking-tight">Kitchen Queue</h2>
-              <p className="text-xs text-zinc-500 mt-0.5">Orders requiring attention</p>
+              <h2 className="text-base font-semibold text-white tracking-tight">{t('dashboard.kitchen_queue')}</h2>
+              <p className="text-xs text-zinc-500 mt-0.5">{t('dashboard.orders_requiring_attention')}</p>
             </div>
             <button
               onClick={() => onNavigate('orders')}
               className="text-xs text-indigo-400 hover:text-indigo-300 font-medium flex items-center gap-1 transition-colors"
             >
-              View All
+              {t('dashboard.view_all')}
               <ArrowRight className="w-3.5 h-3.5" />
             </button>
           </div>
@@ -268,8 +271,8 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
               <div className="foodexa-empty-icon">
                 <ChefHat className="w-6 h-6" />
               </div>
-              <p className="text-sm font-medium text-zinc-400">No active orders</p>
-              <p className="text-xs text-zinc-600 mt-1">Orders will appear here when students place them</p>
+              <p className="text-sm font-medium text-zinc-400">{t('dashboard.no_active_orders')}</p>
+              <p className="text-xs text-zinc-600 mt-1">{t('dashboard.orders_will_appear')}</p>
             </div>
           ) : (
             <div className="divide-y divide-zinc-800/50">
@@ -324,7 +327,7 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
         <div className="lg:col-span-4 space-y-6">
           {/* Quick Actions */}
           <div className="foodexa-card p-5">
-            <h3 className="text-sm font-semibold text-white tracking-tight mb-4">Quick Actions</h3>
+            <h3 className="text-sm font-semibold text-white tracking-tight mb-4">{t('dashboard.quick_actions')}</h3>
             <div className="space-y-2">
               <button
                 onClick={() => onNavigate('menus')}
@@ -334,8 +337,8 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
                   <UtensilsCrossed className="w-4 h-4 text-indigo-400" />
                 </div>
                 <div>
-                  <p className="text-xs font-semibold text-zinc-200">Manage Menu</p>
-                  <p className="text-[10px] text-zinc-500">Add or update items</p>
+                  <p className="text-xs font-semibold text-zinc-200">{t('dashboard.manage_menu')}</p>
+                  <p className="text-[10px] text-zinc-500">{t('dashboard.add_or_update')}</p>
                 </div>
               </button>
 
@@ -347,8 +350,8 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
                   <AlertCircle className="w-4 h-4 text-amber-400" />
                 </div>
                 <div>
-                  <p className="text-xs font-semibold text-zinc-200">Announcements</p>
-                  <p className="text-[10px] text-zinc-500">Broadcast to campus</p>
+                  <p className="text-xs font-semibold text-zinc-200">{t('dashboard.announcements')}</p>
+                  <p className="text-[10px] text-zinc-500">{t('dashboard.broadcast_to_campus')}</p>
                 </div>
               </button>
 
@@ -360,8 +363,8 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
                   <CheckCircle2 className="w-4 h-4 text-emerald-400" />
                 </div>
                 <div>
-                  <p className="text-xs font-semibold text-zinc-200">Scan Pickup</p>
-                  <p className="text-[10px] text-zinc-500">QR code scanner</p>
+                  <p className="text-xs font-semibold text-zinc-200">{t('dashboard.scan_pickup')}</p>
+                  <p className="text-[10px] text-zinc-500">{t('dashboard.qr_code_scanner')}</p>
                 </div>
               </button>
 
@@ -373,8 +376,8 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
                   <TrendingUp className="w-4 h-4 text-purple-400" />
                 </div>
                 <div>
-                  <p className="text-xs font-semibold text-zinc-200">Reports</p>
-                  <p className="text-[10px] text-zinc-500">Export data & analytics</p>
+                  <p className="text-xs font-semibold text-zinc-200">{t('dashboard.reports')}</p>
+                  <p className="text-[10px] text-zinc-500">{t('dashboard.export_data')}</p>
                 </div>
               </button>
             </div>
@@ -383,12 +386,12 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
           {/* Active Canteens */}
           <div className="foodexa-card p-5">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-sm font-semibold text-white tracking-tight">Canteens</h3>
+              <h3 className="text-sm font-semibold text-white tracking-tight">{t('dashboard.canteens')}</h3>
               <button
                 onClick={() => onNavigate('canteens')}
                 className="text-[11px] text-indigo-400 hover:text-indigo-300 font-medium flex items-center gap-1 transition-colors"
               >
-                View All
+                {t('dashboard.view_all')}
                 <ArrowRight className="w-3 h-3" />
               </button>
             </div>
