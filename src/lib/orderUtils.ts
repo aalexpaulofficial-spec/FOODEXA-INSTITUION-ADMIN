@@ -100,6 +100,7 @@ export function buildStatusUpdate(status: OrderStatus): Record<string, unknown> 
         order_status: 'Cancelled',
         kitchen_status: 'Cancelled',
         counter_status: 'Cancelled',
+        payment_status: 'refunded',
         cancelled_at: now,
         updated_at: now,
       };

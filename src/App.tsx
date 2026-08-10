@@ -238,6 +238,10 @@ export function App() {
                       />
                     )}
 
+                    {currentTab === 'analytics' && (
+                      <AnalyticsView orders={orders} students={students} />
+                    )}
+
                     {currentTab === 'reports' && <ReportsView />}
 
                     {currentTab === 'campus' && <CampusManagement campusBlocks={campusBlocks} currentInstitution={institution} vendors={vendors} counters={counters} staff={staff} />}

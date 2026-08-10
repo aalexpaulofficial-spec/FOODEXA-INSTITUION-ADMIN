@@ -76,7 +76,8 @@ export const ReportsView: React.FC = () => {
         const { start, end } = getDateRange(period);
 
         const periodOrders = orders?.filter(o => {
-          const t = new Date(o.orderTime).getTime();
+          const rawTime = o.order_time || o.orderTime || o.created_at || '';
+          const t = new Date(rawTime).getTime();
           return t >= start.getTime() && t <= end.getTime();
         }) || [];
 
@@ -92,10 +93,13 @@ export const ReportsView: React.FC = () => {
 
         const mealCounts: Record<string, { orders: number; revenue: number }> = {};
         periodOrders.forEach(o => {
-          o.items?.forEach(item => {
-            if (!mealCounts[item.name]) mealCounts[item.name] = { orders: 0, revenue: 0 };
-            mealCounts[item.name].orders += item.quantity;
-            mealCounts[item.name].revenue += item.quantity * (item.price || 0);
+          const orderItems = Array.isArray(o.items) ? o.items : [];
+          orderItems.forEach((item: any) => {
+            if (!mealCounts[item.name || item.item_name || '']) mealCounts[item.name || item.item_name || ''] = { orders: 0, revenue: 0 };
+            const qty = item.quantity || 1;
+            const price = item.price || item.unit_price || 0;
+            mealCounts[item.name || item.item_name || ''].orders += qty;
+            mealCounts[item.name || item.item_name || ''].revenue += qty * price;
           });
         });
         const topMenuItems = Object.entries(mealCounts)

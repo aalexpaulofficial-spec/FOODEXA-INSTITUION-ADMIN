@@ -272,7 +272,25 @@ export function useInstitutionData(institutionId: string | null): InstitutionDat
           foodCourts: [],
         }] : []);
       }
-      if (staffData) setStaff(staffData as StaffMember[]);
+      if (staffData) {
+        setStaff((staffData as any[]).map((s: any) => ({
+          id: s.id,
+          name: s.full_name || s.name || '',
+          email: s.email || '',
+          role: s.role || 'Support Staff',
+          department: s.department || '',
+          assignedCampusBlock: s.assigned_campus_block || s.assignedCampusBlock || '',
+          status: s.status || 'active',
+          lastActive: s.last_active || '',
+          permissions: {
+            menuEdit: s.permissions?.menuEdit ?? false,
+            orderManage: s.permissions?.orderManage ?? false,
+            vendorApprove: s.permissions?.vendorApprove ?? false,
+            analyticsView: s.permissions?.analyticsView ?? false,
+            staffManage: s.permissions?.staffManage ?? false,
+          },
+        } as StaffMember)));
+      }
       if (notificationsData) setAnnouncements(notificationsData as Announcement[]);
       if (auditLogsData) setAuditLogs(auditLogsData as AuditLog[]);
 
@@ -661,6 +679,12 @@ const toggleStaffPermission = async (staffId: string, permKey: string) => {
      if (!s) return;
      const newPerms = { ...s.permissions, [permKey]: !s.permissions[permKey as keyof typeof s.permissions] };
      setStaff(prev => prev.map(s => s.id === staffId ? { ...s, permissions: newPerms } : s));
+     try {
+       const { error } = await supabase.from('profiles').update({ permissions: newPerms }).eq('id', staffId);
+       if (error) console.warn('[toggleStaffPermission] Could not persist permissions:', error.message);
+     } catch {
+       console.warn('[toggleStaffPermission] Could not persist permissions');
+     }
    };
 
   const deleteStudent = async (studentId: string) => {
@@ -696,6 +720,7 @@ const toggleStaffPermission = async (staffId: string, permKey: string) => {
       return null;
     }
     if (data) {
+      const perms = (data as any).permissions || {};
       const newStaff: StaffMember = {
         id: data.id,
         name: data.full_name || data.email || '',
@@ -705,7 +730,13 @@ const toggleStaffPermission = async (staffId: string, permKey: string) => {
         assignedCampusBlock: '',
         status: data.status || 'active',
         lastActive: '',
-        permissions: { menuEdit: false, orderManage: false, vendorApprove: false, analyticsView: false, staffManage: false },
+        permissions: {
+          menuEdit: perms.menuEdit ?? false,
+          orderManage: perms.orderManage ?? false,
+          vendorApprove: perms.vendorApprove ?? false,
+          analyticsView: perms.analyticsView ?? false,
+          staffManage: perms.staffManage ?? false,
+        },
       };
       setStaff(prev => [...prev, newStaff]);
       return data.id;
@@ -768,9 +799,39 @@ const toggleStaffPermission = async (staffId: string, permKey: string) => {
   };
 
   const addAnnouncement = async (ann: Announcement) => {
-    const { data, error } = await supabase.from('notifications').insert({ ...ann, institution_id: institutionId }).select().single();
-    if (error) console.error('[addAnnouncement] Error:', error);
-    if (data) setAnnouncements(prev => [data as Announcement, ...prev]);
+    const notifPayload = {
+      institution_id: institutionId,
+      type: ann.isImportant ? 'emergency' : 'announcement',
+      title: ann.title || '',
+      message: ann.content || '',
+      read: false,
+      is_read: false,
+      data: {
+        category: ann.category,
+        targetAudience: ann.targetAudience,
+        isImportant: ann.isImportant,
+        author: ann.author,
+        date: ann.date,
+      },
+    };
+    const { data, error } = await supabase.from('notifications').insert(notifPayload).select().single();
+    if (error) {
+      console.error('[addAnnouncement] Error:', error);
+      return;
+    }
+    if (data) {
+      const returned: Announcement = {
+        id: data.id,
+        title: data.title || ann.title || '',
+        category: ann.category,
+        content: data.message || ann.content || '',
+        author: ann.author || '',
+        date: ann.date || new Date().toISOString().split('T')[0],
+        targetAudience: ann.targetAudience || 'All Campus',
+        isImportant: ann.isImportant || false,
+      };
+      setAnnouncements(prev => [returned, ...prev]);
+    }
   };
 
   return {
