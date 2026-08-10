@@ -1,6 +1,5 @@
-import handler from './[action]';
+import handler from './_handler';
 
 export default function checkEmailHandler(req: any, res: any) {
-  req.query = { ...req.query, action: 'check-email' };
-  return handler(req, res);
+  return handler(req, res, 'check-email');
 }

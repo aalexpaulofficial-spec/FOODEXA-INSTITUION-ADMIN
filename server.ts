@@ -78,12 +78,20 @@ async function requireSuperAdmin(req: express.Request): Promise<{ userId: string
 function generatePassword(): string {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*';
   const length = 14 + Math.floor(Math.random() * 3);
-  const array = new Uint32Array(length);
-  crypto.getRandomValues(array);
   let password = '';
-  for (let i = 0; i < length; i++) {
-    password += chars.charAt(array[i] % chars.length);
+  
+  if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
+    const values = new Uint32Array(length);
+    crypto.getRandomValues(values);
+    for (let i = 0; i < length; i++) {
+      password += chars.charAt(values[i] % chars.length);
+    }
+  } else {
+    for (let i = 0; i < length; i++) {
+      password += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
   }
+  
   return password;
 }
 

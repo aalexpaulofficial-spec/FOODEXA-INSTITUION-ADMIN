@@ -1,6 +1,6 @@
-import handler from './[action]';
+import handler from './_handler';
 
 export default function approveInstitutionHandler(req: any, res: any) {
-  req.query = { ...req.query, action: 'approve-institution' };
-  return handler(req, res);
+  return handler(req, res, 'approve-institution');
 }
+
