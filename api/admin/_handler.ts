@@ -93,26 +93,32 @@ async function requireSuperAdmin(req: any): Promise<{ userId: string; userEmail:
 }
 
 async function getAuthUserByEmail(email: string): Promise<{ id: string; email?: string } | null> {
-  getAdmin();
+  try {
+    const admin = getAdmin();
+    const normalizedEmail = email.toLowerCase().trim();
 
-  const response = await fetch(
-    `${supabaseUrl}/auth/v1/admin/users?filter=${encodeURIComponent(`email:eq:${email}`)}&page=1&per_page=1`,
-    {
-      headers: {
-        Authorization: `Bearer ${supabaseServiceRoleKey}`,
-        apikey: supabaseServiceRoleKey,
-        'Content-Type': 'application/json',
-      },
+    // Use the Supabase JS SDK instead of raw REST fetch.
+    // listUsers returns paginated results; we scan pages until found or exhausted.
+    let page = 1;
+    const perPage = 100;
+    while (true) {
+      const { data, error } = await admin.auth.admin.listUsers({ page, perPage });
+      if (error || !data?.users || data.users.length === 0) break;
+
+      const found = data.users.find(
+        (u: any) => typeof u.email === 'string' && u.email.toLowerCase() === normalizedEmail
+      );
+      if (found) return { id: found.id, email: found.email };
+
+      // If we got fewer results than perPage, there are no more pages
+      if (data.users.length < perPage) break;
+      page++;
     }
-  );
 
-  if (!response.ok) {
-    throw new HttpError(502, `Supabase Auth API returned ${response.status}.`);
+    return null;
+  } catch {
+    return null;
   }
-
-  const body = await response.json();
-  const user = body?.users?.[0];
-  return user ? { id: user.id, email: user.email } : null;
 }
 
 async function sendCredentialsEmail(payload: {
@@ -232,13 +238,34 @@ async function approveInstitution(req: any, res: any) {
       },
     });
 
-    if (authError || !authData.user) {
-      return send(res, 500, {
-        error: `Failed to create auth user: ${authError?.message || 'No user returned'}`,
-      });
-    }
+    if (authError) {
+      // If user already exists (race condition or getAuthUserByEmail missed it),
+      // look up the existing user and reuse their ID
+      const alreadyExists =
+        authError.message?.includes('already been registered') ||
+        authError.message?.includes('already exists') ||
+        authError.message?.includes('duplicate');
 
-    authUserId = authData.user.id;
+      if (alreadyExists) {
+        const retryUser = await getAuthUserByEmail(email);
+        if (retryUser?.id) {
+          emailAlreadyExisted = true;
+          authUserId = retryUser.id;
+        } else {
+          return send(res, 409, {
+            error: 'This email is already associated with another FOODEXA account but could not be resolved. Contact support.',
+          });
+        }
+      } else {
+        return send(res, 500, {
+          error: `Failed to create auth user: ${authError.message || 'No user returned'}`,
+        });
+      }
+    } else if (authData?.user) {
+      authUserId = authData.user.id;
+    } else {
+      return send(res, 500, { error: 'Failed to create auth user: No user returned.' });
+    }
   }
 
   const approvedAt = new Date().toISOString();

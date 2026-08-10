@@ -97,27 +97,24 @@ function generatePassword(): string {
 
 async function getAuthUserByEmail(email: string): Promise<{ user: { id: string; email?: string } | null; error?: string }> {
   try {
-    const response = await fetch(
-      `${supabaseUrl}/auth/v1/admin/users?filter=${encodeURIComponent('email:eq:' + email)}&page=1&per_page=1`,
-      {
-        headers: {
-          'Authorization': `Bearer ${supabaseServiceRoleKey}`,
-          'apikey': supabaseServiceRoleKey,
-          'Content-Type': 'application/json',
-        },
-      }
-    );
-    if (!response.ok) {
-      return { user: null, error: `Auth API returned ${response.status}` };
-    }
-    const data = await response.json();
-    const users = data?.users || [];
-    if (users.length > 0) {
-      return { user: { id: users[0].id, email: users[0].email } };
+    const normalizedEmail = email.toLowerCase().trim();
+    let page = 1;
+    const perPage = 100;
+    while (true) {
+      const { data, error } = await serverSupabase.auth.admin.listUsers({ page, perPage });
+      if (error || !data?.users || data.users.length === 0) break;
+
+      const found = data.users.find(
+        (u: any) => typeof u.email === 'string' && u.email.toLowerCase() === normalizedEmail
+      );
+      if (found) return { user: { id: found.id, email: found.email } };
+
+      if (data.users.length < perPage) break;
+      page++;
     }
     return { user: null };
   } catch (err: any) {
-    return { user: null, error: err?.message || 'Failed to check email' };
+    return { user: null, error: err?.message || 'Error fetching auth user' };
   }
 }
 
@@ -412,10 +409,28 @@ async function startServer() {
           email, password: generatedPassword, email_confirm: true,
           user_metadata: { role: 'institution_admin', institution_name: request.institution_name },
         });
-        if (authError || !authData?.user) {
-          return res.status(500).json(jsonRes({ error: `Failed to create auth user: ${authError?.message || 'No user returned'}` }, 500));
+        if (authError) {
+          const alreadyExists =
+            authError.message?.includes('already been registered') ||
+            authError.message?.includes('already exists') ||
+            authError.message?.includes('duplicate');
+
+          if (alreadyExists) {
+            const { user: retryUser } = await getAuthUserByEmail(email);
+            if (retryUser?.id) {
+              emailAlreadyExisted = true;
+              authUserId = retryUser.id;
+            } else {
+              return res.status(409).json(jsonRes({ error: 'This email is already associated with another account but could not be resolved.' }, 409));
+            }
+          } else {
+            return res.status(500).json(jsonRes({ error: `Failed to create auth user: ${authError.message || 'No user returned'}` }, 500));
+          }
+        } else if (authData?.user) {
+          authUserId = authData.user.id;
+        } else {
+          return res.status(500).json(jsonRes({ error: 'Failed to create auth user: No user returned.' }, 500));
         }
-        authUserId = authData.user.id;
       }
 
       const approvedAt = new Date().toISOString();
