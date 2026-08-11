@@ -94,6 +94,32 @@ function mapCounterToDb(counter: Counter, institutionId: string | null): any {
   };
 }
 
+function mapDbCanteenToVendor(db: any): Vendor {
+  const rawStatus = String(db.status || 'active').toLowerCase();
+  let status: Vendor['status'];
+  if (rawStatus === 'pending') status = 'pending';
+  else if (rawStatus === 'rejected') status = 'rejected';
+  else if (rawStatus === 'suspended' || rawStatus === 'inactive' || rawStatus === 'archived') status = 'suspended';
+  else status = 'approved';
+  return {
+    id: db.id,
+    name: db.name || '',
+    ownerName: db.owner_name || db.contact_person || '',
+    email: db.contact_email || db.email || '',
+    phone: db.contact_phone || db.phone || '',
+    campusBlock: db.campus_block || db.campus || '',
+    outletType: db.outlet_type || db.type || '',
+    seatingCapacity: Number(db.seating_capacity || 0),
+    openingHours: db.opening_hours || '',
+    status,
+    rating: Number(db.rating || 0),
+    monthlyRevenue: Number(db.monthly_revenue || 0),
+    ordersCount: Number(db.orders_count || 0),
+    appliedDate: db.applied_date || db.created_at || '',
+    documentsSubmitted: !!db.documents_submitted,
+  };
+}
+
 function mapDbMenuItemToMenuItem(db: any): MenuItem {
   const joinedCategory = Array.isArray(db.menu_categories) ? db.menu_categories[0] : db.menu_categories;
   const categoryName = joinedCategory?.name || db.category_name || db.category || '';
@@ -252,7 +278,9 @@ export function useInstitutionData(institutionId: string | null): InstitutionDat
 
       if (studentsData) setStudents(studentsData as Student[]);
       if (canteensData) {
-        setCounters((canteensData as any[]).map(mapDbCounterToCounter));
+        const canteens = canteensData as any[];
+        setCounters(canteens.map(mapDbCounterToCounter));
+        setVendors(canteens.map(mapDbCanteenToVendor));
       }
       if (profilesData) setProfiles(profilesData as any);
       if (menuItemsData) setMenuItems((menuItemsData as any[]).map(mapDbMenuItemToMenuItem));

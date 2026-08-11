@@ -257,12 +257,47 @@ export function normalizeKitchenStatus(value: unknown): string {
 
 export function normalizeOrderItems(items: unknown): Order['items'] {
   if (!Array.isArray(items)) return [];
-  return items.map((item: any) => ({
-    menuItemId: item.menuItemId || item.menu_item_id || item.id || '',
-    name: item.name || item.food_name || item.item_name || 'Item',
-    quantity: Number(item.quantity || item.qty || 0),
-    price: Number(item.price || item.unit_price || 0),
-  }));
+  return items.map((item: any) => {
+    if (!item || typeof item !== 'object') {
+      return { menuItemId: '', name: 'Item', quantity: 1, price: 0 };
+    }
+    const menuItem = Array.isArray(item.menu_items) ? item.menu_items[0] : item.menu_items;
+    if (menuItem && typeof menuItem === 'object') {
+      return {
+        menuItemId: item.menu_item_id || item.menuItemId || item.id || '',
+        name: menuItem.food_name || item.name || item.food_name || item.item_name || 'Item',
+        quantity: Number(item.quantity || item.qty || 1),
+        price: Number(menuItem.regular_price ?? menuItem.price ?? item.price ?? item.unit_price ?? 0),
+      };
+    }
+    return {
+      menuItemId: item.menuItemId || item.menu_item_id || item.id || '',
+      name: item.name || item.food_name || item.item_name || 'Item',
+      quantity: Number(item.quantity || item.qty || 1),
+      price: Number(item.price || item.unit_price || 0),
+    };
+  });
 }
 
 export const CANCEL_WINDOW_SECONDS = 30;
+
+export const IST_OFFSET_MINUTES = 5 * 60 + 30;
+
+export function toIst(time: number | Date | string): Date {
+  const d = time instanceof Date ? time : new Date(time);
+  if (Number.isNaN(d.getTime())) return d;
+  return new Date(d.getTime() + IST_OFFSET_MINUTES * 60 * 1000);
+}
+
+export function istDateStr(value: number | Date | string): string {
+  const d = toIst(value);
+  if (Number.isNaN(d.getTime())) return '';
+  const y = d.getUTCFullYear();
+  const m = String(d.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(d.getUTCDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+export function istNowDateStr(): string {
+  return istDateStr(Date.now());
+}

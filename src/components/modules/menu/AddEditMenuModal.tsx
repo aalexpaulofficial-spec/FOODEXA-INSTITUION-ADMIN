@@ -42,7 +42,8 @@ import {
   Percent,
   ClockIcon,
   Scale,
-  ChevronRight
+  ChevronRight,
+  BrainCircuit
 } from 'lucide-react';
 import { MenuItem, MenuStatus, DietaryType, Counter, MenuCategory } from '../../../types';
 import { supabase } from '../../../lib/supabaseClient';
@@ -310,12 +311,6 @@ export const AddEditMenuModal: React.FC<AddEditMenuModalProps> = ({
       if (!name.trim() && nameFromFile) {
         setName(nameFromFile.replace(/\b\w/g, char => char.toUpperCase()));
       }
-      const imageCategorySuggestions = suggestCategoriesFromText(nameFromFile);
-      if (!manualCategory.trim() && imageCategorySuggestions.length > 0) {
-        setManualCategory(imageCategorySuggestions[0]);
-        setAutoSuggestions(imageCategorySuggestions);
-        setShowSuggestions(true);
-      }
       setUploadProgress(10);
       onNotify('Compressing image...');
       const { blob, preview } = await compressImage(file);
@@ -332,12 +327,57 @@ export const AddEditMenuModal: React.FC<AddEditMenuModalProps> = ({
         setIsUploading(false);
         return;
       }
-      setUploadProgress(90);
+      setUploadProgress(70);
       const { data: urlData } = supabase.storage.from('food-images').getPublicUrl(data.path);
       const publicUrl = urlData.publicUrl;
       setImageUrl(publicUrl);
+
+      if (categoryMode === 'auto') {
+        onNotify('Analyzing food with AI...');
+        try {
+          const reader = new FileReader();
+          const base64 = await new Promise<string>((resolve, reject) => {
+            reader.onload = () => resolve(reader.result as string);
+            reader.onerror = () => reject(new Error('File read failed'));
+            reader.readAsDataURL(blob);
+          });
+
+          const aiRes = await fetch('/api/ai/analyze-image', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ image: base64, prompt: 'Analyze this food image. Return ONLY a JSON object with: name (string), category (string like Breakfast/Main Course/Snacks/Beverages/Desserts), description (string, 1-2 sentences), foodType (Veg or Non-Veg). Do not include markdown formatting.' }),
+          });
+
+          if (aiRes.ok) {
+            const aiData = await aiRes.json();
+            const text = aiData.text || aiData.result || '';
+            try {
+              const jsonMatch = text.match(/\{[\s\S]*\}/);
+              if (jsonMatch) {
+                const parsed = JSON.parse(jsonMatch[0]);
+                if (parsed.name && !name.trim()) setName(parsed.name);
+                if (parsed.category && !manualCategory.trim()) {
+                  setManualCategory(parsed.category);
+                  setAutoSuggestions([parsed.category]);
+                }
+                if (parsed.description && !description.trim()) setDescription(parsed.description);
+                if (parsed.foodType && (parsed.foodType === 'Veg' || parsed.foodType === 'Non-Veg')) {
+                  setFoodType(parsed.foodType as DietaryType);
+                }
+                onNotify('AI suggestions applied. Please verify.');
+              }
+            } catch {
+              onNotify('Image uploaded. AI could not parse suggestions.');
+            }
+          } else {
+            onNotify('Image uploaded. AI categorization unavailable.');
+          }
+        } catch {
+          onNotify('Image uploaded. AI analysis skipped.');
+        }
+      }
+
       setUploadProgress(100);
-      setCategoryMode('auto');
       onNotify('Image uploaded successfully');
       if (preview.startsWith('blob:')) URL.revokeObjectURL(preview);
     } catch (err: any) {

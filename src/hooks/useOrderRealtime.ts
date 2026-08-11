@@ -22,7 +22,7 @@ function withTimeout<T>(promise: PromiseLike<T>, ms: number, label: string): Pro
   ]);
 }
 
-function mapDbOrderToOrder(db: any): Order {
+export function mapDbOrderToOrder(db: any): Order {
   const orderTime = db.order_time || db.orderTime || db.created_at || '';
   const pickupTime = db.pickup_time_estimated || db.pickupTimeEstimated || db.pickup_time || '';
   return {
@@ -179,15 +179,15 @@ export function useOrderRealtime(
     setError(null);
 
     try {
-      const { data, error } = await withTimeout(
-        supabase
-          .from('orders')
-          .select('*, order_items(*)')
-          .eq('institution_id', institutionId)
-          .order('created_at', { ascending: false }),
-        DATA_FETCH_TIMEOUT_MS,
-        'Orders fetch'
-      );
+       const { data, error } = await withTimeout(
+         supabase
+           .from('orders')
+           .select('*, order_items(*, menu_items(food_name, regular_price, price))')
+           .eq('institution_id', institutionId)
+           .order('created_at', { ascending: false }),
+         DATA_FETCH_TIMEOUT_MS,
+         'Orders fetch'
+       );
 
       if (error) {
         console.error('[useOrderRealtime] Supabase error:', error);
@@ -226,8 +226,74 @@ export function useOrderRealtime(
           table: 'orders',
           filter: `institution_id=eq.${institutionId}`,
         },
-        (payload) => {
-          handleOrderRealtime(payload);
+        (payload: any) => {
+          const eventType = payload?.eventType;
+          const record = payload?.new || payload?.old;
+          if (!record || !record.id) return;
+
+          if (eventType === 'INSERT') {
+            supabase
+              .from('orders')
+              .select('*, order_items(*, menu_items(food_name, regular_price, price))')
+              .eq('id', record.id)
+              .single()
+              .then(({ data: fullOrder }) => {
+                if (fullOrder) {
+                  const enriched = enrichOrdersWithProfile([fullOrder])[0];
+                  if (enriched) {
+                    setOrders(prev => {
+                      const exists = prev.some(o => o.id === enriched.id);
+                      if (exists) return prev.map(o => o.id === enriched.id ? enriched : o);
+                      return [enriched, ...prev];
+                    });
+                  }
+                }
+              });
+          } else if (eventType === 'UPDATE') {
+            supabase
+              .from('orders')
+              .select('*, order_items(*, menu_items(food_name, regular_price, price))')
+              .eq('id', record.id)
+              .single()
+              .then(({ data: fullOrder }) => {
+                if (fullOrder) {
+                  const enriched = enrichOrdersWithProfile([fullOrder])[0];
+                  if (enriched) {
+                    setOrders(prev => prev.map(o => o.id === enriched.id ? enriched : o));
+                  }
+                }
+              });
+          } else if (eventType === 'DELETE') {
+            setOrders(prev => prev.filter(o => o.id !== record.id));
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'order_items',
+        },
+        (payload: any) => {
+          const record = payload?.new || payload?.old;
+          if (!record?.order_id) return;
+          const orderId = record.order_id;
+
+          supabase
+            .from('orders')
+            .select('*, order_items(*, menu_items(food_name, regular_price, price))')
+            .eq('id', orderId)
+            .eq('institution_id', institutionId)
+            .single()
+            .then(({ data: fullOrder }) => {
+              if (fullOrder) {
+                const enriched = enrichOrdersWithProfile([fullOrder])[0];
+                if (enriched) {
+                  setOrders(prev => prev.map(o => o.id === enriched.id ? enriched : o));
+                }
+              }
+            });
         }
       )
       .subscribe((status) => {
@@ -243,7 +309,7 @@ export function useOrderRealtime(
         channelRef.current = null;
       }
     };
-  }, [institutionId, fetchOrders, handleOrderRealtime]);
+  }, [institutionId, fetchOrders, handleOrderRealtime, enrichOrdersWithProfile]);
 
   const insertStatusNotification = useCallback(
     async (order: Order, status: OrderStatus) => {
@@ -382,16 +448,16 @@ export function useOrderRealtime(
       if (!institutionId) return fallback;
 
       try {
-        const { data, error } = await withTimeout(
-          supabase
-            .from('orders')
-            .select('*, order_items(*), profiles(*), institutions(*), canteens(*)')
-            .eq('id', orderId)
-            .eq('institution_id', institutionId)
-            .single(),
-          DATA_FETCH_TIMEOUT_MS,
-          'Order details fetch'
-        );
+         const { data, error } = await withTimeout(
+           supabase
+             .from('orders')
+             .select('*, order_items(*, menu_items(food_name, regular_price, price)), profiles(*), institutions(*), canteens(*)')
+             .eq('id', orderId)
+             .eq('institution_id', institutionId)
+             .single(),
+           DATA_FETCH_TIMEOUT_MS,
+           'Order details fetch'
+         );
 
         if (error || !data) return fallback;
 

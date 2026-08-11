@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import {
   ShoppingBag, TrendingUp, Clock, CheckCircle2, ChefHat,
   Store, ArrowRight, Package, Users, IndianRupee, CircleDot,
@@ -15,6 +15,28 @@ interface HomeDashboardProps {
   onOpenQRScanner: () => void;
 }
 
+function getIstTodayStr(): string {
+  const now = new Date();
+  const istOffset = 5.5 * 60 * 60 * 1000;
+  const istDate = new Date(now.getTime() + istOffset);
+  const y = istDate.getUTCFullYear();
+  const m = String(istDate.getUTCMonth() + 1).padStart(2, '0');
+  const d = String(istDate.getUTCDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+function getOrderIstDateStr(orderDate: string): string {
+  if (!orderDate) return '';
+  const d = new Date(orderDate);
+  if (Number.isNaN(d.getTime())) return '';
+  const istOffset = 5.5 * 60 * 60 * 1000;
+  const istDate = new Date(d.getTime() + istOffset);
+  const y = istDate.getUTCFullYear();
+  const m = String(istDate.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(istDate.getUTCDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
 export const HomeDashboard: React.FC<HomeDashboardProps> = ({
   currentInstitution,
   orders,
@@ -23,6 +45,15 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
   onOpenQRScanner
 }) => {
   const { t } = useLanguage();
+  const [todayFilter, setTodayFilter] = useState(() => getIstTodayStr());
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const newToday = getIstTodayStr();
+      setTodayFilter(prev => prev !== newToday ? newToday : prev);
+    }, 60000);
+    return () => clearInterval(interval);
+  }, []);
 
   const getGreeting = () => {
     const hour = new Date().getHours();
@@ -38,11 +69,12 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
     day: 'numeric'
   });
 
-  // Live metrics
   const todayOrders = useMemo(() => {
-    const today = new Date().toDateString();
-    return orders.filter(o => new Date(o.orderTime || o.created_at || '').toDateString() === today);
-  }, [orders]);
+    return orders.filter(o => {
+      const orderDate = getOrderIstDateStr(o.created_at || o.orderTime || '');
+      return orderDate === todayFilter;
+    });
+  }, [orders, todayFilter]);
 
   const todaysRevenue = useMemo(() =>
     todayOrders.filter(o => o.paymentStatus === 'paid').reduce((sum, o) => sum + o.totalAmount, 0),

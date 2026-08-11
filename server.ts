@@ -343,6 +343,46 @@ async function startServer() {
     }
   });
 
+  app.post('/api/ai/analyze-image', async (req, res) => {
+    try {
+      const { imageBase64, mimeType } = req.body;
+      if (!imageBase64 || !mimeType) {
+        return res.status(400).json({ success: false, error: 'imageBase64 and mimeType are required' });
+      }
+      const ai = getAi();
+      const systemPrompt = `You are FOODEXA AI, an expert food recognition system for Indian campus canteens. Analyze the food image and return a JSON object with:
+- food_name: string (specific dish name, e.g. "Chicken Biryani")
+- category: string (e.g. "Main Course", "Snacks", "Beverages", "Breakfast", "Desserts")
+- food_type: string ("Veg" | "Non-Veg" | "Vegan" | "Jain")
+- description: string (appealing 1-2 sentence description)
+- calories: number (estimated kcal per serving)
+- protein_grams: number
+- carbs_grams: number
+- fat_grams: number
+- prep_time_minutes: number (typical preparation time)
+- serving_size: string (e.g. "1 Plate (300g)")
+- confidence: number (0-1)
+Return ONLY valid JSON, no extra text.`;
+      const response = await ai.models.generateContent({
+        model: 'gemini-3.6-flash',
+        contents: [
+          { text: systemPrompt },
+          { inlineData: { mimeType, data: imageBase64 } },
+        ],
+      });
+      let parsed;
+      try {
+        parsed = JSON.parse(response.text || '{}');
+      } catch {
+        parsed = { food_name: 'Unknown Dish', category: 'Main Course', food_type: 'Veg', description: '', calories: 0, protein_grams: 0, carbs_grams: 0, fat_grams: 0, prep_time_minutes: 10, serving_size: '', confidence: 0.5 };
+      }
+      res.json({ success: true, data: parsed });
+    } catch (error: any) {
+      console.error('Gemini image analysis error:', error);
+      res.status(500).json({ success: false, error: error?.message || 'Failed to analyze image.' });
+    }
+  });
+
   // POST /api/admin/check-email
   app.post('/api/admin/check-email', async (req, res) => {
     try {
