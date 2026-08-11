@@ -658,3 +658,174 @@ html:not(.dark) .bg-slate-950\/90 {
   -webkit-text-fill-color: transparent;
   background-clip: text;
 }
+
+/* ========================================
+   Additional Light Mode Overrides
+   ======================================== */
+
+/* Zinc backgrounds */
+html.light .bg-zinc-800,
+html.light .bg-zinc-800\/60,
+html.light .bg-zinc-800\/40,
+html.light .bg-zinc-800\/30,
+html:not(.dark) .bg-zinc-800,
+html:not(.dark) .bg-zinc-800\/60,
+html:not(.dark) .bg-zinc-800\/40,
+html:not(.dark) .bg-zinc-800\/30 {
+  background-color: #f1f5f9 !important;
+  color: #334155 !important;
+}
+
+html.light .bg-zinc-900\/40,
+html:not(.dark) .bg-zinc-900\/40 {
+  background-color: #f8fafc !important;
+  border-color: #e2e8f0 !important;
+}
+
+/* Slate 800 backgrounds (kitchen, orders) */
+html.light .bg-slate-800,
+html.light .bg-slate-800\/60,
+html:not(.dark) .bg-slate-800,
+html:not(.dark) .bg-slate-800\/60 {
+  background-color: #f1f5f9 !important;
+  color: #334155 !important;
+}
+
+/* Slates for text in light mode */
+html.light .text-zinc-600,
+html:not(.dark) .text-zinc-600 {
+  color: #94a3b8 !important;
+}
+
+html.light .text-zinc-700,
+html:not(.dark) .text-zinc-700 {
+  color: #94a3b8 !important;
+}
+
+/* Green badges */
+html.light .bg-green-500\/10,
+html:not(.dark) .bg-green-500\/10 {
+  background-color: #f0fdf4 !important;
+  color: #15803d !important;
+  border-color: #bbf7d0 !important;
+}
+
+html.light .text-green-400,
+html:not(.dark) .text-green-400 {
+  color: #16a34a !important;
+}
+
+/* Slates for badges */
+html.light .bg-slate-500\/10,
+html:not(.dark) .bg-slate-500\/10 {
+  background-color: #f8fafc !important;
+  color: #64748b !important;
+  border-color: #e2e8f0 !important;
+}
+
+/* Slates for borders in light mode */
+html.light .border-slate-800\/50,
+html:not(.dark) .border-slate-800\/50 {
+  border-color: #e2e8f0 !important;
+}
+
+html.light .border-zinc-800\/80,
+html:not(.dark) .border-zinc-800\/80 {
+  border-color: #e2e8f0 !important;
+}
+
+/* Divider */
+html.light .divide-zinc-800\/50 > *,
+html:not(.dark) .divide-zinc-800\/50 > * {
+  border-color: #e2e8f0 !important;
+}
+
+/* Hover states */
+html.light .hover\:bg-zinc-800\/60:hover,
+html:not(.dark) .hover\:bg-zinc-800\/60:hover {
+  background-color: #f1f5f9 !important;
+}
+
+html.light .hover\:bg-zinc-800\/30:hover,
+html:not(.dark) .hover\:bg-zinc-800\/30:hover {
+  background-color: #f8fafc !important;
+}
+
+html.light .hover\:bg-zinc-800\/20:hover,
+html:not(.dark) .hover\:bg-zinc-800\/20:hover {
+  background-color: #f8fafc !important;
+}
+
+html.light .hover\:bg-slate-800:hover,
+html:not(.dark) .hover\:bg-slate-800:hover {
+  background-color: #f1f5f9 !important;
+}
+
+html.light .hover\:bg-slate-700:hover,
+html:not(.dark) .hover\:bg-slate-700:hover {
+  background-color: #f1f5f9 !important;
+}
+
+/* Badge text for slate-300 */
+html.light .text-slate-300,
+html:not(.dark) .text-slate-300 {
+  color: #475569 !important;
+}
+
+/* Badge backgrounds - slate */
+html.light .bg-slate-900,
+html:not(.dark) .bg-slate-900 {
+  background-color: #ffffff !important;
+  border-color: #e2e8f0 !important;
+}
+
+/* Kitchen dashboard cards */
+html.light .bg-slate-950,
+html:not(.dark) .bg-slate-950 {
+  background-color: #f8fafc !important;
+  border-color: #e2e8f0 !important;
+}
+
+/* Text inside light mode cards should be dark */
+html.light .text-slate-200,
+html:not(.dark) .text-slate-200 {
+  color: #1e293b !important;
+}
+
+html.light .text-slate-100,
+html:not(.dark) .text-slate-100 {
+  color: #0f172a !important;
+}
+
+/* Recharts tooltip in light mode */
+html.light .recharts-tooltip-wrapper .recharts-default-tooltip,
+html:not(.dark) .recharts-tooltip-wrapper .recharts-default-tooltip {
+  background-color: #ffffff !important;
+  border-color: #e2e8f0 !important;
+  color: #0f172a !important;
+}
+
+/* Empty state icons */
+html.light .text-slate-600,
+html:not(.dark) .text-slate-600 {
+  color: #94a3b8 !important;
+}
+
+/* Progress bars */
+html.light .bg-slate-800,
+html:not(.dark) .bg-slate-800 {
+  background-color: #e2e8f0 !important;
+}
+
+/* Font-mono text in light mode */
+html.light .font-mono,
+html:not(.dark) .font-mono {
+  color: inherit;
+}
+
+/* Active sidebar item */
+html.light .bg-indigo-500\/15,
+html:not(.dark) .bg-indigo-500\/15 {
+  background-color: #eef2ff !important;
+  color: #4338ca !important;
+}

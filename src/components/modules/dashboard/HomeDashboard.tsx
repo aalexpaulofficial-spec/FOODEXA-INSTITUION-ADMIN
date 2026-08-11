@@ -82,7 +82,7 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
   );
 
   const preparingCount = useMemo(() =>
-    orders.filter(o => o.kitchenStatus === 'Preparing' || o.kitchenStatus === 'Accepted').length,
+    orders.filter(o => o.kitchenStatus === 'Preparing').length,
     [orders]
   );
 
@@ -103,13 +103,13 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
 
   // Order flow counts
   const orderFlow = useMemo(() => {
-    const paid = orders.filter(o => o.paymentStatus === 'paid' && o.kitchenStatus !== 'Completed' && o.kitchenStatus !== 'Cancelled').length;
+    const paid = orders.filter(o => o.paymentStatus === 'paid' && !['completed', 'cancelled'].includes(o.status)).length;
     const accepted = orders.filter(o => o.kitchenStatus === 'Accepted').length;
     const preparing = orders.filter(o => o.kitchenStatus === 'Preparing').length;
     const ready = orders.filter(o => o.kitchenStatus === 'Ready').length;
-    const completed = todayOrders.filter(o => o.kitchenStatus === 'Completed' || o.status === 'completed').length;
+    const completed = orders.filter(o => o.kitchenStatus === 'Completed' || o.status === 'completed').length;
     return { paid, accepted, preparing, ready, completed };
-  }, [orders, todayOrders]);
+  }, [orders]);
 
   // Kitchen queue - active orders needing attention
   const kitchenQueue = useMemo(() =>
@@ -213,9 +213,10 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
           </h1>
           <p className="text-zinc-400 text-sm max-w-xl leading-relaxed">
             <span className="text-white font-medium">{currentInstitution?.name || 'Your Institution'}</span>
-            {' '}&mdash; {orders.length} total orders, {activeCanteens} active canteens.
+            {' '}&mdash; {todayOrders.length} orders today, {orders.length} total orders.
+            {activeCanteens > 0 && <span> {activeCanteens} active canteen{activeCanteens !== 1 ? 's' : ''}.</span>}
             {preparingCount > 0 && (
-              <span className="text-amber-400 font-medium"> {preparingCount} orders being prepared.</span>
+              <span className="text-amber-400 font-medium"> {preparingCount} order{preparingCount !== 1 ? 's' : ''} being prepared.</span>
             )}
           </p>
         </div>
