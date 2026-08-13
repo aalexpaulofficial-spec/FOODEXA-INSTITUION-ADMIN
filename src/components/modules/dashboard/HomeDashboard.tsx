@@ -82,17 +82,17 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
   );
 
   const preparingCount = useMemo(() =>
-    orders.filter(o => o.kitchenStatus === 'Preparing').length,
+    orders.filter(o => o.status === 'preparing').length,
     [orders]
   );
 
   const readyCount = useMemo(() =>
-    orders.filter(o => o.kitchenStatus === 'Ready').length,
+    orders.filter(o => o.status === 'ready').length,
     [orders]
   );
 
   const completedToday = useMemo(() =>
-    todayOrders.filter(o => o.kitchenStatus === 'Completed' || o.status === 'completed').length,
+    todayOrders.filter(o => o.status === 'completed').length,
     [todayOrders]
   );
 
@@ -104,20 +104,20 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
   // Order flow counts
   const orderFlow = useMemo(() => {
     const paid = orders.filter(o => o.paymentStatus === 'paid' && !['completed', 'cancelled'].includes(o.status)).length;
-    const accepted = orders.filter(o => o.kitchenStatus === 'Accepted').length;
-    const preparing = orders.filter(o => o.kitchenStatus === 'Preparing').length;
-    const ready = orders.filter(o => o.kitchenStatus === 'Ready').length;
-    const completed = orders.filter(o => o.kitchenStatus === 'Completed' || o.status === 'completed').length;
-    return { paid, accepted, preparing, ready, completed };
+    const pending = orders.filter(o => o.status === 'pending').length;
+    const preparing = orders.filter(o => o.status === 'preparing').length;
+    const ready = orders.filter(o => o.status === 'ready').length;
+    const completed = orders.filter(o => o.status === 'completed').length;
+    return { paid, pending, preparing, ready, completed };
   }, [orders]);
 
   // Kitchen queue - active orders needing attention
   const kitchenQueue = useMemo(() =>
     orders
-      .filter(o => ['Pending', 'Accepted', 'Preparing', 'Ready'].includes(o.kitchenStatus || '') && o.paymentStatus === 'paid')
+      .filter(o => ['pending', 'preparing', 'ready'].includes(o.status || '') && o.paymentStatus === 'paid')
       .sort((a, b) => {
-        const order = { 'Pending': 0, 'Accepted': 1, 'Preparing': 2, 'Ready': 3 };
-        return (order[a.kitchenStatus as keyof typeof order] || 0) - (order[b.kitchenStatus as keyof typeof order] || 0);
+        const order = { 'pending': 0, 'preparing': 1, 'ready': 2 };
+        return (order[a.status as keyof typeof order] || 0) - (order[b.status as keyof typeof order] || 0);
       })
       .slice(0, 6),
     [orders]
@@ -177,8 +177,8 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
 
   const flowSteps = [
     { key: 'paid', label: 'Paid', count: orderFlow.paid, color: 'bg-indigo-500' },
-    { key: 'accepted', label: 'Accepted', count: orderFlow.accepted, color: 'bg-blue-500' },
-    { key: 'preparing', label: 'Preparing', count: orderFlow.preparing, color: 'bg-amber-500' },
+    { key: 'pending', label: 'Incoming', count: orderFlow.pending, color: 'bg-amber-500' },
+    { key: 'preparing', label: 'Preparing', count: orderFlow.preparing, color: 'bg-cyan-500' },
     { key: 'ready', label: 'Ready', count: orderFlow.ready, color: 'bg-emerald-500' },
     { key: 'completed', label: 'Completed', count: orderFlow.completed, color: 'bg-purple-500' },
   ];
@@ -186,7 +186,6 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
   const getStatusStyle = (status: string) => {
     switch (status) {
       case 'Pending': return 'bg-zinc-500/10 text-zinc-400 border-zinc-500/20';
-      case 'Accepted': return 'bg-blue-500/10 text-blue-400 border-blue-500/20';
       case 'Preparing': return 'bg-amber-500/10 text-amber-400 border-amber-500/20';
       case 'Ready': return 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20';
       case 'Completed': return 'bg-purple-500/10 text-purple-400 border-purple-500/20';
@@ -341,14 +340,13 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
                   </div>
 
                   {/* Status */}
-                  <div className={`foodexa-badge ${getStatusStyle(order.kitchenStatus || 'Pending')}`}>
-                    <div className={`w-1.5 h-1.5 rounded-full ${
-                      order.kitchenStatus === 'Preparing' ? 'bg-amber-400' :
-                      order.kitchenStatus === 'Ready' ? 'bg-emerald-400' :
-                      order.kitchenStatus === 'Accepted' ? 'bg-blue-400' :
-                      order.kitchenStatus === 'Completed' ? 'bg-purple-400' : 'bg-zinc-400'
-                    }`} />
-                    {order.kitchenStatus || 'Pending'}
+                   <div className={`foodexa-badge ${getStatusStyle(order.kitchenStatus || 'Pending')}`}>
+                      <span className={`w-2 h-2 rounded-full ${
+                       order.status === 'preparing' ? 'bg-amber-400' :
+                       order.status === 'ready' ? 'bg-emerald-400' :
+                       order.status === 'completed' ? 'bg-purple-400' : 'bg-zinc-400'
+                     }`} />
+                     {order.kitchenStatus || 'Pending'}
                   </div>
                 </div>
               ))}

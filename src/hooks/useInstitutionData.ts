@@ -49,6 +49,7 @@ interface InstitutionData {
   toggleCounterAvailability: (counterId: string) => Promise<void>;
   updateOrderStatus: (orderId: string, status: OrderStatus) => Promise<boolean>;
   fetchOrderDetails: (orderId: string) => Promise<Order | null>;
+  updatingOrderId: string | null;
   addMenuItem: (item: MenuItem) => Promise<string | null>;
   updateMenuItem: (itemId: string, updates: Partial<MenuItem>) => Promise<void>;
   deleteMenuItem: (itemId: string) => Promise<void>;
@@ -203,6 +204,7 @@ export function useInstitutionData(institutionId: string | null): InstitutionDat
   const ordersRealtimeStatus = orderRealtime.realtimeStatus;
   const updateOrderStatus = orderRealtime.updateOrderStatus;
   const fetchOrderDetails = orderRealtime.fetchOrderDetails;
+  const updatingOrderId = orderRealtime.updatingOrderId;
 
   const fetchAll = useCallback(async () => {
     if (!institutionId) {
@@ -871,7 +873,7 @@ const toggleStaffPermission = async (staffId: string, permKey: string) => {
     refresh: fetchAll,
     updateStudentStatus, approveVendor, rejectVendor, suspendVendor,
     addCounter, updateCounter, deleteCounter, archiveCounter, restoreCounter, updateCounterStatus, toggleCounterAvailability,
-    updateOrderStatus, fetchOrderDetails,
+    updateOrderStatus, fetchOrderDetails, updatingOrderId,
     addMenuItem, updateMenuItem, deleteMenuItem, toggleMenuAvailability,
     addMenuCategory, updateMenuCategory, deleteMenuCategory,
     toggleStaffPermission, deleteStudent, addStaff, updateStaff, deleteStaff, deleteAnnouncement, deleteVendor, updateInstitution,

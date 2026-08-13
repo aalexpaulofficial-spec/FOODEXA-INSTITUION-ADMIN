@@ -137,8 +137,6 @@ export const StudentDashboardSyncModal: React.FC<StudentDashboardSyncModalProps>
                         ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 animate-pulse'
                         : activeStudentOrder.status === 'preparing'
                         ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
-                        : activeStudentOrder.status === 'accepted'
-                        ? 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/30'
                         : 'bg-slate-500/20 text-slate-400 border border-slate-500/30'
                     }`}
                   >
@@ -195,7 +193,7 @@ export const StudentDashboardSyncModal: React.FC<StudentDashboardSyncModalProps>
                   <div className="grid grid-cols-4 gap-1 text-[10px] text-center font-bold">
                     <div
                       className={`p-1.5 rounded-lg border ${
-                        ['pending', 'accepted', 'preparing', 'ready', 'completed'].includes(activeStudentOrder.status)
+                        ['pending', 'preparing', 'ready', 'completed'].includes(activeStudentOrder.status)
                           ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'
                           : 'bg-slate-900 text-slate-600 border-slate-800'
                       }`}
@@ -204,7 +202,7 @@ export const StudentDashboardSyncModal: React.FC<StudentDashboardSyncModalProps>
                     </div>
                     <div
                       className={`p-1.5 rounded-lg border ${
-                        ['accepted', 'preparing', 'ready', 'completed'].includes(activeStudentOrder.status)
+                        ['preparing', 'ready', 'completed'].includes(activeStudentOrder.status)
                           ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'
                           : 'bg-slate-900 text-slate-600 border-slate-800'
                       }`}

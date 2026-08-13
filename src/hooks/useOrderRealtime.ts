@@ -22,6 +22,8 @@ function withTimeout<T>(promise: PromiseLike<T>, ms: number, label: string): Pro
   ]);
 }
 
+const ORDER_SELECT = '*, order_items(*, menu_items(food_name, regular_price, price, image_url, canteen_id, institution_id))';
+
 export function mapDbOrderToOrder(db: any): Order {
   const orderTime = db.order_time || db.orderTime || db.created_at || '';
   const pickupTime = db.pickup_time_estimated || db.pickupTimeEstimated || db.pickup_time || '';
@@ -29,6 +31,7 @@ export function mapDbOrderToOrder(db: any): Order {
     ...db,
     id: db.id,
     institutionId: db.institution_id || db.institutionId,
+    canteen_id: db.canteen_id || '',
     orderNumber: db.order_number || db.orderNumber || db.order_no || '',
     studentId: db.student_id || db.studentId || db.user_id || '',
     studentName: db.student_name || db.studentName || db.customer_name || '',
@@ -47,13 +50,14 @@ export function mapDbOrderToOrder(db: any): Order {
       id: oi.id,
       order_id: oi.order_id,
       menu_item_id: oi.menu_item_id,
-      item_name: oi.item_name || oi.name,
+      item_name: oi.menu_items?.food_name || oi.item_name || oi.name || '',
       quantity: Number(oi.quantity || 0),
       unit_price: Number(oi.unit_price || 0),
       total_price: Number(oi.total_price || 0),
       special_instructions: oi.special_instructions,
       created_at: oi.created_at,
       updated_at: oi.updated_at,
+      menu_items: oi.menu_items || null,
     })) as OrderItem[] : [],
     totalAmount: Number(db.total_amount || db.totalAmount || db.amount || 0),
     status: normalizeOrderStatus(db.status),
@@ -82,6 +86,7 @@ export function mapDbOrderToOrder(db: any): Order {
     userPhone: db.user_phone || db.userPhone || '',
   } as Order;
 }
+
 export type ProfileTuple = {
   user_id: string;
   id?: string;
@@ -102,6 +107,7 @@ export interface UseOrderRealtimeReturn {
   cancelOrder: (orderId: string) => Promise<boolean>;
   fetchOrderDetails: (orderId: string) => Promise<Order | null>;
   refresh: () => void;
+  updatingOrderId: string | null;
 }
 
 export function useOrderRealtime(
@@ -113,6 +119,7 @@ export function useOrderRealtime(
   const [error, setError] = useState<string | null>(null);
   const [realtimeStatus, setRealtimeStatus] = useState<string>('');
   const [isRealtime, setIsRealtime] = useState(false);
+  const [updatingOrderId, setUpdatingOrderId] = useState<string | null>(null);
   const profilesRef = useRef(profiles);
   const channelRef = useRef<any>(null);
   const isEnrichingRef = useRef(false);
@@ -145,29 +152,6 @@ export function useOrderRealtime(
     []
   );
 
-  const handleOrderRealtime = useCallback(
-    (payload: any) => {
-      const eventType = payload?.eventType;
-      const record = payload?.new || payload?.old;
-      if (!record || !record.id) return;
-
-      if (eventType === 'DELETE') {
-        setOrders((prev) => prev.filter((o) => o.id !== record.id));
-        return;
-      }
-
-      const enriched = enrichOrdersWithProfile([record])[0];
-      if (!enriched) return;
-
-      setOrders((prev) => {
-        const exists = prev.some((o) => o.id === record.id);
-        if (!exists) return [enriched, ...prev];
-        return prev.map((o) => (o.id === record.id ? enriched : o));
-      });
-    },
-    [enrichOrdersWithProfile]
-  );
-
   const fetchOrders = useCallback(async () => {
     if (!institutionId) {
       setOrders([]);
@@ -182,7 +166,7 @@ export function useOrderRealtime(
        const { data, error } = await withTimeout(
          supabase
            .from('orders')
-           .select('*, order_items(*, menu_items(food_name, regular_price, price))')
+           .select(ORDER_SELECT)
            .eq('institution_id', institutionId)
            .order('created_at', { ascending: false }),
          DATA_FETCH_TIMEOUT_MS,
@@ -234,7 +218,7 @@ export function useOrderRealtime(
           if (eventType === 'INSERT') {
             supabase
               .from('orders')
-              .select('*, order_items(*, menu_items(food_name, regular_price, price))')
+              .select(ORDER_SELECT)
               .eq('id', record.id)
               .single()
               .then(({ data: fullOrder }) => {
@@ -252,7 +236,7 @@ export function useOrderRealtime(
           } else if (eventType === 'UPDATE') {
             supabase
               .from('orders')
-              .select('*, order_items(*, menu_items(food_name, regular_price, price))')
+              .select(ORDER_SELECT)
               .eq('id', record.id)
               .single()
               .then(({ data: fullOrder }) => {
@@ -282,7 +266,7 @@ export function useOrderRealtime(
 
           supabase
             .from('orders')
-            .select('*, order_items(*, menu_items(food_name, regular_price, price))')
+            .select(ORDER_SELECT)
             .eq('id', orderId)
             .eq('institution_id', institutionId)
             .single()
@@ -309,7 +293,7 @@ export function useOrderRealtime(
         channelRef.current = null;
       }
     };
-  }, [institutionId, fetchOrders, handleOrderRealtime, enrichOrdersWithProfile]);
+  }, [institutionId, fetchOrders, enrichOrdersWithProfile]);
 
   const insertStatusNotification = useCallback(
     async (order: Order, status: OrderStatus) => {
@@ -369,42 +353,62 @@ export function useOrderRealtime(
         return false;
       }
 
+      // Prevent double-clicks: if already updating this order, skip
+      if (updatingOrderId === orderId) {
+        return false;
+      }
+
+      setUpdatingOrderId(orderId);
+
       const updates = buildStatusUpdate(status);
 
-      setOrders((prev) =>
-        prev.map((o) =>
-          o.id === orderId
-            ? {
-                ...o,
-                ...updates,
-                status: normalizeOrderStatus(updates.status),
-                kitchenStatus: String(updates.kitchen_status || o.kitchenStatus || 'Pending'),
-                counterStatus: String(updates.counter_status || o.counterStatus || ''),
-                orderStatus: String(updates.order_status || o.orderStatus || ''),
-                acceptedAt: updates.accepted_at ? String(updates.accepted_at) : o.acceptedAt,
-                preparingAt: updates.preparing_at ? String(updates.preparing_at) : o.preparingAt,
-                readyAt: updates.ready_at ? String(updates.ready_at) : o.readyAt,
-                completedAt: updates.completed_at ? String(updates.completed_at) : o.completedAt,
-                cancelledAt: updates.cancelled_at ? String(updates.cancelled_at) : o.cancelledAt,
-                updatedAt: String(updates.updated_at || ''),
-              }
-            : o
-        )
-      );
-
       try {
-        const { error: updateError } = await supabase
+        const { data, error: updateError } = await supabase
           .from('orders')
           .update(updates)
           .eq('id', orderId)
-          .eq('institution_id', institutionId);
+          .eq('institution_id', institutionId)
+          .eq('status', order.status) // optimistic concurrency: only update if status hasn't changed
+          .select('id')
+          .single();
 
         if (updateError) {
           console.error('[useOrderRealtime] Supabase update error:', updateError);
           setError(`Failed to update order: ${updateError.message}`);
+          setUpdatingOrderId(null);
           await fetchOrders();
           return false;
         }
+
+        if (!data) {
+          // Zero rows updated - status may have changed since we read it
+          console.warn('[useOrderRealtime] No rows updated for order', orderId, '- status may have changed');
+          setError('Order status changed by another user. Refreshing...');
+          setUpdatingOrderId(null);
+          await fetchOrders();
+          return false;
+        }
+
+        // Optimistically update local state immediately
+        setOrders((prev) =>
+          prev.map((o) =>
+            o.id === orderId
+              ? {
+                  ...o,
+                  ...updates,
+                  status: normalizeOrderStatus(updates.status),
+                  kitchenStatus: String(updates.kitchen_status || o.kitchenStatus || 'Pending'),
+                  counterStatus: String(updates.counter_status || o.counterStatus || ''),
+                  orderStatus: String(updates.order_status || o.orderStatus || ''),
+                  preparingAt: updates.preparing_at ? String(updates.preparing_at) : o.preparingAt,
+                  readyAt: updates.ready_at ? String(updates.ready_at) : o.readyAt,
+                  completedAt: updates.completed_at ? String(updates.completed_at) : o.completedAt,
+                  cancelledAt: updates.cancelled_at ? String(updates.cancelled_at) : o.cancelledAt,
+                  updatedAt: String(updates.updated_at || ''),
+                }
+              : o
+          )
+        );
 
         await insertStatusNotification(
           { ...order, ...updates } as Order,
@@ -412,15 +416,17 @@ export function useOrderRealtime(
         );
 
         setError(null);
+        setUpdatingOrderId(null);
         return true;
       } catch (err: unknown) {
         console.error('[useOrderRealtime] updateOrderStatus error:', err);
         setError(err instanceof Error ? err.message : 'Failed to update order status');
+        setUpdatingOrderId(null);
         await fetchOrders();
         return false;
       }
     },
-    [orders, institutionId, insertStatusNotification, fetchOrders]
+    [orders, institutionId, insertStatusNotification, fetchOrders, updatingOrderId]
   );
 
   const cancelOrder = useCallback(
@@ -451,7 +457,7 @@ export function useOrderRealtime(
          const { data, error } = await withTimeout(
            supabase
              .from('orders')
-             .select('*, order_items(*, menu_items(food_name, regular_price, price)), profiles(*), institutions(*), canteens(*)')
+             .select(`${ORDER_SELECT}, profiles(*), institutions(*), canteens(*)`)
              .eq('id', orderId)
              .eq('institution_id', institutionId)
              .single(),
@@ -500,6 +506,7 @@ export function useOrderRealtime(
         const raw: any = {
           id: o.id,
           institution_id: o.institutionId,
+          canteen_id: o.canteen_id,
           order_number: o.orderNumber,
           student_id: o.studentId,
           student_name: o.studentName,
@@ -563,5 +570,6 @@ export function useOrderRealtime(
     cancelOrder,
     fetchOrderDetails,
     refresh,
+    updatingOrderId,
   };
 }

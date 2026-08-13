@@ -35,7 +35,6 @@ interface OrderManagementProps {
 const STATUS_TABS: { id: string; label: string; color: string; icon: React.ReactNode }[] = [
   { id: 'all', label: 'All Orders', color: 'text-slate-300', icon: <ShoppingBag className="w-3.5 h-3.5" /> },
   { id: 'pending', label: 'Pending', color: 'text-amber-400', icon: <Clock className="w-3.5 h-3.5" /> },
-  { id: 'accepted', label: 'Accepted', color: 'text-indigo-400', icon: <CheckCircle2 className="w-3.5 h-3.5" /> },
   { id: 'preparing', label: 'Preparing', color: 'text-cyan-400', icon: <Zap className="w-3.5 h-3.5" /> },
   { id: 'ready', label: 'Ready', color: 'text-emerald-400', icon: <CheckCircle2 className="w-3.5 h-3.5" /> },
   { id: 'completed', label: 'Completed', color: 'text-green-400', icon: <CheckCircle2 className="w-3.5 h-3.5" /> },
@@ -59,7 +58,6 @@ const getRoleBadge = (role?: string) => {
 const getStatusColor = (status: OrderStatus) => {
   switch (status) {
     case 'pending': return 'bg-amber-500/10 text-amber-400 border border-amber-500/20';
-    case 'accepted': return 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20';
     case 'preparing': return 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/20';
     case 'ready': return 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20';
     case 'completed': return 'bg-green-500/10 text-green-400 border border-green-500/20';
@@ -454,18 +452,10 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
             <div className="pt-3 border-t border-slate-800 flex flex-wrap gap-2">
               {viewOrder.status === 'pending' && (
                 <button
-                  onClick={() => { onUpdateOrderStatus(viewOrder.id, 'accepted'); setSelectedOrderId(null); }}
+                  onClick={() => { onUpdateOrderStatus(viewOrder.id, 'preparing'); setSelectedOrderId(null); }}
                   className="flex-1 py-2 rounded-xl bg-amber-500 text-slate-950 font-bold text-xs"
                 >
-                  Accept Order
-                </button>
-              )}
-              {viewOrder.status === 'accepted' && (
-                <button
-                  onClick={() => { onUpdateOrderStatus(viewOrder.id, 'preparing'); setSelectedOrderId(null); }}
-                  className="flex-1 py-2 rounded-xl bg-cyan-500 text-slate-950 font-bold text-xs"
-                >
-                  Start Preparing
+                  Accept & Start Preparing
                 </button>
               )}
               {viewOrder.status === 'preparing' && (

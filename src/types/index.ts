@@ -113,7 +113,7 @@ export interface MenuCategory {
   created_at: string;
 }
 
-export type OrderStatus = 'pending' | 'accepted' | 'preparing' | 'ready' | 'completed' | 'cancelled';
+export type OrderStatus = 'pending' | 'preparing' | 'ready' | 'completed' | 'cancelled';
 
 export type KitchenStatus = 'Pending' | 'Accepted' | 'Preparing' | 'Ready' | 'Completed' | 'Cancelled';
 export type CounterStatus = 'Pending' | 'Accepted' | 'Preparing' | 'Ready' | 'Picked Up' | 'Completed' | 'Cancelled' | 'Invoice Ready' | 'Order Collected';
@@ -130,6 +130,13 @@ export interface OrderItem {
   special_instructions?: string;
   created_at?: string;
   updated_at?: string;
+  menu_items?: {
+    id: string;
+    food_name: string;
+    image_url?: string;
+    canteen_id?: string;
+    institution_id?: string;
+  } | null;
 }
 
 export interface Notification {
@@ -166,6 +173,7 @@ export interface Counter {
 export interface Order {
   id: string;
   institutionId?: string;
+  canteen_id?: string;
   orderNumber: string;
   studentId: string;
   studentName: string;
@@ -184,7 +192,7 @@ export interface Order {
   totalAmount: number;
   status: OrderStatus;
   orderStatus?: string;
-  kitchenStatus?: 'Pending' | 'Accepted' | 'Preparing' | 'Ready' | 'Completed' | 'Cancelled' | string;
+  kitchenStatus?: 'Pending' | 'Preparing' | 'Ready' | 'Completed' | 'Cancelled' | string;
   counterStatus?: string;
   orderTime: string;
   created_at?: string;
@@ -194,24 +202,24 @@ export interface Order {
   readyAt?: string;
   completedAt?: string;
   cancelledAt?: string;
-   pickupTimeEstimated: string;
-   estimatedReadyTime?: string;
-   pickupCode: string;
-   tokenNumber?: string;
-   orderItems?: OrderItem[];
-   qrCodeData?: string;
-   institutionName?: string;
-   canteenName?: string;
-   studentAvatar?: string;
-   paymentMethod: 'Razorpay UPI' | 'Razorpay Card' | 'Student Wallet' | 'UPI' | 'Card' | 'Meal Voucher';
-   paymentStatus: 'paid' | 'pending' | 'cancelled' | 'refunded';
-   notes?: string;
-   isPriority?: boolean;
-   userRole?: string;
-   userEmail?: string;
-   userPhone?: string;
-   updatedAt?: string;
-  }
+  pickupTimeEstimated: string;
+  estimatedReadyTime?: string;
+  pickupCode: string;
+  tokenNumber?: string;
+  orderItems?: OrderItem[];
+  qrCodeData?: string;
+  institutionName?: string;
+  canteenName?: string;
+  studentAvatar?: string;
+  paymentMethod: 'Razorpay UPI' | 'Razorpay Card' | 'Student Wallet' | 'UPI' | 'Card' | 'Meal Voucher';
+  paymentStatus: 'paid' | 'pending' | 'cancelled' | 'refunded';
+  notes?: string;
+  isPriority?: boolean;
+  userRole?: string;
+  userEmail?: string;
+  userPhone?: string;
+  updatedAt?: string;
+}
 
  export interface StaffMember {
   id: string;

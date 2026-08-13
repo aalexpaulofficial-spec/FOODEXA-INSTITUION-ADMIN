@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import {
   CalendarClock,
   CheckCircle2,
@@ -21,6 +21,7 @@ interface KitchenDashboardProps {
   orders: Order[];
   currentInstitution?: { name: string; institution_code: string; campus?: string };
   onUpdateOrderStatus: (orderId: string, status: OrderStatus) => void;
+  updatingOrderId?: string | null;
 }
 
 const getRoleDisplay = (role?: string) => {
@@ -47,6 +48,7 @@ const formatSeconds = (sec: number) => {
 export const KitchenDashboard: React.FC<KitchenDashboardProps> = ({
   orders,
   onUpdateOrderStatus,
+  updatingOrderId,
 }) => {
   const { t } = useLanguage();
   const safeOrders = useMemo(() => (Array.isArray(orders) ? orders : []), [orders]);
@@ -57,16 +59,15 @@ export const KitchenDashboard: React.FC<KitchenDashboardProps> = ({
     return () => clearInterval(timer);
   }, []);
 
-  // Incoming Queue includes both Pending AND Accepted orders
-  // Per the order flow: Pending -> Accept -> Accepted (still in queue) -> Start Preparing -> Preparing
-  const incomingItems = useMemo(() => safeOrders.filter((o) => o.kitchenStatus === 'Pending' || o.kitchenStatus === 'Accepted'), [safeOrders]);
-  const preparingItems = useMemo(() => safeOrders.filter((o) => o.kitchenStatus === 'Preparing'), [safeOrders]);
-  const readyItems = useMemo(() => safeOrders.filter((o) => o.kitchenStatus === 'Ready'), [safeOrders]);
-  const completedItems = useMemo(() => safeOrders.filter((o) => o.kitchenStatus === 'Completed'), [safeOrders]);
-  const cancelledItems = useMemo(() => safeOrders.filter((o) => o.kitchenStatus === 'Cancelled'), [safeOrders]);
+  // Incoming Queue: orders with status 'pending' (both Pending and legacy Accepted kitchen statuses)
+  const incomingItems = useMemo(() => safeOrders.filter((o) => o.status === 'pending'), [safeOrders]);
+  const preparingItems = useMemo(() => safeOrders.filter((o) => o.status === 'preparing'), [safeOrders]);
+  const readyItems = useMemo(() => safeOrders.filter((o) => o.status === 'ready'), [safeOrders]);
+  const completedItems = useMemo(() => safeOrders.filter((o) => o.status === 'completed'), [safeOrders]);
+  const cancelledItems = useMemo(() => safeOrders.filter((o) => o.status === 'cancelled'), [safeOrders]);
 
   const getElapsedSeconds = (order: Order): number => {
-    const startedAt = order.preparingAt || order.acceptedAt || order.created_at || order.orderTime || '';
+    const startedAt = order.preparingAt || order.created_at || order.orderTime || '';
     const t = new Date(startedAt).getTime();
     if (Number.isNaN(t)) return 0;
     return Math.max(0, Math.floor((now - t) / 1000));
@@ -119,10 +120,20 @@ export const KitchenDashboard: React.FC<KitchenDashboardProps> = ({
   );
 
   const renderItems = (item: Order) => {
-    if (!item.items?.length) return null;
+    // Use orderItems (from order_items join) if available, fall back to items
+    const displayItems = item.orderItems?.length
+      ? item.orderItems.map(oi => ({
+          name: oi.menu_items?.food_name || oi.item_name || 'Item',
+          quantity: oi.quantity,
+          price: oi.unit_price,
+          subtotal: oi.total_price,
+        }))
+      : item.items || [];
+
+    if (!displayItems.length) return null;
     return (
       <div className="space-y-1">
-        {item.items.map((orderItem, index) => (
+        {displayItems.map((orderItem, index) => (
           <div key={`${item.id}-${index}`} className="flex justify-between gap-3 rounded-lg bg-slate-900/70 px-2.5 py-1.5 text-[11px]">
             <span className="text-slate-200">{orderItem.quantity}x {orderItem.name}</span>
             <span className="font-mono text-emerald-400">Rs {((orderItem.quantity || 0) * (orderItem.price || 0)).toFixed(0)}</span>
@@ -178,29 +189,14 @@ export const KitchenDashboard: React.FC<KitchenDashboardProps> = ({
   };
 
   const renderIncomingActions = (item: Order) => {
-    const primaryAction = item.kitchenStatus === 'Accepted' ? (
-      <button
-        onClick={() => onUpdateOrderStatus(item.id, 'preparing')}
-        className="w-full py-2 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-xs transition-colors flex items-center justify-center space-x-1"
-      >
-        <ChefHat className="w-3.5 h-3.5" />
-        <span>Start Preparing</span>
-      </button>
-    ) : (
-      <button
-        onClick={() => onUpdateOrderStatus(item.id, 'accepted')}
-        className="w-full py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs transition-colors flex items-center justify-center space-x-1"
-      >
-        <CheckCircle2 className="w-3.5 h-3.5" />
-        <span>Accept</span>
-      </button>
-    );
+    const isUpdating = updatingOrderId === item.id;
 
     const cancelRemainingMs = getCancelRemainingMs(item);
     const cancelAction = cancelRemainingMs > 0 ? (
       <button
         onClick={() => onUpdateOrderStatus(item.id, 'cancelled')}
-        className="w-full py-2 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 font-bold text-xs transition-colors flex items-center justify-center space-x-1.5"
+        disabled={isUpdating}
+        className="w-full py-2 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 font-bold text-xs transition-colors flex items-center justify-center space-x-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
       >
         <XCircle className="w-3.5 h-3.5" />
         <span>Cancel Order</span>
@@ -217,7 +213,23 @@ export const KitchenDashboard: React.FC<KitchenDashboardProps> = ({
 
     return (
       <div className="space-y-2">
-        {primaryAction}
+        <button
+          onClick={() => onUpdateOrderStatus(item.id, 'preparing')}
+          disabled={isUpdating}
+          className="w-full py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs transition-colors flex items-center justify-center space-x-1 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {isUpdating ? (
+            <>
+              <div className="w-3.5 h-3.5 rounded-full border-2 border-slate-950 border-t-transparent animate-spin" />
+              <span>Accepting...</span>
+            </>
+          ) : (
+            <>
+              <CheckCircle2 className="w-3.5 h-3.5" />
+              <span>Accept</span>
+            </>
+          )}
+        </button>
         {cancelAction}
       </div>
     );
@@ -284,6 +296,7 @@ export const KitchenDashboard: React.FC<KitchenDashboardProps> = ({
               const elapsedSeconds = getElapsedSeconds(item);
               const prepSeconds = Math.max((item.estimatedWaitMins || 1) * 60, 1);
               const progressPct = Math.min(100, Math.floor((elapsedSeconds / prepSeconds) * 100));
+              const isUpdating = updatingOrderId === item.id;
               return renderCard(item, 'cyan', (
                 <div className="space-y-3">
                   <div>
@@ -297,10 +310,20 @@ export const KitchenDashboard: React.FC<KitchenDashboardProps> = ({
                   </div>
                   <button
                     onClick={() => onUpdateOrderStatus(item.id, 'ready')}
-                    className="w-full py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs transition-colors flex items-center justify-center space-x-1.5"
+                    disabled={isUpdating}
+                    className="w-full py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs transition-colors flex items-center justify-center space-x-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    <CheckCircle2 className="w-4 h-4" />
-                    <span>{t('kitchen.ready')}</span>
+                    {isUpdating ? (
+                      <>
+                        <div className="w-4 h-4 rounded-full border-2 border-slate-950 border-t-transparent animate-spin" />
+                        <span>Updating...</span>
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle2 className="w-4 h-4" />
+                        <span>{t('kitchen.ready')}</span>
+                      </>
+                    )}
                   </button>
                 </div>
               ));
@@ -318,17 +341,28 @@ export const KitchenDashboard: React.FC<KitchenDashboardProps> = ({
             <span className="text-[10px] font-mono text-slate-500">{t('kitchen.ready')}</span>
           </div>
           <div className="space-y-3 min-h-[400px]">
-            {readyItems.map((item) =>
-              renderCard(item, 'emerald', (
+            {readyItems.map((item) => {
+              const isUpdating = updatingOrderId === item.id;
+              return renderCard(item, 'emerald', (
                 <button
                   onClick={() => onUpdateOrderStatus(item.id, 'completed')}
-                  className="w-full py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-bold text-xs transition-colors flex items-center justify-center space-x-1.5"
+                  disabled={isUpdating}
+                  className="w-full py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-bold text-xs transition-colors flex items-center justify-center space-x-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                  <span>{t('kitchen.picked_up_btn')}</span>
+                  {isUpdating ? (
+                    <>
+                      <div className="w-4 h-4 rounded-full border-2 border-slate-200 border-t-transparent animate-spin" />
+                      <span>Updating...</span>
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                      <span>{t('kitchen.picked_up_btn')}</span>
+                    </>
+                  )}
                 </button>
-              ))
-            )}
+              ));
+            })}
             {readyItems.length === 0 && <div className="py-16 text-center text-slate-500 text-xs italic">{t('kitchen.no_orders_ready')}</div>}
           </div>
         </section>

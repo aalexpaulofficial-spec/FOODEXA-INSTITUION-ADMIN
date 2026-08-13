@@ -66,7 +66,7 @@ export function App() {
     refresh,
     updateStudentStatus, approveVendor, rejectVendor, suspendVendor,
     addCounter, updateCounter, deleteCounter, archiveCounter, restoreCounter, updateCounterStatus, toggleCounterAvailability,
-    updateOrderStatus, fetchOrderDetails,
+    updateOrderStatus, fetchOrderDetails, updatingOrderId,
     addMenuItem, updateMenuItem, deleteMenuItem, toggleMenuAvailability,
     addMenuCategory, updateMenuCategory, deleteMenuCategory,
     toggleStaffPermission, deleteStudent, addStaff, updateStaff, deleteStaff, deleteAnnouncement, deleteVendor, updateInstitution, addAnnouncement,
@@ -138,7 +138,7 @@ export function App() {
           onTabChange={(tab) => { setCurrentTab(tab); setIsMobileMenuOpen(false); }}
           currentPortal={currentPortal}
           pendingVendorCount={vendors.filter((v) => v.status === 'pending').length}
-          activeKitchenOrdersCount={orders.filter((o) => o.kitchenStatus === 'Preparing' || o.kitchenStatus === 'Accepted').length}
+          activeKitchenOrdersCount={orders.filter((o) => o.status === 'preparing' || o.status === 'pending').length}
           isMobileMenuOpen={isMobileMenuOpen}
           onCloseMobileMenu={() => setIsMobileMenuOpen(false)}
         />
@@ -212,6 +212,7 @@ export function App() {
                         orders={orders}
                         currentInstitution={institution}
                         onUpdateOrderStatus={handleUpdateOrderStatus}
+                        updatingOrderId={updatingOrderId}
                       />
                     )}
 
