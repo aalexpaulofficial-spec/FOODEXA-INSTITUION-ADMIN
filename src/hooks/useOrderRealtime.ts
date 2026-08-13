@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '../lib/supabaseClient';
 import { Order, OrderStatus, OrderItem, Notification } from '../types';
 import {
-  buildStatusUpdate,
   getNotificationForStatus,
   isWithinCancelWindow,
   normalizeOrderStatus,
@@ -348,97 +347,88 @@ export function useOrderRealtime(
         return false;
       }
 
-      // Prevent double-clicks: if already updating this order, skip
       if (updatingOrderId === orderId) {
         return false;
       }
 
       setUpdatingOrderId(orderId);
 
-      const updates = buildStatusUpdate(status);
-
       console.log('[FOODEXA ACCEPT] auth user:', institutionId);
       console.log('[FOODEXA ACCEPT] institution:', institutionId);
       console.log('[FOODEXA ACCEPT] order id:', orderId);
       console.log('[FOODEXA ACCEPT] order status before:', order.status);
       console.log('[FOODEXA ACCEPT] order institution:', order.institutionId);
-      console.log('[FOODEXA ACCEPT] update payload:', updates);
 
       try {
-        let query = supabase
-          .from('orders')
-          .update(updates)
-          .eq('id', orderId);
+        let rpcData: any = null;
+        let rpcError: any = null;
 
-        if (institutionId) {
-          query = query.eq('institution_id', institutionId);
+        if (status === 'preparing') {
+          const result = await supabase.rpc('accept_food_order', {
+            p_order_id: orderId,
+          });
+          rpcData = result.data;
+          rpcError = result.error;
+        } else if (status === 'ready') {
+          const result = await supabase.rpc('foodeza_mark_order_ready', {
+            p_order_id: orderId,
+          });
+          rpcData = result.data;
+          rpcError = result.error;
+        } else if (status === 'completed') {
+          const result = await supabase.rpc('foodeza_complete_order', {
+            p_order_id: orderId,
+          });
+          rpcData = result.data;
+          rpcError = result.error;
+        } else if (status === 'cancelled') {
+          const result = await supabase.rpc('foodeza_cancel_order', {
+            p_order_id: orderId,
+          });
+          rpcData = result.data;
+          rpcError = result.error;
+        } else {
+          console.error('[FOODEXA] Unexpected status transition:', status);
+          setError(`Unsupported status transition: ${status}`);
+          setUpdatingOrderId(null);
+          return false;
         }
 
-        // Atomic: only update if status still matches (prevents double-accept)
-        query = query.eq('status', order.status);
-
-        // Do NOT use .single() — use .select('id,status') and check length
-        const { data, error: updateError } = await query.select('id,status');
-
-        if (updateError) {
-          console.error('[FOODEXA ACCEPT ERROR] Supabase code:', updateError.code);
-          console.error('[FOODEXA ACCEPT ERROR] Supabase message:', updateError.message);
-          console.error('[FOODEXA ACCEPT ERROR] Supabase details:', updateError.details);
-          console.error('[FOODEXA ACCEPT ERROR] Supabase hint:', updateError.hint);
-          setError(`Failed to update order: ${updateError.message}`);
+        if (rpcError) {
+          console.error('[FOODEXA] RPC ERROR:', rpcError);
+          console.error('[FOODEXA] Supabase code:', rpcError.code);
+          console.error('[FOODEXA] Supabase message:', rpcError.message);
+          console.error('[FOODEXA] Supabase details:', rpcError.details);
+          console.error('[FOODEXA] Supabase hint:', rpcError.hint);
+          setError(`Unable to ${status === 'cancelled' ? 'cancel' : 'update'} this order. Please try again.`);
           setUpdatingOrderId(null);
           await fetchOrders();
           return false;
         }
 
-        if (!data || data.length === 0) {
-          console.warn('[FOODEXA ACCEPT] Order update affected 0 rows. Order ID:', orderId, 'Current status:', order.status);
-          setError('This order has already been accepted or is no longer available. Refreshing...');
+        if (!rpcData) {
+          console.warn('[FOODEXA] Order update returned no data');
+          setError('Order update returned no data. Refreshing...');
           setUpdatingOrderId(null);
           await fetchOrders();
           return false;
         }
 
-        console.log('[FOODEXA ACCEPT SUCCESS] order id:', data[0].id, 'new status:', data[0].status);
-
-        // Optimistically update local state immediately
-        setOrders((prev) =>
-          prev.map((o) =>
-            o.id === orderId
-              ? {
-                  ...o,
-                  ...updates,
-                  status: normalizeOrderStatus(updates.status),
-                  kitchenStatus: String(updates.kitchen_status || o.kitchenStatus || 'Pending'),
-                  counterStatus: String(updates.counter_status || o.counterStatus || ''),
-                  orderStatus: String(updates.order_status || o.orderStatus || ''),
-                  preparingAt: updates.preparing_at ? String(updates.preparing_at) : o.preparingAt,
-                  readyAt: updates.ready_at ? String(updates.ready_at) : o.readyAt,
-                  completedAt: updates.completed_at ? String(updates.completed_at) : o.completedAt,
-                  cancelledAt: updates.cancelled_at ? String(updates.cancelled_at) : o.cancelledAt,
-                  updatedAt: String(updates.updated_at || ''),
-                }
-              : o
-          )
-        );
-
-        await insertStatusNotification(
-          { ...order, ...updates } as Order,
-          status
-        );
+        console.log('[FOODEXA] RPC SUCCESS:', rpcData);
+        console.log('[FOODEXA] new status:', rpcData.status);
 
         setError(null);
         setUpdatingOrderId(null);
         return true;
       } catch (err: unknown) {
-        console.error('[FOODEXA ACCEPT ERROR]', err);
+        console.error('[FOODEXA] Update error:', err);
         setError(err instanceof Error ? err.message : 'Failed to update order status');
         setUpdatingOrderId(null);
         await fetchOrders();
         return false;
       }
     },
-    [orders, institutionId, insertStatusNotification, fetchOrders, updatingOrderId]
+    [orders, institutionId, fetchOrders, updatingOrderId]
   );
 
   const cancelOrder = useCallback(

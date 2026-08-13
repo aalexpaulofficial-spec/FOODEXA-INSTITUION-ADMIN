@@ -120,25 +120,39 @@ export const KitchenDashboard: React.FC<KitchenDashboardProps> = ({
   );
 
   const renderItems = (item: Order) => {
-    // Use orderItems (from order_items join) if available, fall back to items
     const displayItems = item.orderItems?.length
-      ? item.orderItems.map(oi => ({
+      ? item.orderItems.map((oi) => ({
           name: oi.menu_items?.food_name || oi.item_name || 'Item',
-          quantity: oi.quantity,
-          price: oi.unit_price,
-          subtotal: oi.total_price,
+          quantity: oi.quantity || 1,
+          price: oi.unit_price || 0,
+          subtotal: oi.total_price || (oi.quantity || 0) * (oi.unit_price || 0),
         }))
-      : item.items || [];
+      : item.items?.length
+        ? item.items.map((it) => ({
+            name: it.name || 'Item',
+            quantity: it.quantity || 1,
+            price: it.price || 0,
+            subtotal: (it.quantity || 0) * (it.price || 0),
+          }))
+        : [];
 
     if (!displayItems.length) return null;
+
+    const total = displayItems.reduce((s, di) => s + di.subtotal, 0);
+
     return (
-      <div className="space-y-1">
+      <div className="space-y-1.5">
         {displayItems.map((orderItem, index) => (
           <div key={`${item.id}-${index}`} className="flex justify-between gap-3 rounded-lg bg-slate-900/70 px-2.5 py-1.5 text-[11px]">
-            <span className="text-slate-200">{orderItem.quantity}x {orderItem.name}</span>
-            <span className="font-mono text-emerald-400">Rs {((orderItem.quantity || 0) * (orderItem.price || 0)).toFixed(0)}</span>
+            <span className="text-slate-200 flex-1 min-w-0">{orderItem.name}</span>
+            <span className="text-slate-400 shrink-0">x{orderItem.quantity}</span>
+            <span className="text-slate-400 shrink-0">₹{orderItem.price} each</span>
           </div>
         ))}
+        <div className="border-t border-slate-700/60 pt-1.5 flex justify-between text-[11px]">
+          <span className="text-slate-400 font-semibold">TOTAL</span>
+          <span className="text-emerald-400 font-mono font-bold">₹{total.toFixed(0)}</span>
+        </div>
       </div>
     );
   };
