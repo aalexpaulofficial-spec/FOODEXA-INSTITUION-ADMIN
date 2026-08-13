@@ -215,7 +215,7 @@ export function useOrderRealtime(
               .from('orders')
               .select(ORDER_SELECT)
               .eq('id', record.id)
-              .single()
+              .maybeSingle()
               .then(({ data: fullOrder }) => {
                 if (fullOrder) {
                   const enriched = enrichOrdersWithProfile([fullOrder])[0];
@@ -233,7 +233,7 @@ export function useOrderRealtime(
               .from('orders')
               .select(ORDER_SELECT)
               .eq('id', record.id)
-              .single()
+              .maybeSingle()
               .then(({ data: fullOrder }) => {
                 if (fullOrder) {
                   const enriched = enrichOrdersWithProfile([fullOrder])[0];
@@ -357,6 +357,13 @@ export function useOrderRealtime(
 
       const updates = buildStatusUpdate(status);
 
+      console.log('[FOODEXA ACCEPT] auth user:', institutionId);
+      console.log('[FOODEXA ACCEPT] institution:', institutionId);
+      console.log('[FOODEXA ACCEPT] order id:', orderId);
+      console.log('[FOODEXA ACCEPT] order status before:', order.status);
+      console.log('[FOODEXA ACCEPT] order institution:', order.institutionId);
+      console.log('[FOODEXA ACCEPT] update payload:', updates);
+
       try {
         let query = supabase
           .from('orders')
@@ -367,26 +374,32 @@ export function useOrderRealtime(
           query = query.eq('institution_id', institutionId);
         }
 
+        // Atomic: only update if status still matches (prevents double-accept)
         query = query.eq('status', order.status);
 
-        const { data, error: updateError } = await query.select('id').single();
+        // Do NOT use .single() — use .select('id,status') and check length
+        const { data, error: updateError } = await query.select('id,status');
 
         if (updateError) {
-          console.error('[useOrderRealtime] Supabase update error:', updateError);
+          console.error('[FOODEXA ACCEPT ERROR] Supabase code:', updateError.code);
+          console.error('[FOODEXA ACCEPT ERROR] Supabase message:', updateError.message);
+          console.error('[FOODEXA ACCEPT ERROR] Supabase details:', updateError.details);
+          console.error('[FOODEXA ACCEPT ERROR] Supabase hint:', updateError.hint);
           setError(`Failed to update order: ${updateError.message}`);
           setUpdatingOrderId(null);
           await fetchOrders();
           return false;
         }
 
-        if (!data) {
-          // Zero rows updated - status may have changed since we read it
-          console.warn('[useOrderRealtime] No rows updated for order', orderId, '- status may have changed');
-          setError('Order status changed by another user. Refreshing...');
+        if (!data || data.length === 0) {
+          console.warn('[FOODEXA ACCEPT] Order update affected 0 rows. Order ID:', orderId, 'Current status:', order.status);
+          setError('This order has already been accepted or is no longer available. Refreshing...');
           setUpdatingOrderId(null);
           await fetchOrders();
           return false;
         }
+
+        console.log('[FOODEXA ACCEPT SUCCESS] order id:', data[0].id, 'new status:', data[0].status);
 
         // Optimistically update local state immediately
         setOrders((prev) =>
@@ -418,7 +431,7 @@ export function useOrderRealtime(
         setUpdatingOrderId(null);
         return true;
       } catch (err: unknown) {
-        console.error('[useOrderRealtime] updateOrderStatus error:', err);
+        console.error('[FOODEXA ACCEPT ERROR]', err);
         setError(err instanceof Error ? err.message : 'Failed to update order status');
         setUpdatingOrderId(null);
         await fetchOrders();
