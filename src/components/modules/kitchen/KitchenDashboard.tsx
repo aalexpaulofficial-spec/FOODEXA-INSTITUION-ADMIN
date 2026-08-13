@@ -59,8 +59,13 @@ export const KitchenDashboard: React.FC<KitchenDashboardProps> = ({
     return () => clearInterval(timer);
   }, []);
 
-  // Incoming Queue: orders with status 'pending' (both Pending and legacy Accepted kitchen statuses)
-  const incomingItems = useMemo(() => safeOrders.filter((o) => o.status === 'pending'), [safeOrders]);
+  // Incoming Queue: orders with status 'pending' OR 'confirmed'
+  // 'confirmed' = payment done, waiting for institution to Accept → preparing
+  // 'pending'   = order placed, awaiting payment/confirmation
+  const incomingItems = useMemo(
+    () => safeOrders.filter((o) => o.status === 'pending' || o.status === 'confirmed'),
+    [safeOrders]
+  );
   const preparingItems = useMemo(() => safeOrders.filter((o) => o.status === 'preparing'), [safeOrders]);
   const readyItems = useMemo(() => safeOrders.filter((o) => o.status === 'ready'), [safeOrders]);
   const completedItems = useMemo(() => safeOrders.filter((o) => o.status === 'completed'), [safeOrders]);

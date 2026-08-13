@@ -262,8 +262,7 @@ export function useOrderRealtime(
             .from('orders')
             .select(ORDER_SELECT)
             .eq('id', orderId)
-            .eq('institution_id', institutionId)
-            .single()
+            .maybeSingle()
             .then(({ data: fullOrder }) => {
               if (fullOrder) {
                 const enriched = enrichOrdersWithProfile([fullOrder])[0];
@@ -366,6 +365,7 @@ export function useOrderRealtime(
         if (status === 'preparing') {
           const result = await supabase.rpc('accept_food_order', {
             p_order_id: orderId,
+            p_institution_id: institutionId,
           });
           rpcData = result.data;
           rpcError = result.error;
@@ -400,22 +400,26 @@ export function useOrderRealtime(
           console.error('[FOODEXA] Supabase message:', rpcError.message);
           console.error('[FOODEXA] Supabase details:', rpcError.details);
           console.error('[FOODEXA] Supabase hint:', rpcError.hint);
-          setError(`Unable to ${status === 'cancelled' ? 'cancel' : 'update'} this order. Please try again.`);
+          // Show the real Supabase error — never hide it behind a generic message
+          const errMsg = rpcError.message || rpcError.details || rpcError.hint || 'RPC failed';
+          setError(`[${rpcError.code || 'ERROR'}] ${errMsg}`);
           setUpdatingOrderId(null);
           await fetchOrders();
           return false;
         }
 
-        if (!rpcData) {
-          console.warn('[FOODEXA] Order update returned no data');
-          setError('Order update returned no data. Refreshing...');
-          setUpdatingOrderId(null);
-          await fetchOrders();
-          return false;
-        }
+        // RPC succeeded — some RPCs return null/void on success, that is fine
+        console.log('[FOODEXA] RPC SUCCESS. status →', status, '| data:', rpcData);
 
-        console.log('[FOODEXA] RPC SUCCESS:', rpcData);
-        console.log('[FOODEXA] new status:', rpcData.status);
+        // Optimistically update local React state immediately so the card
+        // moves to the correct column without waiting for the realtime event.
+        setOrders(prev =>
+          prev.map(o =>
+            o.id === orderId
+              ? { ...o, status: status as Order['status'] }
+              : o
+          )
+        );
 
         setError(null);
         setUpdatingOrderId(null);
