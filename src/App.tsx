@@ -213,6 +213,7 @@ export function App() {
                         currentInstitution={institution}
                         onUpdateOrderStatus={handleUpdateOrderStatus}
                         updatingOrderId={updatingOrderId}
+                        counters={counters}
                       />
                     )}
 
@@ -223,6 +224,7 @@ export function App() {
                         onUpdateOrderStatus={handleUpdateOrderStatus}
                         onFetchOrderDetails={fetchOrderDetails}
                         onOpenQRScanner={() => setIsQRScannerOpen(true)}
+                        counters={counters}
                       />
                     )}
 

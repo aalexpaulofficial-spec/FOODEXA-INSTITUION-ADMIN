@@ -57,6 +57,8 @@ export function mapDbOrderToOrder(db: any): Order {
       created_at: oi.created_at,
       updated_at: oi.updated_at,
       menu_items: oi.menu_items || null,
+      canteen_id: oi.menu_items?.canteen_id || null,
+      counter_name: '',
     })) as OrderItem[] : [],
     totalAmount: Number(db.total_amount || db.totalAmount || db.amount || 0),
     status: normalizeOrderStatus(db.status),

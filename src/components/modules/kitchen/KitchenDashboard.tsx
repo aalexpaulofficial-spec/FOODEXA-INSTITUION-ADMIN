@@ -13,7 +13,7 @@ import {
   XCircle,
   AlertTriangle,
 } from 'lucide-react';
-import { Order, OrderStatus } from '../../../types';
+import { Order, OrderStatus, Counter } from '../../../types';
 import { getCancelRemainingMs, CANCEL_BLOCK_MESSAGE } from '../../../lib/orderUtils';
 import { useLanguage } from '../../../context/LanguageContext';
 
@@ -22,6 +22,7 @@ interface KitchenDashboardProps {
   currentInstitution?: { name: string; institution_code: string; campus?: string };
   onUpdateOrderStatus: (orderId: string, status: OrderStatus) => void;
   updatingOrderId?: string | null;
+  counters?: Counter[];
 }
 
 const getRoleDisplay = (role?: string) => {
@@ -49,9 +50,16 @@ export const KitchenDashboard: React.FC<KitchenDashboardProps> = ({
   orders,
   onUpdateOrderStatus,
   updatingOrderId,
+  counters,
 }) => {
   const { t } = useLanguage();
   const safeOrders = useMemo(() => (Array.isArray(orders) ? orders : []), [orders]);
+
+  const counterById = useMemo(() => {
+    const map: Record<string, string> = {};
+    (counters || []).forEach((c: any) => { map[c.id] = c.name || ''; });
+    return map;
+  }, [counters]);
 
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
@@ -132,29 +140,36 @@ export const KitchenDashboard: React.FC<KitchenDashboardProps> = ({
       ? item.orderItems.map((oi) => ({
           name: oi.menu_items?.food_name || oi.item_name || 'Item',
           quantity: oi.quantity || 1,
-          price: oi.unit_price || 0,
-          subtotal: oi.total_price || (oi.quantity || 0) * (oi.unit_price || 0),
+          unit_price: oi.unit_price || 0,
+          total_price: oi.total_price || (oi.quantity || 0) * (oi.unit_price || 0),
+          canteen_id: oi.canteen_id || null,
         }))
       : item.items?.length
         ? item.items.map((it) => ({
             name: it.name || 'Item',
             quantity: it.quantity || 1,
-            price: it.price || 0,
-            subtotal: (it.quantity || 0) * (it.price || 0),
+            unit_price: it.price || 0,
+            total_price: (it.quantity || 0) * (it.price || 0),
+            canteen_id: null,
           }))
         : [];
 
     if (!displayItems.length) return null;
 
-    const total = displayItems.reduce((s, di) => s + di.subtotal, 0);
+    const total = displayItems.reduce((s, di) => s + di.total_price, 0);
 
     return (
       <div className="space-y-1.5">
         {displayItems.map((orderItem, index) => (
           <div key={`${item.id}-${index}`} className="flex justify-between gap-3 rounded-lg bg-slate-900/70 px-2.5 py-1.5 text-[11px]">
             <span className="text-slate-200 flex-1 min-w-0">{orderItem.name}</span>
+            {orderItem.canteen_id && counterById[orderItem.canteen_id] && (
+              <span className="text-[10px] text-slate-400 ml-1 rounded bg-slate-800/50 text-amber-400 px-1 py-0.5">
+                {counterById[orderItem.canteen_id]}
+              </span>
+            )}
             <span className="text-slate-400 shrink-0">x{orderItem.quantity}</span>
-            <span className="text-slate-400 shrink-0">₹{orderItem.price} each</span>
+            <span className="text-slate-400 shrink-0">₹{orderItem.unit_price} each</span>
           </div>
         ))}
         <div className="border-t border-slate-700/60 pt-1.5 flex justify-between text-[11px]">

@@ -21,7 +21,7 @@ import {
   Building2,
   AlertTriangle
 } from 'lucide-react';
-import { Order, OrderStatus } from '../../../types';
+import { Order, OrderStatus, Counter } from '../../../types';
 import { isWithinCancelWindow, getCancelRemainingMs, CANCEL_BLOCK_MESSAGE } from '../../../lib/orderUtils';
 
 interface OrderManagementProps {
@@ -30,6 +30,7 @@ interface OrderManagementProps {
   onUpdateOrderStatus: (orderId: string, status: OrderStatus) => void;
   onFetchOrderDetails?: (orderId: string) => Promise<Order | null>;
   onOpenQRScanner: () => void;
+  counters?: Counter[];
 }
 
 const STATUS_TABS: { id: string; label: string; color: string; icon: React.ReactNode }[] = [
@@ -78,7 +79,8 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
   currentInstitution,
   onUpdateOrderStatus,
   onFetchOrderDetails,
-  onOpenQRScanner
+  onOpenQRScanner,
+  counters
 }) => {
   const [activeStatusFilter, setActiveStatusFilter] = useState<string>('all');
   const [activeRoleFilter, setActiveRoleFilter] = useState<string>('all');
@@ -86,6 +88,12 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const [extraDetails, setExtraDetails] = useState<Order | null>(null);
   const [now, setNow] = useState(() => Date.now());
+
+  const counterById = useMemo(() => {
+    const map: Record<string, string> = {};
+    (counters || []).forEach((c: any) => { map[c.id] = c.name || ''; });
+    return map;
+  }, [counters]);
 
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 1000);
@@ -386,7 +394,7 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
                 </div>
                 <div className="flex items-center gap-2 text-slate-300">
                   <GraduationCap className="w-3.5 h-3.5 text-slate-500" />
-                  <span className="font-semibold">{viewOrder.studentDepartment || ''}</span>
+                  <span className="font-semibold">ID: {viewOrder.studentId || ''}</span>
                 </div>
                 <div className="flex items-center gap-2 text-slate-400">
                   <Mail className="w-3.5 h-3.5 text-slate-500" />
@@ -438,15 +446,17 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
                   ? viewOrder.orderItems.map((oi) => ({
                       name: oi.menu_items?.food_name || oi.item_name || 'Item',
                       quantity: oi.quantity || 1,
-                      price: oi.unit_price || 0,
-                      subtotal: oi.total_price || (oi.quantity || 0) * (oi.unit_price || 0),
+                      unit_price: oi.unit_price || 0,
+                      total_price: oi.total_price || (oi.quantity || 0) * (oi.unit_price || 0),
+                      canteen_id: oi.menu_items?.canteen_id || null,
                     }))
                   : viewOrder.items?.length
                     ? viewOrder.items.map((it) => ({
                         name: it.name || 'Item',
                         quantity: it.quantity || 1,
-                        price: it.price || 0,
-                        subtotal: (it.quantity || 0) * (it.price || 0),
+                        unit_price: it.price || 0,
+                        total_price: (it.quantity || 0) * (it.price || 0),
+                        canteen_id: null,
                       }))
                     : [];
 
@@ -458,14 +468,20 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
                   <div className="space-y-2">
                     {displayItems.map((item, idx) => (
                       <div key={idx} className="p-2.5 rounded-lg bg-slate-900 border border-slate-800 flex justify-between gap-2">
-                        <span className="text-slate-200">{item.quantity}x {item.name}</span>
-                        <span className="font-mono text-emerald-400 font-bold">₹{item.subtotal.toFixed(2)}</span>
+                        <span className="text-slate-200">
+                          {item.quantity}x {item.name}
+                          {item.canteen_id && counterById[item.canteen_id] && (
+                            <span className="text-[10px] text-slate-400 ml-1 rounded bg-slate-800/50 text-amber-400 px-1 py-0.5">
+                              {counterById[item.canteen_id]}
+                            </span>
+                          )}
+                        </span>
+                        <span className="font-mono text-emerald-400 font-bold">₹{item.total_price.toFixed(2)}</span>
                       </div>
                     ))}
                   </div>
                 );
               })()}
-              )}
               <div className="flex justify-between pt-2 border-t border-slate-800">
                 <span className="text-xs font-bold text-slate-300 uppercase tracking-wider">Total</span>
                 <span className="font-mono font-bold text-emerald-400">₹{(viewOrder.totalAmount || 0).toFixed(2)}</span>

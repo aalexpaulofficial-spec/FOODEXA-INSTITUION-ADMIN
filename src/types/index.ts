@@ -130,6 +130,7 @@ export interface OrderItem {
   special_instructions?: string;
   created_at?: string;
   updated_at?: string;
+  canteen_id?: string;
   menu_items?: {
     id: string;
     food_name: string;
@@ -137,6 +138,7 @@ export interface OrderItem {
     canteen_id?: string;
     institution_id?: string;
   } | null;
+  counter_name?: string;
 }
 
 export interface Notification {
