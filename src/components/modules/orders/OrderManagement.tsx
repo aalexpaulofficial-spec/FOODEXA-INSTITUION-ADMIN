@@ -433,15 +433,38 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
 
             <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2.5">
               <div className="text-xs font-bold text-slate-300 uppercase tracking-wider">Items & Subtotal</div>
-              {(Array.isArray(viewOrder.items) && viewOrder.items.length > 0) ? (
-                viewOrder.items.map((item, idx) => (
-                  <div key={idx} className="p-2.5 rounded-lg bg-slate-900 border border-slate-800 flex justify-between gap-2">
-                    <span className="text-slate-200">{item.quantity || 0}x {item.name || ''}</span>
-                    <span className="font-mono text-emerald-400 font-bold">₹{((item.quantity || 0) * (item.price || 0)).toFixed(2)}</span>
+              {(() => {
+                const displayItems = viewOrder.orderItems?.length
+                  ? viewOrder.orderItems.map((oi) => ({
+                      name: oi.menu_items?.food_name || oi.item_name || 'Item',
+                      quantity: oi.quantity || 1,
+                      price: oi.unit_price || 0,
+                      subtotal: oi.total_price || (oi.quantity || 0) * (oi.unit_price || 0),
+                    }))
+                  : viewOrder.items?.length
+                    ? viewOrder.items.map((it) => ({
+                        name: it.name || 'Item',
+                        quantity: it.quantity || 1,
+                        price: it.price || 0,
+                        subtotal: (it.quantity || 0) * (it.price || 0),
+                      }))
+                    : [];
+
+                if (!displayItems.length) {
+                  return <div className="text-xs text-slate-500">No items listed on this order.</div>;
+                }
+
+                return (
+                  <div className="space-y-2">
+                    {displayItems.map((item, idx) => (
+                      <div key={idx} className="p-2.5 rounded-lg bg-slate-900 border border-slate-800 flex justify-between gap-2">
+                        <span className="text-slate-200">{item.quantity}x {item.name}</span>
+                        <span className="font-mono text-emerald-400 font-bold">₹{item.subtotal.toFixed(2)}</span>
+                      </div>
+                    ))}
                   </div>
-                ))
-              ) : (
-                <div className="text-xs text-slate-500">No items listed on this order.</div>
+                );
+              })()}
               )}
               <div className="flex justify-between pt-2 border-t border-slate-800">
                 <span className="text-xs font-bold text-slate-300 uppercase tracking-wider">Total</span>

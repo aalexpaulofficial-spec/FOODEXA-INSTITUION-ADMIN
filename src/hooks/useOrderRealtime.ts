@@ -370,20 +370,23 @@ export function useOrderRealtime(
           rpcData = result.data;
           rpcError = result.error;
         } else if (status === 'ready') {
-          const result = await supabase.rpc('foodeza_mark_order_ready', {
+          const result = await supabase.rpc('mark_order_ready', {
             p_order_id: orderId,
+            p_institution_id: institutionId,
           });
           rpcData = result.data;
           rpcError = result.error;
         } else if (status === 'completed') {
-          const result = await supabase.rpc('foodeza_complete_order', {
+          const result = await supabase.rpc('complete_food_order', {
             p_order_id: orderId,
+            p_institution_id: institutionId,
           });
           rpcData = result.data;
           rpcError = result.error;
         } else if (status === 'cancelled') {
-          const result = await supabase.rpc('foodeza_cancel_order', {
+          const result = await supabase.rpc('cancel_food_order', {
             p_order_id: orderId,
+            p_institution_id: institutionId,
           });
           rpcData = result.data;
           rpcError = result.error;
@@ -410,16 +413,6 @@ export function useOrderRealtime(
 
         // RPC succeeded — some RPCs return null/void on success, that is fine
         console.log('[FOODEXA] RPC SUCCESS. status →', status, '| data:', rpcData);
-
-        // Optimistically update local React state immediately so the card
-        // moves to the correct column without waiting for the realtime event.
-        setOrders(prev =>
-          prev.map(o =>
-            o.id === orderId
-              ? { ...o, status: status as Order['status'] }
-              : o
-          )
-        );
 
         setError(null);
         setUpdatingOrderId(null);
