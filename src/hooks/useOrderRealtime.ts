@@ -365,28 +365,24 @@ export function useOrderRealtime(
         if (status === 'preparing') {
           const result = await supabase.rpc('accept_food_order', {
             p_order_id: orderId,
-            p_institution_id: institutionId,
           });
           rpcData = result.data;
           rpcError = result.error;
         } else if (status === 'ready') {
           const result = await supabase.rpc('mark_order_ready', {
             p_order_id: orderId,
-            p_institution_id: institutionId,
           });
           rpcData = result.data;
           rpcError = result.error;
         } else if (status === 'completed') {
           const result = await supabase.rpc('complete_food_order', {
             p_order_id: orderId,
-            p_institution_id: institutionId,
           });
           rpcData = result.data;
           rpcError = result.error;
         } else if (status === 'cancelled') {
           const result = await supabase.rpc('cancel_food_order', {
             p_order_id: orderId,
-            p_institution_id: institutionId,
           });
           rpcData = result.data;
           rpcError = result.error;

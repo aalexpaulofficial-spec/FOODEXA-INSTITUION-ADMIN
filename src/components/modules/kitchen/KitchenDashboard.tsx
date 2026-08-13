@@ -63,13 +63,16 @@ export const KitchenDashboard: React.FC<KitchenDashboardProps> = ({
   // 'confirmed' = payment done, waiting for institution to Accept → preparing
   // 'pending'   = order placed, awaiting payment/confirmation
   const incomingItems = useMemo(
-    () => safeOrders.filter((o) => o.status === 'pending' || o.status === 'confirmed'),
+    () => safeOrders.filter((o) => {
+      const status = String(o.status || '').toLowerCase();
+      return status === 'pending' || status === 'confirmed';
+    }),
     [safeOrders]
   );
-  const preparingItems = useMemo(() => safeOrders.filter((o) => o.status === 'preparing'), [safeOrders]);
-  const readyItems = useMemo(() => safeOrders.filter((o) => o.status === 'ready'), [safeOrders]);
-  const completedItems = useMemo(() => safeOrders.filter((o) => o.status === 'completed'), [safeOrders]);
-  const cancelledItems = useMemo(() => safeOrders.filter((o) => o.status === 'cancelled'), [safeOrders]);
+  const preparingItems = useMemo(() => safeOrders.filter((o) => String(o.status || '').toLowerCase() === 'preparing'), [safeOrders]);
+  const readyItems = useMemo(() => safeOrders.filter((o) => String(o.status || '').toLowerCase() === 'ready'), [safeOrders]);
+  const completedItems = useMemo(() => safeOrders.filter((o) => String(o.status || '').toLowerCase() === 'completed'), [safeOrders]);
+  const cancelledItems = useMemo(() => safeOrders.filter((o) => String(o.status || '').toLowerCase() === 'cancelled'), [safeOrders]);
 
   const getElapsedSeconds = (order: Order): number => {
     const startedAt = order.preparingAt || order.created_at || order.orderTime || '';
