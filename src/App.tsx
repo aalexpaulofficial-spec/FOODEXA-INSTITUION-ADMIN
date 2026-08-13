@@ -56,7 +56,7 @@ export function App() {
     'institution-requests', 'institutions', 'analytics', 'subscriptions', 'notifications', 'audit-logs'
   ], []);
 
-  const institutionId = role === 'institution_admin' ? authInstId : null;
+  const institutionId = authInstId;
   const {
     institution, students, vendors, counters, orders, menuItems, menuCategories,
     campusBlocks, staff, announcements, auditLogs,

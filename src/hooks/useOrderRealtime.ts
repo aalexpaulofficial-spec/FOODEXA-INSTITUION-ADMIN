@@ -153,25 +153,21 @@ export function useOrderRealtime(
   );
 
   const fetchOrders = useCallback(async () => {
-    if (!institutionId) {
-      setOrders([]);
-      setLoading(false);
-      return;
-    }
-
     setLoading(true);
     setError(null);
 
     try {
-       const { data, error } = await withTimeout(
-         supabase
-           .from('orders')
-           .select(ORDER_SELECT)
-           .eq('institution_id', institutionId)
-           .order('created_at', { ascending: false }),
-         DATA_FETCH_TIMEOUT_MS,
-         'Orders fetch'
-       );
+      let query = supabase
+        .from('orders')
+        .select(ORDER_SELECT);
+
+      if (institutionId) {
+        query = query.eq('institution_id', institutionId);
+      }
+
+      query = query.order('created_at', { ascending: false });
+
+      const { data, error } = await withTimeout(query, DATA_FETCH_TIMEOUT_MS, 'Orders fetch');
 
       if (error) {
         console.error('[useOrderRealtime] Supabase error:', error);
@@ -192,25 +188,24 @@ export function useOrderRealtime(
   }, [institutionId, enrichOrdersWithProfile]);
 
   useEffect(() => {
-    if (!institutionId) {
-      setOrders([]);
-      setLoading(false);
-      return;
-    }
-
     fetchOrders();
 
+    const channelName = institutionId
+      ? `orders_realtime_${institutionId}`
+      : `orders_realtime_all_${Date.now()}`;
+
+    const channelConfig: any = {
+      event: '*',
+      schema: 'public',
+      table: 'orders',
+    };
+    if (institutionId) {
+      channelConfig.filter = `institution_id=eq.${institutionId}`;
+    }
+
     const channel = supabase
-      .channel(`orders_realtime_${institutionId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'orders',
-          filter: `institution_id=eq.${institutionId}`,
-        },
-        (payload: any) => {
+      .channel(channelName)
+      .on('postgres_changes', channelConfig, (payload: any) => {
           const eventType = payload?.eventType;
           const record = payload?.new || payload?.old;
           if (!record || !record.id) return;
@@ -363,14 +358,18 @@ export function useOrderRealtime(
       const updates = buildStatusUpdate(status);
 
       try {
-        const { data, error: updateError } = await supabase
+        let query = supabase
           .from('orders')
           .update(updates)
-          .eq('id', orderId)
-          .eq('institution_id', institutionId)
-          .eq('status', order.status) // optimistic concurrency: only update if status hasn't changed
-          .select('id')
-          .single();
+          .eq('id', orderId);
+
+        if (institutionId) {
+          query = query.eq('institution_id', institutionId);
+        }
+
+        query = query.eq('status', order.status);
+
+        const { data, error: updateError } = await query.select('id').single();
 
         if (updateError) {
           console.error('[useOrderRealtime] Supabase update error:', updateError);
@@ -451,19 +450,18 @@ export function useOrderRealtime(
   const fetchOrderDetails = useCallback(
     async (orderId: string): Promise<Order | null> => {
       const fallback = orders.find((o) => o.id === orderId) || null;
-      if (!institutionId) return fallback;
 
       try {
-         const { data, error } = await withTimeout(
-           supabase
-             .from('orders')
-             .select(`${ORDER_SELECT}, profiles(*), institutions(*), canteens(*)`)
-             .eq('id', orderId)
-             .eq('institution_id', institutionId)
-             .single(),
-           DATA_FETCH_TIMEOUT_MS,
-           'Order details fetch'
-         );
+         let query = supabase
+           .from('orders')
+           .select(`${ORDER_SELECT}, profiles(*), institutions(*), canteens(*)`)
+           .eq('id', orderId);
+
+         if (institutionId) {
+           query = query.eq('institution_id', institutionId);
+         }
+
+         const { data, error } = await withTimeout(query.single(), DATA_FETCH_TIMEOUT_MS, 'Order details fetch');
 
         if (error || !data) return fallback;
 
