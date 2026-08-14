@@ -153,6 +153,7 @@ function mapDbMenuItemToMenuItem(db: any): MenuItem {
     allergens: [],
     aiPopularityScore: db.ai_popularity_score || 0,
     status: db.status || 'published',
+    pickupType: db.pickup_type || '',
     created_at: db.created_at,
     createdAt: db.created_at,
   };
@@ -178,6 +179,7 @@ function mapMenuItemToDb(item: MenuItem, institutionId: string | null): any {
     ingredients: item.ingredients || [],
     ai_popularity_score: item.aiPopularityScore || 0,
     status: item.status || 'published',
+    pickup_type: item.pickupType || null,
   };
 }
 

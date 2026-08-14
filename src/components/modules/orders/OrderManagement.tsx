@@ -19,7 +19,8 @@ import {
   KeyRound,
   Zap,
   Building2,
-  AlertTriangle
+  AlertTriangle,
+  ChefHat
 } from 'lucide-react';
 import { Order, OrderStatus, Counter } from '../../../types';
 import { isWithinCancelWindow, getCancelRemainingMs, CANCEL_BLOCK_MESSAGE } from '../../../lib/orderUtils';
@@ -36,6 +37,7 @@ interface OrderManagementProps {
 const STATUS_TABS: { id: string; label: string; color: string; icon: React.ReactNode }[] = [
   { id: 'all', label: 'All Orders', color: 'text-slate-300', icon: <ShoppingBag className="w-3.5 h-3.5" /> },
   { id: 'pending', label: 'Pending', color: 'text-amber-400', icon: <Clock className="w-3.5 h-3.5" /> },
+  { id: 'confirmed', label: 'Confirmed', color: 'text-orange-400', icon: <CheckCircle2 className="w-3.5 h-3.5" /> },
   { id: 'preparing', label: 'Preparing', color: 'text-cyan-400', icon: <Zap className="w-3.5 h-3.5" /> },
   { id: 'ready', label: 'Ready', color: 'text-emerald-400', icon: <CheckCircle2 className="w-3.5 h-3.5" /> },
   { id: 'completed', label: 'Completed', color: 'text-green-400', icon: <CheckCircle2 className="w-3.5 h-3.5" /> },
@@ -491,10 +493,19 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
             <div className="pt-3 border-t border-slate-800 flex flex-wrap gap-2">
               {viewOrder.status === 'pending' && (
                 <button
-                  onClick={() => { onUpdateOrderStatus(viewOrder.id, 'preparing'); setSelectedOrderId(null); }}
+                  onClick={() => { onUpdateOrderStatus(viewOrder.id, 'confirmed'); setSelectedOrderId(null); }}
                   className="flex-1 py-2 rounded-xl bg-amber-500 text-slate-950 font-bold text-xs"
                 >
-                  Accept & Start Preparing
+                  Accept Order
+                </button>
+              )}
+              {viewOrder.status === 'confirmed' && (
+                <button
+                  onClick={() => { onUpdateOrderStatus(viewOrder.id, 'preparing'); setSelectedOrderId(null); }}
+                  className="flex-1 py-2 rounded-xl bg-cyan-500 text-slate-950 font-bold text-xs flex items-center justify-center space-x-1.5"
+                >
+                  <ChefHat className="w-4 h-4" />
+                  <span>Start Preparing</span>
                 </button>
               )}
               {viewOrder.status === 'preparing' && (

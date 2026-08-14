@@ -91,6 +91,7 @@ export interface MenuItem {
   aiPopularityScore: number;
   availableTime?: string;
   counterNumber?: string;
+  pickupType?: string;
   isTodaysSpecial?: boolean;
   availableToday?: boolean;
   status?: MenuStatus;
@@ -113,7 +114,7 @@ export interface MenuCategory {
   created_at: string;
 }
 
-export type OrderStatus = 'pending' | 'preparing' | 'ready' | 'completed' | 'cancelled';
+export type OrderStatus = 'pending' | 'confirmed' | 'preparing' | 'ready' | 'completed' | 'cancelled';
 
 export type KitchenStatus = 'Pending' | 'Accepted' | 'Preparing' | 'Ready' | 'Completed' | 'Cancelled';
 export type CounterStatus = 'Pending' | 'Accepted' | 'Preparing' | 'Ready' | 'Picked Up' | 'Completed' | 'Cancelled' | 'Invoice Ready' | 'Order Collected';

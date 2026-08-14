@@ -193,6 +193,7 @@ export const AddEditMenuModal: React.FC<AddEditMenuModalProps> = ({
   const [availability, setAvailability] = useState(true);
   const [status, setStatus] = useState<MenuStatus>('published');
   const [selectedCounterId, setSelectedCounterId] = useState('');
+  const [pickupType, setPickupType] = useState('');
   const [selectedCategoryId, setSelectedCategoryId] = useState('');
   const [manualCategory, setManualCategory] = useState('');
   const [categoryMode, setCategoryMode] = useState<'auto' | 'manual'>('auto');
@@ -233,6 +234,7 @@ export const AddEditMenuModal: React.FC<AddEditMenuModalProps> = ({
         setAvailability(editingItem.isAvailable);
         setStatus(editingItem.status || 'published');
         setSelectedCounterId(editingItem.canteen_id || editingItem.vendorId || '');
+        setPickupType(editingItem.pickupType || '');
         setSelectedCategoryId(editingItem.category_id || '');
         setManualCategory(editingItem.category || '');
         setStockCount(editingItem.stockCount ? editingItem.stockCount.toString() : '0');
@@ -257,6 +259,7 @@ export const AddEditMenuModal: React.FC<AddEditMenuModalProps> = ({
         setAvailability(true);
         setStatus('published');
         setSelectedCounterId('');
+        setPickupType('');
         setSelectedCategoryId('');
         setManualCategory('');
         setCategoryMode(initialMode === 'image' ? 'auto' : 'manual');
@@ -468,6 +471,7 @@ export const AddEditMenuModal: React.FC<AddEditMenuModalProps> = ({
       analytics: editingItem?.analytics || undefined,
       canteen_id: selectedCounterId || undefined,
       category_id: selectedCategoryId || undefined,
+      pickupType: pickupType || undefined,
     };
 
     const result = await onSave(savedItem);
@@ -893,7 +897,7 @@ export const AddEditMenuModal: React.FC<AddEditMenuModalProps> = ({
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   <div>
                     <label className="text-xs font-semibold text-zinc-300 block mb-1">Assign to Counter</label>
                     <select
@@ -905,6 +909,21 @@ export const AddEditMenuModal: React.FC<AddEditMenuModalProps> = ({
                       {counters.map((c) => (
                         <option key={c.id} value={c.id}>{c.code} - {c.name}</option>
                       ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-zinc-300 block mb-1">Pickup Type</label>
+                    <select
+                      value={pickupType}
+                      onChange={(e) => setPickupType(e.target.value)}
+                      className="w-full bg-zinc-900/80 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-indigo-500"
+                    >
+                      <option value="">-- Select Pickup Type --</option>
+                      <option value="Breakfast">Breakfast</option>
+                      <option value="Lunch">Lunch</option>
+                      <option value="Dinner">Dinner</option>
+                      <option value="Faculty">Faculty</option>
+                      <option value="Guest">Guest</option>
                     </select>
                   </div>
                   <div>

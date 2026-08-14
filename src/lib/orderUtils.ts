@@ -106,9 +106,22 @@ export function buildStatusUpdate(status: OrderStatus): Record<string, unknown> 
   }
 }
 
+export function buildConfirmedUpdate(): Record<string, unknown> {
+  const now = new Date().toISOString();
+  return {
+    status: 'confirmed',
+    order_status: 'Confirmed',
+    kitchen_status: 'Confirmed',
+    counter_status: 'Confirmed',
+    confirmed_at: now,
+    updated_at: now,
+  };
+}
+
 export function nextStatus(current: OrderStatus): OrderStatus | null {
   switch (current) {
-    case 'pending':     return 'preparing';
+    case 'pending':     return 'confirmed';
+    case 'confirmed':   return 'preparing';
     case 'preparing':   return 'ready';
     case 'ready':       return 'completed';
     case 'completed':   return null;
@@ -127,6 +140,7 @@ export function canTransition(from: OrderStatus, to: OrderStatus): boolean {
 export function getOrderStatusLabel(status: OrderStatus): string {
   switch (status) {
     case 'pending':    return 'Incoming Queue';
+    case 'confirmed':  return 'Confirmed';
     case 'preparing':  return 'Preparing';
     case 'ready':      return 'Ready at Counter';
     case 'completed':  return 'Order Collected';
@@ -215,8 +229,7 @@ export function getStudentViewStatus(status: OrderStatus): string {
   }
 }
 
-export function normalizeOrderStatus(value: unknown): OrderStatus {
-  const status = String(value || '').toLowerCase();
+export function normalizeOrderStatus(value: unknown): OrderStatus {  const status = String(value || '').toLowerCase();
   // Map legacy 'accepted' to 'preparing' (accepting now goes directly to preparing)
   if (status === 'accepted') return 'preparing';
   if (['pending', 'preparing', 'ready', 'completed', 'cancelled'].includes(status)) {
@@ -264,6 +277,23 @@ export function normalizeOrderItems(items: unknown): Order['items'] {
 export const CANCEL_WINDOW_SECONDS = 30;
 
 export const IST_OFFSET_MINUTES = 5 * 60 + 30;
+
+export function buildOrderItemSummary(order: Order): string {
+  const raw = order.orderItems && order.orderItems.length
+    ? order.orderItems.map((oi) => ({
+        name: oi.menu_items?.food_name || oi.item_name || 'Item',
+        quantity: Number(oi.quantity || 0),
+      }))
+    : (order.items || []).map((it) => ({
+        name: it.name || 'Item',
+        quantity: Number(it.quantity || 0),
+      }));
+
+  return raw
+    .filter((i) => i.name && i.quantity > 0)
+    .map((i) => `${i.quantity} ${i.name}`)
+    .join(', ');
+}
 
 export function toIst(time: number | Date | string): Date {
   const d = time instanceof Date ? time : new Date(time);

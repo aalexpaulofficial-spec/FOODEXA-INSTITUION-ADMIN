@@ -227,6 +227,7 @@ export const KitchenDashboard: React.FC<KitchenDashboardProps> = ({
 
   const renderIncomingActions = (item: Order) => {
     const isUpdating = updatingOrderId === item.id;
+    const orderStatus = String(item.status || '').toLowerCase();
 
     const cancelRemainingMs = getCancelRemainingMs(item);
     const cancelAction = cancelRemainingMs > 0 ? (
@@ -248,10 +249,30 @@ export const KitchenDashboard: React.FC<KitchenDashboardProps> = ({
       </div>
     );
 
-    return (
-      <div className="space-y-2">
+    // pending -> Accept (status becomes 'confirmed')
+    // confirmed -> Start Preparing (status becomes 'preparing')
+    const primaryAction =
+      orderStatus === 'confirmed' ? (
         <button
           onClick={() => onUpdateOrderStatus(item.id, 'preparing')}
+          disabled={isUpdating}
+          className="w-full py-2 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-xs transition-colors flex items-center justify-center space-x-1 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {isUpdating ? (
+            <>
+              <div className="w-3.5 h-3.5 rounded-full border-2 border-slate-950 border-t-transparent animate-spin" />
+              <span>Starting...</span>
+            </>
+          ) : (
+            <>
+              <ChefHat className="w-3.5 h-3.5" />
+              <span>Start Preparing</span>
+            </>
+          )}
+        </button>
+      ) : (
+        <button
+          onClick={() => onUpdateOrderStatus(item.id, 'confirmed')}
           disabled={isUpdating}
           className="w-full py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs transition-colors flex items-center justify-center space-x-1 disabled:opacity-50 disabled:cursor-not-allowed"
         >
@@ -267,6 +288,11 @@ export const KitchenDashboard: React.FC<KitchenDashboardProps> = ({
             </>
           )}
         </button>
+      );
+
+    return (
+      <div className="space-y-2">
+        {primaryAction}
         {cancelAction}
       </div>
     );

@@ -7,6 +7,7 @@ import {
   normalizeOrderStatus,
   normalizeKitchenStatus,
   normalizeOrderItems,
+  buildOrderItemSummary,
   CANCEL_BLOCK_MESSAGE,
 } from '../lib/orderUtils';
 
@@ -295,6 +296,13 @@ export function useOrderRealtime(
       const notification = getNotificationForStatus(status, order);
       if (!notification) return;
 
+      // Include quantities in the announcement (kitchen + student) so staff and
+      // students always know exactly what to prepare and how many.
+      const itemSummary = buildOrderItemSummary(order);
+      const message = itemSummary
+        ? `${notification.message} Items: ${itemSummary}`
+        : notification.message;
+
       try {
         const studentId = order.studentId;
         if (!studentId) {
@@ -314,15 +322,15 @@ export function useOrderRealtime(
           order_id: order.id,
           type: notification.type,
           title: notification.title,
-          message: notification.message,
+          message,
           read: false,
         };
 
-        const { error } = await supabase
-          .from('notifications')
-          .insert(notifPayload)
-          .select()
-          .single();
+         const { error } = await supabase
+           .from('notifications')
+           .insert(notifPayload)
+           .select()
+           .maybeSingle();
 
         if (error) {
           console.error('[useOrderRealtime] Failed to insert notification:', error);
@@ -348,52 +356,37 @@ export function useOrderRealtime(
         return false;
       }
 
-      if (updatingOrderId === orderId) {
-        return false;
-      }
+       if (updatingOrderId === orderId) {
+         return false;
+       }
 
-      setUpdatingOrderId(orderId);
+       setUpdatingOrderId(orderId);
 
-      console.log('[FOODEXA ACCEPT] auth user:', institutionId);
-      console.log('[FOODEXA ACCEPT] institution:', institutionId);
-      console.log('[FOODEXA ACCEPT] order id:', orderId);
-      console.log('[FOODEXA ACCEPT] order status before:', order.status);
-      console.log('[FOODEXA ACCEPT] order institution:', order.institutionId);
+       // Map the target status to the canonical lifecycle RPC.
+       // Every RPC uses only lowercase status values and is idempotent.
+       const RPC_FOR_STATUS: Record<string, string> = {
+         confirmed: 'accept_food_order',
+         preparing: 'start_food_preparing',
+         ready: 'mark_order_ready',
+         completed: 'complete_food_order',
+         cancelled: 'cancel_food_order',
+       };
 
-      try {
-        let rpcData: any = null;
-        let rpcError: any = null;
+       const rpcName = RPC_FOR_STATUS[status];
+       if (!rpcName) {
+         console.error('[FOODEXA] Unsupported status transition:', status);
+         setError(`Unsupported status transition: ${status}`);
+         setUpdatingOrderId(null);
+         return false;
+       }
 
-        if (status === 'preparing') {
-          const result = await supabase.rpc('accept_food_order', {
-            p_order_id: orderId,
-          });
-          rpcData = result.data;
-          rpcError = result.error;
-        } else if (status === 'ready') {
-          const result = await supabase.rpc('mark_order_ready', {
-            p_order_id: orderId,
-          });
-          rpcData = result.data;
-          rpcError = result.error;
-        } else if (status === 'completed') {
-          const result = await supabase.rpc('complete_food_order', {
-            p_order_id: orderId,
-          });
-          rpcData = result.data;
-          rpcError = result.error;
-        } else if (status === 'cancelled') {
-          const result = await supabase.rpc('cancel_food_order', {
-            p_order_id: orderId,
-          });
-          rpcData = result.data;
-          rpcError = result.error;
-        } else {
-          console.error('[FOODEXA] Unexpected status transition:', status);
-          setError(`Unsupported status transition: ${status}`);
-          setUpdatingOrderId(null);
-          return false;
-        }
+       try {
+         let rpcData: any = null;
+         let rpcError: any = null;
+
+         const result = await supabase.rpc(rpcName, { p_order_id: orderId });
+         rpcData = result.data;
+         rpcError = result.error;
 
         if (rpcError) {
           console.error('[FOODEXA] RPC ERROR:', rpcError);
@@ -459,7 +452,7 @@ export function useOrderRealtime(
            query = query.eq('institution_id', institutionId);
          }
 
-         const { data, error } = await withTimeout(query.single(), DATA_FETCH_TIMEOUT_MS, 'Order details fetch');
+          const { data, error } = await withTimeout(query.maybeSingle(), DATA_FETCH_TIMEOUT_MS, 'Order details fetch');
 
         if (error || !data) return fallback;
 
