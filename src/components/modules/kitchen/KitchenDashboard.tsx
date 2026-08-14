@@ -92,23 +92,37 @@ export const KitchenDashboard: React.FC<KitchenDashboardProps> = ({
   const renderCustomerInfo = (item: Order) => {
     const role = getRoleDisplay(item.userRole);
     return (
-      <div className="flex items-center justify-between gap-3 text-[11px] pt-2 border-t border-slate-800/60">
-        <div className="flex items-center gap-1.5 min-w-0">
-          <User className="w-3 h-3 text-slate-500 shrink-0" />
-          <span className="font-semibold text-slate-200 truncate">{item.studentName || ''}</span>
+      <div className="space-y-1.5 pt-2 border-t border-slate-800/60">
+        <div className="flex items-center justify-between gap-3 text-[11px]">
+          <div className="flex items-center gap-1.5 min-w-0">
+            <User className="w-3 h-3 text-slate-500 shrink-0" />
+            <span className="font-semibold text-slate-200 truncate">{item.studentName || ''}</span>
+          </div>
+          <span className={`text-xs font-bold shrink-0 ${role.cls}`}>{role.label}</span>
         </div>
-        <span className={`text-xs font-bold shrink-0 ${role.cls}`}>{role.label}</span>
+        <div className="flex items-center gap-1.5 text-[10px] text-slate-400 min-w-0">
+          <Hash className="w-3 h-3 text-slate-500 shrink-0" />
+          <span className="font-mono truncate">{item.studentId || ''}</span>
+        </div>
       </div>
     );
   };
 
   const renderPickupInfo = (item: Order) => (
-    <div className="flex items-center justify-between text-[11px] text-slate-400">
-      <div className="flex items-center gap-1">
-        <CalendarClock className="w-3 h-3 text-slate-500" />
-        <span className="font-mono">{formatTime(item.orderTime || item.pickupTimeEstimated)}</span>
+    <div className="space-y-1.5">
+      <div className="flex items-center justify-between text-[11px] text-slate-400">
+        <div className="flex items-center gap-1">
+          <CalendarClock className="w-3 h-3 text-slate-500" />
+          <span className="font-mono">Ordered: {formatTime(item.orderTime || item.created_at || item.pickupTimeEstimated)}</span>
+        </div>
+        <div className="font-mono text-slate-300 font-semibold">{item.pickupCounter || ''}</div>
       </div>
-      <div className="font-mono text-slate-300 font-semibold">{item.pickupCounter || ''}</div>
+      {item.estimatedReadyTime && (
+        <div className="flex items-center gap-1 text-[10px] text-amber-400/90">
+          <Timer className="w-3 h-3" />
+          <span className="font-mono">Est. Ready: {formatTime(item.estimatedReadyTime)}</span>
+        </div>
+      )}
     </div>
   );
 
