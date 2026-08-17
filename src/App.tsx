@@ -138,7 +138,7 @@ export function App() {
           onTabChange={(tab) => { setCurrentTab(tab); setIsMobileMenuOpen(false); }}
           currentPortal={currentPortal}
           pendingVendorCount={vendors.filter((v) => v.status === 'pending').length}
-          activeKitchenOrdersCount={orders.filter((o) => o.status === 'preparing' || o.status === 'pending').length}
+          activeKitchenOrdersCount={orders.filter((o) => o.status === 'preparing' || o.status === 'pending' || o.status === 'awaiting_confirmation').length}
           isMobileMenuOpen={isMobileMenuOpen}
           onCloseMobileMenu={() => setIsMobileMenuOpen(false)}
         />

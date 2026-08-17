@@ -22,7 +22,7 @@ function withTimeout<T>(promise: PromiseLike<T>, ms: number, label: string): Pro
   ]);
 }
 
-const ORDER_SELECT = '*, order_items(*, menu_items(food_name, regular_price, price, image_url, canteen_id, institution_id))';
+const ORDER_SELECT = '*, order_items(*, menu_items(food_name, regular_price, price, image_url, canteen_id, institution_id)), order_status_history(*)';
 
 export function mapDbOrderToOrder(db: any): Order {
   const orderTime = db.order_time || db.orderTime || db.created_at || '';
@@ -75,6 +75,24 @@ export function mapDbOrderToOrder(db: any): Order {
     readyAt: db.ready_at || db.readyAt || '',
     completedAt: db.completed_at || db.completedAt || '',
     cancelledAt: db.cancelled_at || db.cancelledAt || '',
+    confirmedAt: db.confirmed_at || db.confirmedAt || '',
+    confirmedBy: db.confirmed_by || db.confirmedBy || '',
+    confirmedByName: db.confirmed_by_name || db.confirmedByName || '',
+    paymentReference: db.payment_reference || db.razorpay_payment_id || db.razorpayPaymentId || db.paymentReference || '',
+    razorpayPaymentId: db.razorpay_payment_id || db.razorpayPaymentId || '',
+    razorpayOrderId: db.razorpay_order_id || db.razorpayOrderId || '',
+    statusHistory: Array.isArray(db.order_status_history)
+      ? db.order_status_history.map((h: any) => ({
+          id: h.id,
+          status: h.status,
+          changed_at: h.changed_at,
+          changedAt: h.changed_at,
+          changed_by: h.changed_by,
+          changed_by_name: h.changed_by_name,
+          changedByName: h.changed_by_name,
+          notes: h.notes,
+        }))
+      : undefined,
     pickupTimeEstimated: pickupTime,
     pickupCode: db.pickup_code || db.pickupCode || '',
     qrCodeData: db.qr_code_data || db.qrCodeData || db.pickup_code || db.pickupCode || '',
@@ -276,6 +294,33 @@ export function useOrderRealtime(
             });
         }
       )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'order_status_history',
+        },
+        (payload: any) => {
+          const record = payload?.new || payload?.old;
+          if (!record?.order_id) return;
+          const orderId = record.order_id;
+
+          supabase
+            .from('orders')
+            .select(ORDER_SELECT)
+            .eq('id', orderId)
+            .maybeSingle()
+            .then(({ data: fullOrder }) => {
+              if (fullOrder) {
+                const enriched = enrichOrdersWithProfile([fullOrder])[0];
+                if (enriched) {
+                  setOrders(prev => prev.map(o => o.id === enriched.id ? enriched : o));
+                }
+              }
+            });
+        }
+      )
       .subscribe((status) => {
         setRealtimeStatus(status);
         setIsRealtime(status === 'SUBSCRIBED');
@@ -405,6 +450,12 @@ export function useOrderRealtime(
         // RPC succeeded — some RPCs return null/void on success, that is fine
         console.log('[FOODEXA] RPC SUCCESS. status →', status, '| data:', rpcData);
 
+        // Notify the student instantly so their tracker flips without a refresh
+        const updatedOrder = orders.find((o) => o.id === orderId) || order;
+        if (updatedOrder) {
+          void insertStatusNotification(updatedOrder, status);
+        }
+
         setError(null);
         setUpdatingOrderId(null);
         return true;
@@ -416,7 +467,7 @@ export function useOrderRealtime(
         return false;
       }
     },
-    [orders, institutionId, fetchOrders, updatingOrderId]
+    [orders, institutionId, fetchOrders, updatingOrderId, insertStatusNotification]
   );
 
   const cancelOrder = useCallback(

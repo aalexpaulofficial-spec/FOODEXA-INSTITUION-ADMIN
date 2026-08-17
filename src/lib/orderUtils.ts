@@ -95,12 +95,19 @@ export function buildStatusUpdate(status: OrderStatus): Record<string, unknown> 
         updated_at: now,
       };
     case 'pending':
-    default:
       return {
         status: 'pending',
         order_status: 'Pending',
         kitchen_status: 'Pending',
         counter_status: 'Pending',
+        updated_at: now,
+      };
+    case 'awaiting_confirmation':
+      return {
+        status: 'awaiting_confirmation',
+        order_status: 'Waiting for Confirmation',
+        kitchen_status: 'Awaiting Confirmation',
+        counter_status: 'Awaiting Confirmation',
         updated_at: now,
       };
   }
@@ -120,32 +127,34 @@ export function buildConfirmedUpdate(): Record<string, unknown> {
 
 export function nextStatus(current: OrderStatus): OrderStatus | null {
   switch (current) {
-    case 'pending':     return 'confirmed';
-    case 'confirmed':   return 'preparing';
-    case 'preparing':   return 'ready';
-    case 'ready':       return 'completed';
-    case 'completed':   return null;
-    case 'cancelled':   return null;
-    default:            return null;
+    case 'pending':              return 'confirmed';
+    case 'awaiting_confirmation': return 'confirmed';
+    case 'confirmed':            return 'preparing';
+    case 'preparing':            return 'ready';
+    case 'ready':                return 'completed';
+    case 'completed':            return null;
+    case 'cancelled':            return null;
+    default:                     return null;
   }
 }
 
 export function canTransition(from: OrderStatus, to: OrderStatus): boolean {
   if (from === to) return false;
-  if (to === 'cancelled') return from === 'pending';
+  if (to === 'cancelled') return from === 'pending' || from === 'awaiting_confirmation';
   if (to === 'completed') return from === 'ready';
   return nextStatus(from) === to;
 }
 
 export function getOrderStatusLabel(status: OrderStatus): string {
   switch (status) {
-    case 'pending':    return 'Incoming Queue';
-    case 'confirmed':  return 'Confirmed';
-    case 'preparing':  return 'Preparing';
-    case 'ready':      return 'Ready at Counter';
-    case 'completed':  return 'Order Collected';
-    case 'cancelled':  return 'Cancelled';
-    default:           return status;
+    case 'pending':              return 'Waiting for Confirmation';
+    case 'awaiting_confirmation': return 'Waiting for Confirmation';
+    case 'confirmed':            return 'Order Confirmed';
+    case 'preparing':            return 'Preparing';
+    case 'ready':                return 'Ready at Counter';
+    case 'completed':            return 'Order Collected';
+    case 'cancelled':            return 'Cancelled';
+    default:                     return status;
   }
 }
 
@@ -176,12 +185,13 @@ export function getCounterStatusLabel(status: string): string {
 
 export function getStatusColor(status: OrderStatus): string {
   switch (status) {
-    case 'pending':    return 'amber';
-    case 'preparing':  return 'cyan';
-    case 'ready':      return 'emerald';
-    case 'completed':  return 'green';
-    case 'cancelled':  return 'red';
-    default:           return 'slate';
+    case 'pending':              return 'amber';
+    case 'awaiting_confirmation': return 'amber';
+    case 'preparing':            return 'cyan';
+    case 'ready':                return 'emerald';
+    case 'completed':            return 'green';
+    case 'cancelled':            return 'red';
+    default:                     return 'slate';
   }
 }
 
@@ -189,6 +199,12 @@ export function getNotificationForStatus(status: OrderStatus, order: Order): { t
   const orderNum = order.orderNumber || order.id;
   const studentName = order.studentName || 'Student';
   switch (status) {
+    case 'confirmed':
+      return {
+        type: 'success',
+        title: 'Order Confirmed',
+        message: `Your order #${orderNum} has been confirmed by the institution.`,
+      };
     case 'preparing':
       return {
         type: 'info',
@@ -220,22 +236,53 @@ export function getNotificationForStatus(status: OrderStatus, order: Order): { t
 
 export function getStudentViewStatus(status: OrderStatus): string {
   switch (status) {
-    case 'pending':    return 'Order Confirmed';
-    case 'preparing':  return 'Preparing';
-    case 'ready':      return 'Ready for Pickup';
-    case 'completed':  return 'Order Completed';
-    case 'cancelled':  return 'Cancelled';
-    default:           return status;
+    case 'pending':              return 'Payment Successful';
+    case 'awaiting_confirmation': return 'Payment Successful';
+    case 'confirmed':            return 'Order Confirmed';
+    case 'preparing':            return 'Preparing';
+    case 'ready':                return 'Ready for Pickup';
+    case 'completed':            return 'Order Completed';
+    case 'cancelled':            return 'Cancelled';
+    default:                     return status;
   }
 }
 
-export function normalizeOrderStatus(value: unknown): OrderStatus {  const status = String(value || '').toLowerCase();
+export function normalizeOrderStatus(value: unknown): OrderStatus {
+  const status = String(value || '').toLowerCase();
   // Map legacy 'accepted' to 'preparing' (accepting now goes directly to preparing)
   if (status === 'accepted') return 'preparing';
-  if (['pending', 'preparing', 'ready', 'completed', 'cancelled'].includes(status)) {
+  if (status === 'awaiting-confirmation' || status === 'awaiting confirmation' || status === 'waiting') {
+    return 'awaiting_confirmation';
+  }
+  if (['pending', 'awaiting_confirmation', 'preparing', 'ready', 'completed', 'cancelled', 'confirmed'].includes(status)) {
     return status as OrderStatus;
   }
   return 'pending';
+}
+
+export function getStatusHistoryLabel(status: string): string {
+  const s = String(status || '').toLowerCase();
+  switch (s) {
+    case 'paid':
+    case 'payment_success':
+    case 'payment verified':
+      return 'Payment Successful';
+    case 'pending':
+    case 'awaiting_confirmation':
+      return 'Waiting for Confirmation';
+    case 'confirmed':
+      return 'Order Confirmed';
+    case 'preparing':
+      return 'Preparing';
+    case 'ready':
+      return 'Ready at Counter';
+    case 'completed':
+      return 'Completed';
+    case 'cancelled':
+      return 'Cancelled';
+    default:
+      return String(status || '');
+  }
 }
 
 export function normalizeKitchenStatus(value: unknown): string {

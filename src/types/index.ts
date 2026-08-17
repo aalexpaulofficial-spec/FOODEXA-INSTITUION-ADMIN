@@ -114,7 +114,7 @@ export interface MenuCategory {
   created_at: string;
 }
 
-export type OrderStatus = 'pending' | 'confirmed' | 'preparing' | 'ready' | 'completed' | 'cancelled';
+export type OrderStatus = 'pending' | 'awaiting_confirmation' | 'confirmed' | 'preparing' | 'ready' | 'completed' | 'cancelled';
 
 export type KitchenStatus = 'Pending' | 'Accepted' | 'Preparing' | 'Ready' | 'Completed' | 'Cancelled';
 export type CounterStatus = 'Pending' | 'Accepted' | 'Preparing' | 'Ready' | 'Picked Up' | 'Completed' | 'Cancelled' | 'Invoice Ready' | 'Order Collected';
@@ -205,6 +205,22 @@ export interface Order {
   readyAt?: string;
   completedAt?: string;
   cancelledAt?: string;
+  confirmedAt?: string;
+  confirmedBy?: string;
+  confirmedByName?: string;
+  paymentReference?: string;
+  razorpayPaymentId?: string;
+  razorpayOrderId?: string;
+  statusHistory?: {
+    id?: string;
+    status: string;
+    changed_at?: string;
+    changedAt?: string;
+    changed_by?: string;
+    changed_by_name?: string;
+    changedByName?: string;
+    notes?: string;
+  }[];
   pickupTimeEstimated: string;
   estimatedReadyTime?: string;
   pickupCode: string;

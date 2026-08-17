@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState, useCallback } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   CalendarClock,
   CheckCircle2,
@@ -12,6 +12,10 @@ import {
   ChefHat,
   XCircle,
   AlertTriangle,
+  Building2,
+  Store,
+  Mail,
+  BadgeCheck,
 } from 'lucide-react';
 import { Order, OrderStatus, Counter } from '../../../types';
 import { getCancelRemainingMs, CANCEL_BLOCK_MESSAGE } from '../../../lib/orderUtils';
@@ -46,8 +50,51 @@ const formatSeconds = (sec: number) => {
   return `${m}:${s < 10 ? '0' : ''}${s}`;
 };
 
+const isPaid = (item: Order) => String(item.paymentStatus || '').toLowerCase() === 'paid';
+
+const statusText = (status: OrderStatus) => {
+  switch (status) {
+    case 'pending':
+    case 'awaiting_confirmation':
+      return 'WAITING FOR CONFIRMATION';
+    case 'confirmed':
+      return 'ORDER CONFIRMED';
+    case 'preparing':
+      return 'PREPARING';
+    case 'ready':
+      return 'READY AT COUNTER';
+    case 'completed':
+      return 'COMPLETED';
+    case 'cancelled':
+      return 'CANCELLED';
+    default:
+      return String(status || '').toUpperCase();
+  }
+};
+
+const statusColor = (status: OrderStatus) => {
+  switch (status) {
+    case 'pending':
+    case 'awaiting_confirmation':
+      return 'bg-amber-500/10 text-amber-400 border-amber-500/20';
+    case 'confirmed':
+      return 'bg-orange-500/10 text-orange-400 border-orange-500/20';
+    case 'preparing':
+      return 'bg-cyan-500/10 text-cyan-400 border-cyan-500/20';
+    case 'ready':
+      return 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20';
+    case 'completed':
+      return 'bg-green-500/10 text-green-400 border-green-500/20';
+    case 'cancelled':
+      return 'bg-red-500/10 text-red-400 border-red-500/20';
+    default:
+      return 'bg-slate-800 text-slate-400 border-slate-700';
+  }
+};
+
 export const KitchenDashboard: React.FC<KitchenDashboardProps> = ({
   orders,
+  currentInstitution,
   onUpdateOrderStatus,
   updatingOrderId,
   counters,
@@ -67,16 +114,16 @@ export const KitchenDashboard: React.FC<KitchenDashboardProps> = ({
     return () => clearInterval(timer);
   }, []);
 
-  // Incoming Queue: orders with status 'pending' OR 'confirmed'
-  // 'confirmed' = payment done, waiting for institution to Accept → preparing
-  // 'pending'   = order placed, awaiting payment/confirmation
+  // INCOMING QUEUE: paid orders waiting for institution confirmation
   const incomingItems = useMemo(
     () => safeOrders.filter((o) => {
       const status = String(o.status || '').toLowerCase();
-      return status === 'pending' || status === 'confirmed';
+      return (status === 'pending' || status === 'awaiting_confirmation') && isPaid(o);
     }),
     [safeOrders]
   );
+  // PREPARING: confirmed / preparing orders (confirmed = kitchen starts next)
+  const confirmedItems = useMemo(() => safeOrders.filter((o) => String(o.status || '').toLowerCase() === 'confirmed'), [safeOrders]);
   const preparingItems = useMemo(() => safeOrders.filter((o) => String(o.status || '').toLowerCase() === 'preparing'), [safeOrders]);
   const readyItems = useMemo(() => safeOrders.filter((o) => String(o.status || '').toLowerCase() === 'ready'), [safeOrders]);
   const completedItems = useMemo(() => safeOrders.filter((o) => String(o.status || '').toLowerCase() === 'completed'), [safeOrders]);
@@ -89,6 +136,12 @@ export const KitchenDashboard: React.FC<KitchenDashboardProps> = ({
     return Math.max(0, Math.floor((now - t) / 1000));
   };
 
+  const renderStatusBadge = (item: Order) => (
+    <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold uppercase border ${statusColor(item.status)}`}>
+      {statusText(item.status)}
+    </span>
+  );
+
   const renderCustomerInfo = (item: Order) => {
     const role = getRoleDisplay(item.userRole);
     return (
@@ -100,9 +153,24 @@ export const KitchenDashboard: React.FC<KitchenDashboardProps> = ({
           </div>
           <span className={`text-xs font-bold shrink-0 ${role.cls}`}>{role.label}</span>
         </div>
-        <div className="flex items-center gap-1.5 text-[10px] text-slate-400 min-w-0">
-          <Hash className="w-3 h-3 text-slate-500 shrink-0" />
-          <span className="font-mono truncate">{item.studentId || ''}</span>
+        <div className="flex items-center justify-between gap-3 text-[10px] text-slate-400 min-w-0">
+          <div className="flex items-center gap-1.5 min-w-0">
+            <Hash className="w-3 h-3 text-slate-500 shrink-0" />
+            <span className="font-mono truncate">{item.studentId || ''}</span>
+          </div>
+          {item.userEmail && (
+            <div className="flex items-center gap-1 min-w-0">
+              <Mail className="w-3 h-3 text-slate-500 shrink-0" />
+              <span className="truncate">{item.userEmail}</span>
+            </div>
+          )}
+        </div>
+        <div className="flex items-center gap-1.5 text-[10px] text-slate-500 min-w-0">
+          <Building2 className="w-3 h-3 text-slate-500 shrink-0" />
+          <span className="truncate">{item.institutionName || currentInstitution?.name || ''}</span>
+          <span className="text-slate-600">•</span>
+          <Store className="w-3 h-3 text-slate-500 shrink-0" />
+          <span className="truncate">{item.canteenName || (item.canteen_id && counterById[item.canteen_id]) || item.vendorName || item.pickupCounter || ''}</span>
         </div>
       </div>
     );
@@ -141,11 +209,19 @@ export const KitchenDashboard: React.FC<KitchenDashboardProps> = ({
       <div className="flex items-center gap-1.5 text-slate-400 min-w-0">
         <CreditCard className="w-3 h-3 text-slate-500 shrink-0" />
         <span className="capitalize truncate">{item.paymentStatus || ''}</span>
+        {isPaid(item) && <BadgeCheck className="w-3 h-3 text-emerald-400 shrink-0" />}
       </div>
       <div className="flex items-center gap-1.5 text-slate-400 min-w-0">
         <QrCode className="w-3 h-3 text-slate-500 shrink-0" />
         <span className="font-mono truncate">{item.qrCodeData || item.pickupCode || ''}</span>
       </div>
+      {item.paymentReference && (
+        <div className="col-span-2 flex items-center gap-1.5 text-slate-400 min-w-0">
+          <BadgeCheck className="w-3 h-3 text-indigo-400 shrink-0" />
+          <span className="shrink-0">Razorpay</span>
+          <span className="font-mono text-slate-300 truncate">{item.paymentReference}</span>
+        </div>
+      )}
     </div>
   );
 
@@ -196,11 +272,12 @@ export const KitchenDashboard: React.FC<KitchenDashboardProps> = ({
 
   const renderCard = (
     item: Order,
-    tone: 'amber' | 'cyan' | 'emerald' | 'green' | 'red',
+    tone: 'amber' | 'orange' | 'cyan' | 'emerald' | 'green' | 'red',
     action?: React.ReactNode
   ) => {
     const border = {
       amber: 'border-slate-800/80 hover:border-amber-500/40',
+      orange: 'border-orange-500/30',
       cyan: 'border-cyan-500/30',
       emerald: 'border-emerald-500/30',
       green: 'border-green-500/20',
@@ -208,6 +285,7 @@ export const KitchenDashboard: React.FC<KitchenDashboardProps> = ({
     }[tone];
     const text = {
       amber: 'text-amber-400',
+      orange: 'text-orange-400',
       cyan: 'text-cyan-300',
       emerald: 'text-emerald-400',
       green: 'text-green-400',
@@ -218,12 +296,15 @@ export const KitchenDashboard: React.FC<KitchenDashboardProps> = ({
       <div key={item.id} className={`p-4 rounded-xl bg-slate-950 border ${border} space-y-3 shadow-lg transition-all`}>
         <div className="flex items-center justify-between gap-3">
           <span className={`font-mono font-bold text-sm ${text}`}>{item.orderNumber || ''}</span>
-          {item.isPriority && (
-            <span className="px-2 py-0.5 rounded bg-red-500/10 text-red-400 border border-red-500/20 text-[9px] font-bold uppercase flex items-center space-x-1">
-              <Flame className="w-3 h-3 text-red-400" />
-              <span>Priority</span>
-            </span>
-          )}
+          <div className="flex items-center gap-2">
+            {renderStatusBadge(item)}
+            {item.isPriority && (
+              <span className="px-2 py-0.5 rounded bg-red-500/10 text-red-400 border border-red-500/20 text-[9px] font-bold uppercase flex items-center space-x-1">
+                <Flame className="w-3 h-3 text-red-400" />
+                <span>Priority</span>
+              </span>
+            )}
+          </div>
         </div>
         {renderItems(item)}
         {renderPickupInfo(item)}
@@ -241,7 +322,6 @@ export const KitchenDashboard: React.FC<KitchenDashboardProps> = ({
 
   const renderIncomingActions = (item: Order) => {
     const isUpdating = updatingOrderId === item.id;
-    const orderStatus = String(item.status || '').toLowerCase();
 
     const cancelRemainingMs = getCancelRemainingMs(item);
     const cancelAction = cancelRemainingMs > 0 ? (
@@ -263,54 +343,114 @@ export const KitchenDashboard: React.FC<KitchenDashboardProps> = ({
       </div>
     );
 
-    // pending -> Accept (status becomes 'confirmed')
-    // confirmed -> Start Preparing (status becomes 'preparing')
-    const primaryAction =
-      orderStatus === 'confirmed' ? (
-        <button
-          onClick={() => onUpdateOrderStatus(item.id, 'preparing')}
-          disabled={isUpdating}
-          className="w-full py-2 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-xs transition-colors flex items-center justify-center space-x-1 disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {isUpdating ? (
-            <>
-              <div className="w-3.5 h-3.5 rounded-full border-2 border-slate-950 border-t-transparent animate-spin" />
-              <span>Starting...</span>
-            </>
-          ) : (
-            <>
-              <ChefHat className="w-3.5 h-3.5" />
-              <span>Start Preparing</span>
-            </>
-          )}
-        </button>
-      ) : (
+    return (
+      <div className="space-y-2">
         <button
           onClick={() => onUpdateOrderStatus(item.id, 'confirmed')}
           disabled={isUpdating}
-          className="w-full py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs transition-colors flex items-center justify-center space-x-1 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="w-full py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-slate-950 font-extrabold text-xs tracking-wide transition-colors flex items-center justify-center space-x-1.5 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-amber-500/20"
         >
           {isUpdating ? (
             <>
               <div className="w-3.5 h-3.5 rounded-full border-2 border-slate-950 border-t-transparent animate-spin" />
-              <span>Accepting...</span>
+              <span>Confirming...</span>
             </>
           ) : (
             <>
-              <CheckCircle2 className="w-3.5 h-3.5" />
-              <span>Accept</span>
+              <BadgeCheck className="w-4 h-4" />
+              <span>CONFIRM ORDER</span>
             </>
           )}
         </button>
-      );
-
-    return (
-      <div className="space-y-2">
-        {primaryAction}
         {cancelAction}
       </div>
     );
   };
+
+  const renderConfirmedAction = (item: Order) => {
+    const isUpdating = updatingOrderId === item.id;
+    return (
+      <button
+        onClick={() => onUpdateOrderStatus(item.id, 'preparing')}
+        disabled={isUpdating}
+        className="w-full py-2.5 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-xs transition-colors flex items-center justify-center space-x-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+      >
+        {isUpdating ? (
+          <>
+            <div className="w-3.5 h-3.5 rounded-full border-2 border-slate-950 border-t-transparent animate-spin" />
+            <span>Starting...</span>
+          </>
+        ) : (
+          <>
+            <ChefHat className="w-4 h-4" />
+            <span>Start Preparing</span>
+          </>
+        )}
+      </button>
+    );
+  };
+
+  const renderPreparingAction = (item: Order) => {
+    const elapsedSeconds = getElapsedSeconds(item);
+    const prepSeconds = Math.max((item.estimatedWaitMins || 1) * 60, 1);
+    const progressPct = Math.min(100, Math.floor((elapsedSeconds / prepSeconds) * 100));
+    const isUpdating = updatingOrderId === item.id;
+    return (
+      <div className="space-y-3">
+        <div>
+          <div className="flex justify-between text-[10px] text-slate-400 mb-1">
+            <span className="flex items-center gap-1"><Timer className="w-3 h-3" /> {formatSeconds(elapsedSeconds)}</span>
+            <span className="font-mono">{progressPct}%</span>
+          </div>
+          <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
+            <div className="h-full bg-gradient-to-r from-cyan-500 to-amber-400 transition-all duration-1000" style={{ width: `${progressPct}%` }} />
+          </div>
+        </div>
+        <button
+          onClick={() => onUpdateOrderStatus(item.id, 'ready')}
+          disabled={isUpdating}
+          className="w-full py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs transition-colors flex items-center justify-center space-x-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {isUpdating ? (
+            <>
+              <div className="w-4 h-4 rounded-full border-2 border-slate-950 border-t-transparent animate-spin" />
+              <span>Updating...</span>
+            </>
+          ) : (
+            <>
+              <CheckCircle2 className="w-4 h-4" />
+              <span>{t('kitchen.ready')}</span>
+            </>
+          )}
+        </button>
+      </div>
+    );
+  };
+
+  const renderReadyAction = (item: Order) => {
+    const isUpdating = updatingOrderId === item.id;
+    return (
+      <button
+        onClick={() => onUpdateOrderStatus(item.id, 'completed')}
+        disabled={isUpdating}
+        className="w-full py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-bold text-xs transition-colors flex items-center justify-center space-x-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+      >
+        {isUpdating ? (
+          <>
+            <div className="w-4 h-4 rounded-full border-2 border-slate-200 border-t-transparent animate-spin" />
+            <span>Updating...</span>
+          </>
+        ) : (
+          <>
+            <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+            <span>Complete Pickup</span>
+          </>
+        )}
+      </button>
+    );
+  };
+
+  const preparingCount = confirmedItems.length + preparingItems.length;
 
   return (
     <div className="space-y-6 animate-fade-in font-sans">
@@ -327,130 +467,77 @@ export const KitchenDashboard: React.FC<KitchenDashboardProps> = ({
           </p>
         </div>
 
-        <div className="flex items-center space-x-3 text-xs">
+        <div className="flex flex-wrap items-center gap-2 text-xs">
           <div className="px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-800 text-slate-300">
-            {t('kitchen.queue')}: <strong className="text-amber-400">{incomingItems.length}</strong>
+            Incoming Queue: <strong className="text-amber-400 font-mono">{incomingItems.length}</strong>
           </div>
           <div className="px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-800 text-slate-300">
-            {t('kitchen.preparing')}: <strong className="text-cyan-400 font-mono">{preparingItems.length}</strong>
+            Preparing: <strong className="text-cyan-400 font-mono">{preparingCount}</strong>
           </div>
           <div className="px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-800 text-slate-300">
-            {t('kitchen.ready')}: <strong className="text-emerald-400 font-mono">{readyItems.length}</strong>
+            Ready: <strong className="text-emerald-400 font-mono">{readyItems.length}</strong>
           </div>
           <div className="px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-800 text-slate-300">
-            {t('kitchen.cancelled')}: <strong className="text-red-400 font-mono">{cancelledItems.length}</strong>
+            Completed: <strong className="text-green-400 font-mono">{completedItems.length}</strong>
           </div>
         </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
+        {/* INCOMING QUEUE */}
         <section className="p-4 rounded-2xl bg-slate-900/80 border border-slate-800 space-y-4">
           <div className="flex items-center justify-between pb-2 border-b border-slate-800">
             <div className="flex items-center space-x-2">
               <span className="w-2.5 h-2.5 rounded-full bg-amber-500" />
-              <span className="text-xs font-extrabold uppercase tracking-wider text-amber-400">{t('kitchen.incoming_queue')} ({incomingItems.length})</span>
+              <span className="text-xs font-extrabold uppercase tracking-wider text-amber-400">Incoming Queue ({incomingItems.length})</span>
             </div>
-            <span className="text-[10px] font-mono text-slate-500">{t('kitchen.pending_accepted')}</span>
+            <span className="text-[10px] font-mono text-slate-500">paid • awaiting confirmation</span>
           </div>
           <div className="space-y-3 min-h-[400px]">
-            {incomingItems.map((item) =>
-              renderCard(item, 'amber', renderIncomingActions(item))
-            )}
-            {incomingItems.length === 0 && <div className="py-16 text-center text-slate-500 text-xs italic">{t('kitchen.no_pending_orders')}</div>}
+            {incomingItems.map((item) => renderCard(item, 'amber', renderIncomingActions(item)))}
+            {incomingItems.length === 0 && <div className="py-16 text-center text-slate-500 text-xs italic">No paid orders waiting for confirmation.</div>}
           </div>
         </section>
 
+        {/* PREPARING */}
         <section className="p-4 rounded-2xl bg-slate-900/80 border border-slate-800 space-y-4">
           <div className="flex items-center justify-between pb-2 border-b border-slate-800">
             <div className="flex items-center space-x-2">
               <span className="w-2.5 h-2.5 rounded-full bg-cyan-400" />
-              <span className="text-xs font-extrabold uppercase tracking-wider text-cyan-400">{t('kitchen.preparing')} ({preparingItems.length})</span>
+              <span className="text-xs font-extrabold uppercase tracking-wider text-cyan-400">Preparing ({preparingCount})</span>
             </div>
-            <span className="text-[10px] font-mono text-slate-500">{t('kitchen.live_timer')}</span>
+            <span className="text-[10px] font-mono text-slate-500">confirmed / preparing</span>
           </div>
           <div className="space-y-3 min-h-[400px]">
-            {preparingItems.map((item) => {
-              const elapsedSeconds = getElapsedSeconds(item);
-              const prepSeconds = Math.max((item.estimatedWaitMins || 1) * 60, 1);
-              const progressPct = Math.min(100, Math.floor((elapsedSeconds / prepSeconds) * 100));
-              const isUpdating = updatingOrderId === item.id;
-              return renderCard(item, 'cyan', (
-                <div className="space-y-3">
-                  <div>
-                    <div className="flex justify-between text-[10px] text-slate-400 mb-1">
-                      <span className="flex items-center gap-1"><Timer className="w-3 h-3" /> {formatSeconds(elapsedSeconds)}</span>
-                      <span className="font-mono">{progressPct}%</span>
-                    </div>
-                    <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
-                      <div className="h-full bg-gradient-to-r from-cyan-500 to-amber-400 transition-all duration-1000" style={{ width: `${progressPct}%` }} />
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => onUpdateOrderStatus(item.id, 'ready')}
-                    disabled={isUpdating}
-                    className="w-full py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs transition-colors flex items-center justify-center space-x-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {isUpdating ? (
-                      <>
-                        <div className="w-4 h-4 rounded-full border-2 border-slate-950 border-t-transparent animate-spin" />
-                        <span>Updating...</span>
-                      </>
-                    ) : (
-                      <>
-                        <CheckCircle2 className="w-4 h-4" />
-                        <span>{t('kitchen.ready')}</span>
-                      </>
-                    )}
-                  </button>
-                </div>
-              ));
-            })}
-            {preparingItems.length === 0 && <div className="py-16 text-center text-slate-500 text-xs italic">{t('kitchen.no_orders_preparing')}</div>}
+            {confirmedItems.map((item) => renderCard(item, 'orange', renderConfirmedAction(item)))}
+            {preparingItems.map((item) => renderCard(item, 'cyan', renderPreparingAction(item)))}
+            {preparingCount === 0 && <div className="py-16 text-center text-slate-500 text-xs italic">{t('kitchen.no_orders_preparing')}</div>}
           </div>
         </section>
 
+        {/* READY COUNTER */}
         <section className="p-4 rounded-2xl bg-slate-900/80 border border-slate-800 space-y-4">
           <div className="flex items-center justify-between pb-2 border-b border-slate-800">
             <div className="flex items-center space-x-2">
               <span className="w-2.5 h-2.5 rounded-full bg-emerald-400" />
-              <span className="text-xs font-extrabold uppercase tracking-wider text-emerald-400">{t('kitchen.ready_counter')} ({readyItems.length})</span>
+              <span className="text-xs font-extrabold uppercase tracking-wider text-emerald-400">Ready Counter ({readyItems.length})</span>
             </div>
-            <span className="text-[10px] font-mono text-slate-500">{t('kitchen.ready')}</span>
+            <span className="text-[10px] font-mono text-slate-500">awaiting pickup</span>
           </div>
           <div className="space-y-3 min-h-[400px]">
-            {readyItems.map((item) => {
-              const isUpdating = updatingOrderId === item.id;
-              return renderCard(item, 'emerald', (
-                <button
-                  onClick={() => onUpdateOrderStatus(item.id, 'completed')}
-                  disabled={isUpdating}
-                  className="w-full py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-bold text-xs transition-colors flex items-center justify-center space-x-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {isUpdating ? (
-                    <>
-                      <div className="w-4 h-4 rounded-full border-2 border-slate-200 border-t-transparent animate-spin" />
-                      <span>Updating...</span>
-                    </>
-                  ) : (
-                    <>
-                      <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                      <span>{t('kitchen.picked_up_btn')}</span>
-                    </>
-                  )}
-                </button>
-              ));
-            })}
+            {readyItems.map((item) => renderCard(item, 'emerald', renderReadyAction(item)))}
             {readyItems.length === 0 && <div className="py-16 text-center text-slate-500 text-xs italic">{t('kitchen.no_orders_ready')}</div>}
           </div>
         </section>
 
+        {/* COMPLETED */}
         <section className="p-4 rounded-2xl bg-slate-900/80 border border-slate-800 space-y-4">
           <div className="flex items-center justify-between pb-2 border-b border-slate-800">
             <div className="flex items-center space-x-2">
               <span className="w-2.5 h-2.5 rounded-full bg-green-400" />
-              <span className="text-xs font-extrabold uppercase tracking-wider text-green-400">{t('kitchen.completed')} ({completedItems.length})</span>
+              <span className="text-xs font-extrabold uppercase tracking-wider text-green-400">Completed ({completedItems.length})</span>
             </div>
-            <span className="text-[10px] font-mono text-slate-500">{t('kitchen.picked_up')}</span>
+            <span className="text-[10px] font-mono text-slate-500">picked up</span>
           </div>
           <div className="space-y-3 min-h-[400px]">
             {completedItems.map((item) => renderCard(item, 'green'))}
@@ -459,21 +546,20 @@ export const KitchenDashboard: React.FC<KitchenDashboardProps> = ({
         </section>
       </div>
 
-      <section className="p-4 rounded-2xl bg-slate-900/80 border border-slate-800 space-y-4">
-        <div className="flex items-center justify-between pb-2 border-b border-slate-800">
-          <div className="flex items-center space-x-2">
-            <span className="w-2.5 h-2.5 rounded-full bg-red-400" />
-            <span className="text-xs font-extrabold uppercase tracking-wider text-red-400">{t('kitchen.cancelled')} ({cancelledItems.length})</span>
+      {cancelledItems.length > 0 && (
+        <section className="p-4 rounded-2xl bg-slate-900/80 border border-slate-800 space-y-4">
+          <div className="flex items-center justify-between pb-2 border-b border-slate-800">
+            <div className="flex items-center space-x-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-red-400" />
+              <span className="text-xs font-extrabold uppercase tracking-wider text-red-400">{t('kitchen.cancelled')} ({cancelledItems.length})</span>
+            </div>
+            <span className="text-[10px] font-mono text-slate-500">{t('kitchen.cancelled')}</span>
           </div>
-          <span className="text-[10px] font-mono text-slate-500">{t('kitchen.cancelled')}</span>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
-          {cancelledItems.map((item) => renderCard(item, 'red'))}
-          {cancelledItems.length === 0 && (
-            <div className="col-span-full py-16 text-center text-slate-500 text-xs italic">{t('kitchen.no_cancelled_orders')}</div>
-          )}
-        </div>
-      </section>
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
+            {cancelledItems.map((item) => renderCard(item, 'red'))}
+          </div>
+        </section>
+      )}
     </div>
   );
 };

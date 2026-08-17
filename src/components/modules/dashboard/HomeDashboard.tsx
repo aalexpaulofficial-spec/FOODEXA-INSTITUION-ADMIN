@@ -104,7 +104,7 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
   // Order flow counts
   const orderFlow = useMemo(() => {
     const paid = orders.filter(o => o.paymentStatus === 'paid' && !['completed', 'cancelled'].includes(o.status)).length;
-    const pending = orders.filter(o => o.status === 'pending').length;
+    const pending = orders.filter(o => ['pending', 'awaiting_confirmation'].includes(o.status)).length;
     const preparing = orders.filter(o => o.status === 'preparing').length;
     const ready = orders.filter(o => o.status === 'ready').length;
     const completed = orders.filter(o => o.status === 'completed').length;
@@ -114,9 +114,9 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
   // Kitchen queue - active orders needing attention
   const kitchenQueue = useMemo(() =>
     orders
-      .filter(o => ['pending', 'preparing', 'ready'].includes(o.status || '') && o.paymentStatus === 'paid')
+      .filter(o => ['pending', 'awaiting_confirmation', 'preparing', 'ready'].includes(o.status || '') && o.paymentStatus === 'paid')
       .sort((a, b) => {
-        const order = { 'pending': 0, 'preparing': 1, 'ready': 2 };
+        const order = { 'pending': 0, 'awaiting_confirmation': 0, 'preparing': 1, 'ready': 2 };
         return (order[a.status as keyof typeof order] || 0) - (order[b.status as keyof typeof order] || 0);
       })
       .slice(0, 6),

@@ -23,7 +23,7 @@ export const AICenterView: React.FC<AICenterViewProps> = ({
   const liveStats = useMemo(() => {
     const totalOrders = orders.length;
     const totalRevenue = orders.reduce((s, o) => s + o.totalAmount, 0);
-    const pendingOrders = orders.filter(o => o.status === 'pending').length;
+    const pendingOrders = orders.filter(o => ['pending', 'awaiting_confirmation'].includes(o.status)).length;
     const preparingOrders = orders.filter(o => o.status === 'preparing').length;
     const readyOrders = orders.filter(o => o.status === 'ready').length;
     const completedOrders = orders.filter(o => o.status === 'completed').length;

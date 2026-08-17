@@ -23,7 +23,7 @@ import {
   ChefHat
 } from 'lucide-react';
 import { Order, OrderStatus, Counter } from '../../../types';
-import { isWithinCancelWindow, getCancelRemainingMs, CANCEL_BLOCK_MESSAGE } from '../../../lib/orderUtils';
+import { isWithinCancelWindow, getCancelRemainingMs, CANCEL_BLOCK_MESSAGE, getOrderStatusLabel, getStatusHistoryLabel } from '../../../lib/orderUtils';
 
 interface OrderManagementProps {
   orders: Order[];
@@ -36,7 +36,8 @@ interface OrderManagementProps {
 
 const STATUS_TABS: { id: string; label: string; color: string; icon: React.ReactNode }[] = [
   { id: 'all', label: 'All Orders', color: 'text-slate-300', icon: <ShoppingBag className="w-3.5 h-3.5" /> },
-  { id: 'pending', label: 'Pending', color: 'text-amber-400', icon: <Clock className="w-3.5 h-3.5" /> },
+  { id: 'pending', label: 'Waiting for Confirmation', color: 'text-amber-400', icon: <Clock className="w-3.5 h-3.5" /> },
+  { id: 'awaiting_confirmation', label: 'Awaiting Confirmation', color: 'text-amber-400', icon: <Clock className="w-3.5 h-3.5" /> },
   { id: 'confirmed', label: 'Confirmed', color: 'text-orange-400', icon: <CheckCircle2 className="w-3.5 h-3.5" /> },
   { id: 'preparing', label: 'Preparing', color: 'text-cyan-400', icon: <Zap className="w-3.5 h-3.5" /> },
   { id: 'ready', label: 'Ready', color: 'text-emerald-400', icon: <CheckCircle2 className="w-3.5 h-3.5" /> },
@@ -60,13 +61,24 @@ const getRoleBadge = (role?: string) => {
 
 const getStatusColor = (status: OrderStatus) => {
   switch (status) {
-    case 'pending': return 'bg-amber-500/10 text-amber-400 border border-amber-500/20';
+    case 'pending':
+    case 'awaiting_confirmation': return 'bg-amber-500/10 text-amber-400 border border-amber-500/20';
     case 'preparing': return 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/20';
     case 'ready': return 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20';
     case 'completed': return 'bg-green-500/10 text-green-400 border border-green-500/20';
     case 'cancelled': return 'bg-red-500/10 text-red-400 border border-red-500/20';
     default: return 'bg-slate-800 text-slate-400 border border-slate-700';
   }
+};
+
+const formatTime = (value?: string) => {
+  if (!value) return '';
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value;
+  return parsed.toLocaleString('en-US', {
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+    month: 'short', day: 'numeric',
+  });
 };
 
 const Detail = ({ label, value }: { label: string; value?: React.ReactNode }) => (
@@ -128,7 +140,11 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
 
   const filteredOrders = useMemo(() => {
     return safeOrders.filter((o) => {
-      const matchesStatus = activeStatusFilter === 'all' || o.status === activeStatusFilter;
+      const matchesStatus =
+        activeStatusFilter === 'all' ||
+        (['pending', 'awaiting_confirmation'].includes(activeStatusFilter)
+          ? ['pending', 'awaiting_confirmation'].includes(o.status)
+          : o.status === activeStatusFilter);
       const matchesRole = activeRoleFilter === 'all' || (o.userRole || '').toLowerCase() === activeRoleFilter;
       const matchesSearch =
         (o.orderNumber || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -147,6 +163,10 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
     safeOrders.forEach(o => {
       counts[o.status] = (counts[o.status] || 0) + 1;
     });
+    // "Waiting for Confirmation" tab covers both pending and awaiting_confirmation
+    const awaiting = (counts['awaiting_confirmation'] || 0) + (counts['pending'] || 0);
+    counts['pending'] = awaiting;
+    counts['awaiting_confirmation'] = awaiting;
     return counts;
   }, [safeOrders]);
 
@@ -333,7 +353,7 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
                       </td>
                       <td className="px-4 py-3.5">
                         <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase ${getStatusColor(ord.status)}`}>
-                          {ord.status}
+                          {getOrderStatusLabel(ord.status)}
                         </span>
                       </td>
                       <td className="px-4 py-3.5 text-right whitespace-nowrap">
@@ -420,16 +440,67 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
             <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2.5">
               <div className="text-xs font-bold text-slate-300 uppercase tracking-wider">Order Info</div>
               <div className="grid grid-cols-2 gap-2.5 text-xs">
-                <Detail label="Order Status" value={<span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${getStatusColor(viewOrder.status)}`}>{viewOrder.status}</span>} />
+                <Detail label="Order Status" value={<span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${getStatusColor(viewOrder.status)}`}>{getOrderStatusLabel(viewOrder.status)}</span>} />
                 <Detail label="Kitchen Status" value={viewOrder.kitchenStatus || ''} />
                 <Detail label="Counter Status" value={viewOrder.counterStatus || ''} />
-                <Detail label="Payment" value={<span className="capitalize">{viewOrder.paymentStatus || ''}</span>} />
                 <Detail label="Est. Ready Time" value={viewOrder.pickupTimeEstimated || ''} />
                 <Detail label="Pickup Counter" value={viewOrder.pickupCounter || ''} />
                 <Detail label="Pickup Token" value={<span className="font-mono">{viewOrder.tokenNumber || ''}</span>} />
                 <Detail label="Pickup Code" value={<span className="font-mono">{viewOrder.pickupCode || ''}</span>} />
+                <Detail label="Placed At" value={formatTime(viewOrder.orderTime || viewOrder.created_at || '')} />
+                {viewOrder.confirmedAt && (
+                  <Detail label="Confirmed At" value={<span className="font-mono">{formatTime(viewOrder.confirmedAt)}</span>} />
+                )}
+                {viewOrder.confirmedByName && (
+                  <Detail label="Confirmed By" value={`${viewOrder.confirmedByName}${viewOrder.confirmedBy ? ` (${viewOrder.confirmedBy})` : ''}`} />
+                )}
               </div>
             </div>
+
+            <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2.5">
+              <div className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+                <CreditCard className="w-3.5 h-3.5 text-slate-500" />
+                Payment
+              </div>
+              <div className="grid grid-cols-2 gap-2.5 text-xs">
+                <Detail
+                  label="Payment Status"
+                  value={
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${String(viewOrder.paymentStatus || '').toLowerCase() === 'paid' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-slate-800 text-slate-400 border border-slate-700'}`}>
+                      {viewOrder.paymentStatus || '—'}
+                    </span>
+                  }
+                />
+                <Detail label="Method" value="Razorpay" />
+                <Detail label="Payment Reference" value={<span className="font-mono">{viewOrder.paymentReference || '—'}</span>} />
+                <Detail label="Razorpay Payment ID" value={<span className="font-mono">{viewOrder.razorpayPaymentId || '—'}</span>} />
+                <Detail label="Razorpay Order ID" value={<span className="font-mono">{viewOrder.razorpayOrderId || '—'}</span>} />
+                <Detail label="Amount" value={<span className="font-mono font-bold text-emerald-400">₹{(viewOrder.totalAmount || 0).toFixed(2)}</span>} />
+              </div>
+            </div>
+
+            {viewOrder.statusHistory && viewOrder.statusHistory.length > 0 && (
+              <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2.5">
+                <div className="text-xs font-bold text-slate-300 uppercase tracking-wider">Status History</div>
+                <div className="space-y-1.5">
+                  {viewOrder.statusHistory
+                    .slice()
+                    .sort((a, b) => new Date(a.changed_at || a.changedAt || 0).getTime() - new Date(b.changed_at || b.changedAt || 0).getTime())
+                    .map((h, idx) => (
+                      <div key={idx} className="flex items-center justify-between gap-2 text-[11px]">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" />
+                          <span className="font-semibold text-slate-200 capitalize">{getStatusHistoryLabel(h.status)}</span>
+                          {h.changed_by_name && (
+                            <span className="text-[10px] text-slate-500 truncate">by {h.changed_by_name}</span>
+                          )}
+                        </div>
+                        <span className="font-mono text-[10px] text-slate-500 shrink-0">{formatTime(h.changed_at || h.changedAt || '')}</span>
+                      </div>
+                    ))}
+                </div>
+              </div>
+            )}
 
             <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
               <div className="text-xs font-bold text-slate-300 uppercase tracking-wider">QR Code</div>
@@ -491,12 +562,13 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
             </div>
 
             <div className="pt-3 border-t border-slate-800 flex flex-wrap gap-2">
-              {viewOrder.status === 'pending' && (
+              {['pending', 'awaiting_confirmation'].includes(viewOrder.status) && (
                 <button
                   onClick={() => { onUpdateOrderStatus(viewOrder.id, 'confirmed'); setSelectedOrderId(null); }}
-                  className="flex-1 py-2 rounded-xl bg-amber-500 text-slate-950 font-bold text-xs"
+                  className="flex-1 py-2 rounded-xl bg-amber-500 text-slate-950 font-bold text-xs flex items-center justify-center space-x-1.5"
                 >
-                  Accept Order
+                  <CheckCircle2 className="w-4 h-4" />
+                  <span>Confirm Order</span>
                 </button>
               )}
               {viewOrder.status === 'confirmed' && (
