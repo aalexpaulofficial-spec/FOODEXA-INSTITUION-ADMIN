@@ -912,6 +912,108 @@ Return ONLY valid JSON, no extra text.`;
     }
   });
 
+  // POST /api/razorpay/verify — Razorpay payment verification + order creation
+  app.post('/api/razorpay/verify', async (req, res) => {
+    try {
+      const crypto = await import('crypto');
+      const razorpaySecret = (process.env.RAZORPAY_KEY_SECRET || process.env.RAZORPAY_SECRET || '').trim();
+
+      const {
+        razorpay_order_id,
+        razorpay_payment_id,
+        razorpay_signature,
+        institution_id,
+        canteen_id,
+        items,
+        total_amount,
+        student_name,
+        pickup_counter,
+        payment_method,
+      } = req.body || {};
+
+      if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
+        return res.status(400).json({ error: 'Missing Razorpay payment verification data.' });
+      }
+      if (!institution_id) {
+        return res.status(400).json({ error: 'institution_id is required.' });
+      }
+      if (!items || !Array.isArray(items) || items.length === 0) {
+        return res.status(400).json({ error: 'At least one order item is required.' });
+      }
+
+      if (!razorpaySecret) {
+        console.error('[Razorpay] RAZORPAY_KEY_SECRET not set');
+        return res.status(500).json({ error: 'Razorpay secret not configured.' });
+      }
+
+      const expectedSig = crypto.createHmac('sha256', razorpaySecret)
+        .update(`${razorpay_order_id}|${razorpay_payment_id}`)
+        .digest('hex');
+      if (expectedSig !== razorpay_signature) {
+        return res.status(403).json({ error: 'Payment signature verification failed.' });
+      }
+
+      const authHeader = (req.headers.authorization || '') as string;
+      const token = authHeader.replace(/^Bearer\s+/i, '').trim();
+      if (!token) return res.status(401).json({ error: 'Authentication required.' });
+
+      const { data: authData, error: authErr } = await serverSupabase.auth.getUser(token);
+      if (authErr || !authData?.user) return res.status(401).json({ error: 'Invalid session.' });
+      const userId = authData.user.id;
+
+      const genNum = () => `FX-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
+      const genToken = () => String(Math.floor(1000 + Math.random() * 9000));
+      const genPickup = () => {
+        const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+        let c = '';
+        for (let i = 0; i < 6; i++) c += chars[Math.floor(Math.random() * chars.length)];
+        return c;
+      };
+
+      const itemsJson = items.map((it: any) => ({
+        menu_item_id: it.menu_item_id || null,
+        item_name: it.item_name || it.name || 'Item',
+        quantity: Number(it.quantity || 1),
+        unit_price: Number(it.unit_price || it.price || 0),
+        total_price: Number(it.total_price || (Number(it.quantity || 1) * Number(it.unit_price || it.price || 0))),
+      }));
+
+      const { data: order, error: rpcError } = await serverSupabase.rpc('foodeza_upsert_verified_order', {
+        p_razorpay_payment_id: razorpay_payment_id,
+        p_razorpay_order_id: razorpay_order_id,
+        p_institution_id: institution_id,
+        p_canteen_id: canteen_id || null,
+        p_user_id: userId,
+        p_student_name: student_name || '',
+        p_items: JSON.stringify(itemsJson),
+        p_total_amount: Number(total_amount || 0),
+        p_pickup_code: genPickup(),
+        p_token_number: genToken(),
+        p_order_number: genNum(),
+        p_pickup_counter: pickup_counter || '',
+        p_payment_method: payment_method || 'Razorpay',
+      });
+
+      if (rpcError) {
+        console.error('[Razorpay] RPC error:', rpcError);
+        return res.status(500).json({ error: 'Payment verified but order creation failed.', details: rpcError.message });
+      }
+
+      res.json({
+        success: true,
+        order_id: order?.id,
+        order_number: order?.order_number || '',
+        token_number: order?.token_number || '',
+        pickup_code: order?.pickup_code || '',
+        status: order?.status,
+        payment_status: order?.payment_status,
+      });
+    } catch (err: any) {
+      console.error('[Razorpay verify] Error:', err);
+      res.status(500).json({ error: err?.message || 'Payment verification failed.' });
+    }
+  });
+
   // Vite middleware for development vs static serve for production
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({ server: { middlewareMode: true }, appType: 'spa' });
