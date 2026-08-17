@@ -978,6 +978,16 @@ Return ONLY valid JSON, no extra text.`;
         total_price: Number(it.total_price || (Number(it.quantity || 1) * Number(it.unit_price || it.price || 0))),
       }));
 
+      console.log('[FOODEXA ORDER] Creating verified order:', {
+        authenticated_user: userId,
+        institution_id,
+        razorpay_payment_id,
+        razorpay_order_id,
+        total_amount,
+        items_count: itemsJson.length,
+        student_name,
+      });
+
       const { data: order, error: rpcError } = await serverSupabase.rpc('foodeza_upsert_verified_order', {
         p_razorpay_payment_id: razorpay_payment_id,
         p_razorpay_order_id: razorpay_order_id,
@@ -995,9 +1005,19 @@ Return ONLY valid JSON, no extra text.`;
       });
 
       if (rpcError) {
-        console.error('[Razorpay] RPC error:', rpcError);
+        console.error('[FOODEXA ORDER] RPC error creating order:', rpcError);
         return res.status(500).json({ error: 'Payment verified but order creation failed.', details: rpcError.message });
       }
+
+      console.log('[FOODEXA ORDER] Order created successfully:', {
+        order_id: order?.id,
+        order_number: order?.order_number,
+        institution_id: order?.institution_id,
+        status: order?.status,
+        payment_status: order?.payment_status,
+        token_number: order?.token_number,
+        pickup_code: order?.pickup_code,
+      });
 
       res.json({
         success: true,

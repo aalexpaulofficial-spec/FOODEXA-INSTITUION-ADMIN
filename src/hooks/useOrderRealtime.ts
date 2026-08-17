@@ -187,25 +187,51 @@ export function useOrderRealtime(
 
       query = query.order('created_at', { ascending: false });
 
-      const { data, error } = await withTimeout(query, DATA_FETCH_TIMEOUT_MS, 'Orders fetch');
+      const { data, error: fetchError } = await withTimeout(query, DATA_FETCH_TIMEOUT_MS, 'Orders fetch');
 
-      if (error) {
-        console.error('[useOrderRealtime] Supabase error:', error);
-        setError(`Failed to load orders: ${error.message}`);
+      if (fetchError) {
+        console.error('[FOODEXA ORDER] Supabase query error:', fetchError);
+        console.error('[FOODEXA ORDER] Error code:', fetchError.code);
+        console.error('[FOODEXA ORDER] Error message:', fetchError.message);
+        console.error('[FOODEXA ORDER] Error details:', fetchError.details);
+        console.error('[FOODEXA ORDER] Error hint:', fetchError.hint);
+        console.error('[FOODEXA ORDER] Institution ID queried:', institutionId);
+        console.error('[FOODEXA ORDER] Query used:', ORDER_SELECT);
+        setError(`Failed to load orders: [${fetchError.code || 'UNKNOWN'}] ${fetchError.message || 'Unknown error'}`);
         setOrders([]);
       } else {
         const enriched = enrichOrdersWithProfile((data as any[]) || []);
+        console.log('[FOODEXA ORDER] Orders fetched successfully:', enriched.length, 'orders for institution:', institutionId);
         setOrders(enriched);
         setError(null);
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Unknown error fetching orders';
-      console.error('[useOrderRealtime] fetchOrders error:', err);
+      console.error('[FOODEXA ORDER] fetchOrders exception:', err);
       setError(msg);
     } finally {
       setLoading(false);
     }
   }, [institutionId, enrichOrdersWithProfile]);
+
+  const fetchSingleOrder = useCallback(async (orderId: string): Promise<any | null> => {
+    try {
+      const { data, error: fetchError } = await supabase
+        .from('orders')
+        .select(ORDER_SELECT)
+        .eq('id', orderId)
+        .maybeSingle();
+
+      if (fetchError) {
+        console.error('[FOODEXA ORDER] Failed to fetch single order:', orderId, fetchError.message);
+        return null;
+      }
+      return data;
+    } catch (err) {
+      console.error('[FOODEXA ORDER] Exception fetching single order:', orderId, err);
+      return null;
+    }
+  }, []);
 
   useEffect(() => {
     fetchOrders();
@@ -223,6 +249,8 @@ export function useOrderRealtime(
       channelConfig.filter = `institution_id=eq.${institutionId}`;
     }
 
+    console.log('[FOODEXA REALTIME] Subscribing to orders channel:', channelName, 'filter:', channelConfig.filter || 'none');
+
     const channel = supabase
       .channel(channelName)
       .on('postgres_changes', channelConfig, (payload: any) => {
@@ -230,38 +258,33 @@ export function useOrderRealtime(
           const record = payload?.new || payload?.old;
           if (!record || !record.id) return;
 
+          console.log('[FOODEXA REALTIME] Orders table event:', eventType, 'Order ID:', record.id, 'Institution:', record.institution_id);
+
           if (eventType === 'INSERT') {
-            supabase
-              .from('orders')
-              .select(ORDER_SELECT)
-              .eq('id', record.id)
-              .maybeSingle()
-              .then(({ data: fullOrder }) => {
-                if (fullOrder) {
-                  const enriched = enrichOrdersWithProfile([fullOrder])[0];
-                  if (enriched) {
-                    setOrders(prev => {
-                      const exists = prev.some(o => o.id === enriched.id);
-                      if (exists) return prev.map(o => o.id === enriched.id ? enriched : o);
-                      return [enriched, ...prev];
-                    });
-                  }
+            console.log('[FOODEXA REALTIME] New order received:', record.id);
+            fetchSingleOrder(record.id).then((fullOrder) => {
+              if (fullOrder) {
+                const enriched = enrichOrdersWithProfile([fullOrder])[0];
+                if (enriched) {
+                  console.log('[FOODEXA REALTIME] New order enriched and added to queue:', enriched.id, enriched.status, enriched.paymentStatus);
+                  setOrders(prev => {
+                    const exists = prev.some(o => o.id === enriched.id);
+                    if (exists) return prev.map(o => o.id === enriched.id ? enriched : o);
+                    return [enriched, ...prev];
+                  });
                 }
-              });
+              }
+            });
           } else if (eventType === 'UPDATE') {
-            supabase
-              .from('orders')
-              .select(ORDER_SELECT)
-              .eq('id', record.id)
-              .maybeSingle()
-              .then(({ data: fullOrder }) => {
-                if (fullOrder) {
-                  const enriched = enrichOrdersWithProfile([fullOrder])[0];
-                  if (enriched) {
-                    setOrders(prev => prev.map(o => o.id === enriched.id ? enriched : o));
-                  }
+            console.log('[FOODEXA REALTIME] Order updated:', record.id, 'new status:', record.status);
+            fetchSingleOrder(record.id).then((fullOrder) => {
+              if (fullOrder) {
+                const enriched = enrichOrdersWithProfile([fullOrder])[0];
+                if (enriched) {
+                  setOrders(prev => prev.map(o => o.id === enriched.id ? enriched : o));
                 }
-              });
+              }
+            });
           } else if (eventType === 'DELETE') {
             setOrders(prev => prev.filter(o => o.id !== record.id));
           }
@@ -279,19 +302,16 @@ export function useOrderRealtime(
           if (!record?.order_id) return;
           const orderId = record.order_id;
 
-          supabase
-            .from('orders')
-            .select(ORDER_SELECT)
-            .eq('id', orderId)
-            .maybeSingle()
-            .then(({ data: fullOrder }) => {
-              if (fullOrder) {
-                const enriched = enrichOrdersWithProfile([fullOrder])[0];
-                if (enriched) {
-                  setOrders(prev => prev.map(o => o.id === enriched.id ? enriched : o));
-                }
+          console.log('[FOODEXA REALTIME] Order items event for order:', orderId);
+
+          fetchSingleOrder(orderId).then((fullOrder) => {
+            if (fullOrder) {
+              const enriched = enrichOrdersWithProfile([fullOrder])[0];
+              if (enriched) {
+                setOrders(prev => prev.map(o => o.id === enriched.id ? enriched : o));
               }
-            });
+            }
+          });
         }
       )
       .on(
@@ -306,22 +326,20 @@ export function useOrderRealtime(
           if (!record?.order_id) return;
           const orderId = record.order_id;
 
-          supabase
-            .from('orders')
-            .select(ORDER_SELECT)
-            .eq('id', orderId)
-            .maybeSingle()
-            .then(({ data: fullOrder }) => {
-              if (fullOrder) {
-                const enriched = enrichOrdersWithProfile([fullOrder])[0];
-                if (enriched) {
-                  setOrders(prev => prev.map(o => o.id === enriched.id ? enriched : o));
-                }
+          console.log('[FOODEXA REALTIME] Order status history event for order:', orderId);
+
+          fetchSingleOrder(orderId).then((fullOrder) => {
+            if (fullOrder) {
+              const enriched = enrichOrdersWithProfile([fullOrder])[0];
+              if (enriched) {
+                setOrders(prev => prev.map(o => o.id === enriched.id ? enriched : o));
               }
-            });
+            }
+          });
         }
       )
       .subscribe((status) => {
+        console.log('[FOODEXA REALTIME] Channel subscription status:', status);
         setRealtimeStatus(status);
         setIsRealtime(status === 'SUBSCRIBED');
       });
@@ -334,15 +352,13 @@ export function useOrderRealtime(
         channelRef.current = null;
       }
     };
-  }, [institutionId, fetchOrders, enrichOrdersWithProfile]);
+  }, [institutionId, fetchOrders, enrichOrdersWithProfile, fetchSingleOrder]);
 
   const insertStatusNotification = useCallback(
     async (order: Order, status: OrderStatus) => {
       const notification = getNotificationForStatus(status, order);
       if (!notification) return;
 
-      // Include quantities in the announcement (kitchen + student) so staff and
-      // students always know exactly what to prepare and how many.
       const itemSummary = buildOrderItemSummary(order);
       const message = itemSummary
         ? `${notification.message} Items: ${itemSummary}`
@@ -351,13 +367,13 @@ export function useOrderRealtime(
       try {
         const studentId = order.studentId;
         if (!studentId) {
-          console.warn('[useOrderRealtime] No student_id on order, skipping notification');
+          console.warn('[FOODEXA ORDER] No student_id on order, skipping notification');
           return;
         }
 
         const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
         if (!uuidRegex.test(studentId)) {
-          console.warn('[useOrderRealtime] Invalid student_id UUID:', studentId);
+          console.warn('[FOODEXA ORDER] Invalid student_id UUID:', studentId);
           return;
         }
 
@@ -378,10 +394,10 @@ export function useOrderRealtime(
            .maybeSingle();
 
         if (error) {
-          console.error('[useOrderRealtime] Failed to insert notification:', error);
+          console.error('[FOODEXA ORDER] Failed to insert notification:', error);
         }
       } catch (err) {
-        console.error('[useOrderRealtime] Notification insertion failed:', err);
+        console.error('[FOODEXA ORDER] Notification insertion failed:', err);
       }
     },
     [institutionId]
@@ -407,8 +423,6 @@ export function useOrderRealtime(
 
        setUpdatingOrderId(orderId);
 
-       // Map the target status to the canonical lifecycle RPC.
-       // Every RPC uses only lowercase status values and is idempotent.
        const RPC_FOR_STATUS: Record<string, string> = {
          confirmed: 'accept_food_order',
          preparing: 'start_food_preparing',
@@ -419,27 +433,25 @@ export function useOrderRealtime(
 
        const rpcName = RPC_FOR_STATUS[status];
        if (!rpcName) {
-         console.error('[FOODEXA] Unsupported status transition:', status);
+         console.error('[FOODEXA ORDER] Unsupported status transition:', status);
          setError(`Unsupported status transition: ${status}`);
          setUpdatingOrderId(null);
          return false;
        }
 
        try {
-         let rpcData: any = null;
-         let rpcError: any = null;
+         console.log('[FOODEXA ORDER] Updating order', orderId, 'to status:', status, 'via RPC:', rpcName);
 
          const result = await supabase.rpc(rpcName, { p_order_id: orderId });
-         rpcData = result.data;
-         rpcError = result.error;
+         const rpcData = result.data;
+         const rpcError = result.error;
 
         if (rpcError) {
-          console.error('[FOODEXA] RPC ERROR:', rpcError);
-          console.error('[FOODEXA] Supabase code:', rpcError.code);
-          console.error('[FOODEXA] Supabase message:', rpcError.message);
-          console.error('[FOODEXA] Supabase details:', rpcError.details);
-          console.error('[FOODEXA] Supabase hint:', rpcError.hint);
-          // Show the real Supabase error — never hide it behind a generic message
+          console.error('[FOODEXA ORDER] RPC ERROR:', rpcError);
+          console.error('[FOODEXA ORDER] Supabase code:', rpcError.code);
+          console.error('[FOODEXA ORDER] Supabase message:', rpcError.message);
+          console.error('[FOODEXA ORDER] Supabase details:', rpcError.details);
+          console.error('[FOODEXA ORDER] Supabase hint:', rpcError.hint);
           const errMsg = rpcError.message || rpcError.details || rpcError.hint || 'RPC failed';
           setError(`[${rpcError.code || 'ERROR'}] ${errMsg}`);
           setUpdatingOrderId(null);
@@ -447,10 +459,8 @@ export function useOrderRealtime(
           return false;
         }
 
-        // RPC succeeded — some RPCs return null/void on success, that is fine
-        console.log('[FOODEXA] RPC SUCCESS. status →', status, '| data:', rpcData);
+        console.log('[FOODEXA ORDER] RPC SUCCESS. status ->', status, '| data:', rpcData);
 
-        // Notify the student instantly so their tracker flips without a refresh
         const updatedOrder = orders.find((o) => o.id === orderId) || order;
         if (updatedOrder) {
           void insertStatusNotification(updatedOrder, status);
@@ -460,7 +470,7 @@ export function useOrderRealtime(
         setUpdatingOrderId(null);
         return true;
       } catch (err: unknown) {
-        console.error('[FOODEXA] Update error:', err);
+        console.error('[FOODEXA ORDER] Update error:', err);
         setError(err instanceof Error ? err.message : 'Failed to update order status');
         setUpdatingOrderId(null);
         await fetchOrders();
@@ -494,43 +504,19 @@ export function useOrderRealtime(
       const fallback = orders.find((o) => o.id === orderId) || null;
 
       try {
-         let query = supabase
-           .from('orders')
-           .select(`${ORDER_SELECT}, profiles(*), institutions(*), canteens(*)`)
-           .eq('id', orderId);
+        // Use the same proven ORDER_SELECT as fetchOrders - avoid embedding
+        // profiles/institutions/canteens which may not have FK relationships
+        const fullOrder = await fetchSingleOrder(orderId);
+        if (!fullOrder) return fallback;
 
-         if (institutionId) {
-           query = query.eq('institution_id', institutionId);
-         }
-
-          const { data, error } = await withTimeout(query.maybeSingle(), DATA_FETCH_TIMEOUT_MS, 'Order details fetch');
-
-        if (error || !data) return fallback;
-
-        const enriched = enrichOrdersWithProfile([data as any])[0] || fallback;
-        const profile = Array.isArray((data as any).profiles)
-          ? (data as any).profiles[0]
-          : (data as any).profiles;
-        const institution = Array.isArray((data as any).institutions)
-          ? (data as any).institutions[0]
-          : (data as any).institutions;
-        const canteen = Array.isArray((data as any).canteens)
-          ? (data as any).canteens[0]
-          : (data as any).canteens;
-
-        return {
-          ...enriched,
-          studentName: profile?.full_name || enriched.studentName,
-          userEmail: profile?.email || enriched.userEmail,
-          userPhone: profile?.phone || enriched.userPhone,
-          canteenName: canteen?.name || enriched.canteenName || '',
-          institutionName: institution?.name || enriched.institutionName || '',
-        } as Order;
-      } catch {
+        const enriched = enrichOrdersWithProfile([fullOrder as any])[0] || fallback;
+        return enriched as Order;
+      } catch (err) {
+        console.error('[FOODEXA ORDER] fetchOrderDetails error:', err);
         return fallback;
       }
     },
-    [orders, institutionId, enrichOrdersWithProfile]
+    [orders, fetchSingleOrder, enrichOrdersWithProfile]
   );
 
   const refresh = useCallback(() => {

@@ -237,7 +237,7 @@ export function useInstitutionData(institutionId: string | null): InstitutionDat
         withTimeout(supabase.from('profiles').select('*').eq('institution_id', institutionId).neq('role', 'student').neq('role', 'super_admin'), DATA_FETCH_TIMEOUT_MS, 'Staff fetch'),
         withTimeout(supabase.from('notifications').select('*').eq('institution_id', institutionId), DATA_FETCH_TIMEOUT_MS, 'Notifications fetch'),
         withTimeout(Promise.resolve({ data: [], error: null }), DATA_FETCH_TIMEOUT_MS, 'Audit logs fetch (skipped)'),
-        withTimeout(supabase.from('profiles').select('*'), DATA_FETCH_TIMEOUT_MS, 'Profiles fetch'),
+        withTimeout(supabase.from('profiles').select('*').eq('institution_id', institutionId), DATA_FETCH_TIMEOUT_MS, 'Profiles fetch'),
       ]);
 
       if (instErr) console.error('[Data] institutions fetch error:', instErr);
